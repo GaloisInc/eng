@@ -197,6 +197,9 @@ update_active_val(Active, N, V, UpdActive) :-
     % Same indentation as current active, so add this to the entire active
     % stack's value stack.
     active_add_val(V, Active, UpdActive).
+update_active_val(Active, N, val_(N, "", C), UpdActive) :-
+    % Blank, so it cannot be a key, just a value extension
+    active_add_val(val_(N, "", C), Active, UpdActive).
 update_active_val(Active, N, V, UpdActive) :-
     active_value_alignment(Active, N, indented),
     active_last_value(Active, LN, LV), !,

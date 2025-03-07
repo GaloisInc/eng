@@ -1702,6 +1702,310 @@ test(adjacent_keys, [nondet]) :-
     ],
     check(Inp, Parsed, NormText, Normalized, ReParsed, _Result).
 
+test(mixed_keys, [nondet]) :-
+    % Note that there are spaces on the lines between k7 and end (warning, don't
+    % let the editor trim trailing whitespace and remove these!
+    Inp = {|string||
+| key1 =
+|   key2 =
+|     key3 = value3
+|     key4 =
+|
+|       = value4.1
+|
+|       = value4.2
+|
+|       = value4.3
+|
+|     key5 = value5
+|
+|     k6 =
+|       k6sub = foo
+|               bar
+|
+|     k7 = value7
+|    
+|     
+| end = here
+|},
+    Parsed = [
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key3")],
+             [val(0, "value3")]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6,"")],
+             [val(0, "value4.1"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "")],
+             [val(0, "value4.2"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4")],
+             [val(0, ""),
+              val(6, "= value4.1"),
+              val(0, ""),
+              val(6, "= value4.2"),
+              val(0, ""),
+              val(6, "= value4.3"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "")],
+             [val(0, "value4.3"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key5")],
+             [val(0, "value5"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6")],
+             [val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6"), key(6, "k6sub")],
+             [val(0, "foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1")],
+             [val(2, "key2 ="),
+              val(4, "key3 = value3"),
+              val(4, "key4 ="),
+              val(0, ""),
+              val(6, "= value4.1"),
+              val(0, ""),
+              val(6, "= value4.2"),
+              val(0, ""),
+              val(6, "= value4.3"),
+              val(0, ""),
+              val(4, "key5 = value5"),
+              val(0, ""),
+              val(4, "k6 ="),
+              val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, ""),
+              val(4, "k7 = value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2")],
+             [val(4, "key3 = value3"),
+              val(4, "key4 ="),
+              val(0, ""),
+              val(6, "= value4.1"),
+              val(0, ""),
+              val(6, "= value4.2"),
+              val(0, ""),
+              val(6, "= value4.3"),
+              val(0, ""),
+              val(4, "key5 = value5"),
+              val(0, ""),
+              val(4, "k6 ="),
+              val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, ""),
+              val(4, "k7 = value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k7")],
+             [val(0, "value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "end")], [val(0, "here")])
+    ],
+    % Similar keys joined, all keys have =, blank keys autogen
+    Out = {|string||
+| key1 =
+|   key2 =
+|     key3 = value3
+|     key4 =
+|       key41 = value4.1
+|
+|       key42 = value4.2
+|
+|       key43 = value4.3
+|
+|     key5 = value5
+|
+|     k6 =
+|       k6sub = foo
+|               bar
+|
+|     k7 = value7
+|    
+|     
+| end = here
+|},
+    Normalized = [
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key3")],
+             [val(0, "value3")]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key41")],
+             [val(0, "value4.1"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key42")],
+             [val(0, "value4.2"),
+              val(0, "")
+             ]),
+        %% eqil([key(0, "key1"), key(2, "key2"), key(4, "key4")],
+        %%      [val(0, ""),
+        %%       val(6, "= value4.1"),
+        %%       val(0, ""),
+        %%       val(6, "= value4.2"),
+        %%       val(0, ""),
+        %%       val(6, "= value4.3"),
+        %%       val(0, "")
+        %%      ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key43")],
+             [val(0, "value4.3"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key5")],
+             [val(0, "value5"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6")],
+             [val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6"), key(6, "k6sub")],
+             [val(0, "foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k7")],
+             [val(0, "value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        %% eqil([key(0, "key1"), key(2, "key2")],
+        %%      [val(4, "key3 = value3"),
+        %%       val(4, "key4 ="),
+        %%       val(0, ""),
+        %%       val(6, "= value4.1"),
+        %%       val(0, ""),
+        %%       val(6, "= value4.2"),
+        %%       val(0, ""),
+        %%       val(6, "= value4.3"),
+        %%       val(0, ""),
+        %%       val(4, "key5 = value5"),
+        %%       val(0, ""),
+        %%       val(4, "k6 ="),
+        %%       val(6, "k6sub = foo"),
+        %%       val(14, "bar"),
+        %%       val(0, ""),
+        %%       val(4, "k7 = value7")
+        %%      ])
+        %% eqil([key(0, "key1")],
+        %%      [val(2, "key2 ="),
+        %%       val(4, "key3 = value3"),
+        %%       val(4, "key4 ="),
+        %%       val(0, ""),
+        %%       val(6, "= value4.1"),
+        %%       val(0, ""),
+        %%       val(6, "= value4.2"),
+        %%       val(0, ""),
+        %%       val(6, "= value4.3"),
+        %%       val(0, ""),
+        %%       val(4, "key5 = value5"),
+        %%       val(0, ""),
+        %%       val(4, "k6 ="),
+        %%       val(6, "k6sub = foo"),
+        %%       val(14, "bar"),
+        %%       val(0, ""),
+        %%       val(4, "k7 = value7")
+        %%      ])
+        eqil([key(0, "end")], [val(0, "here")])
+    ],
+    ReParsed = [
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key3")],
+             [val(0, "value3")]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key41")],
+             [val(0, "value4.1"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key42")],
+             [val(0, "value4.2"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4")],
+             [%% val(0, ""),
+              val(6, "key41 = value4.1"),
+              val(0, ""),
+              val(6, "key42 = value4.2"),
+              val(0, ""),
+              val(6, "key43 = value4.3"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key43")],
+             [val(0, "value4.3"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key5")],
+             [val(0, "value5"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6")],
+             [val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6"), key(6, "k6sub")],
+             [val(0, "foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1")],
+             [val(2, "key2 ="),
+              val(4, "key3 = value3"),
+              val(4, "key4 ="),
+              %% val(0, ""),
+              val(6, "key41 = value4.1"),
+              val(0, ""),
+              val(6, "key42 = value4.2"),
+              val(0, ""),
+              val(6, "key43 = value4.3"),
+              val(0, ""),
+              val(4, "key5 = value5"),
+              val(0, ""),
+              val(4, "k6 ="),
+              val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, ""),
+              val(4, "k7 = value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2")],
+             [val(4, "key3 = value3"),
+              val(4, "key4 ="),
+              val(6, "key41 = value4.1"),
+              val(0, ""),
+              val(6, "key42 = value4.2"),
+              val(0, ""),
+              val(6, "key43 = value4.3"),
+              val(0, ""),
+              val(4, "key5 = value5"),
+              val(0, ""),
+              val(4, "k6 ="),
+              val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, ""),
+              val(4, "k7 = value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k7")],
+             [val(0, "value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "end")], [val(0, "here")])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
+
 
 % ----------------------------------------------------------------------
 
