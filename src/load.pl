@@ -182,11 +182,33 @@ process_eng_file(File, true) :-
     read_file_to_string(File, Contents, []),
     print_message(informational, reading_eng_file(File)),
     parse_eng_eqil(File, Contents, Parsed),
-    assert_eqil(Parsed).
+    ( normalize_eqil(Parsed, Normalized), !,
+      reprocess_eng_file(File, Normalized)
+    ; (assert_eqil(Parsed), !
+      ; print_message(error, eqil_nesting_too_deep(File))
+      )
+    ).
 
+reprocess_eng_file(File, Updated_EQIL) :-
+    !,
+    emit_eqil(Updated_EQIL, OutText),
+    string_concat(File, ".new", NewFile),
+    open(NewFile, write, Out, [create([read, write]), type(text)]),
+    format(Out, '~w', [OutText]),
+    close(Out),
+    rename_file(NewFile, File),
+    print_message(informational, rewrote_eng_file(File)), !,
+    parse_eng_eqil(File, OutText, Parsed),
+    ( assert_eqil(Parsed), !
+    ; print_message(error, eqil_nesting_too_deep(File))
+    ).
 
 prolog:message(reading_eng_file(File)) -->
     [ 'Ingesting ~w' - [File] ].
+prolog:message(rewrote_eng_file(File)) -->
+    [ 'Rewrote ~w' - [File] ].
+prolog:message(eqil_nesting_too_deep(File)) -->
+    [ 'Could not express ~w: maximum key nesting level depth exceeded ' - [File] ].
 prolog:message(no_defined_subcmds(Cmd)) -->
     [ 'No currently user-defined "~w" sub-commands' - [ Cmd ] ].
 prolog:message(invalid_subcmd(Cmd, SubCmd)) -->
