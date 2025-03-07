@@ -67,48 +67,46 @@ prolog:message(unparsed(In, Str)) -->
 %% ----------------------------------------------------------------------
 
 eqil(KeyVals) --> sequence(empty_line, _),
-                  eqil_keyvals([], KeyVals, _Remainder),
+                  eqil_keyvals(norm, [], KeyVals, _Remainder),
                   !,
                   blanks.
 eqil([]) --> blanks.
 
 
-eqil_keyvals(Active, FKVs, Rem) -->   % key =
+eqil_keyvals(Mode, Active, FKVs, Rem) -->   % key =
     indented(N), parse_key(N, K), parse_val(0, val_(0, "", _)),
     !,
     { update_active_new_kv([], Active, N, K, no(val), NextActive, AKVs) },
-    eqil_keyvals(NextActive, KVs, Rem),
+    eqil_keyvals(Mode, NextActive, KVs, Rem),
     { append(AKVs, KVs, FKVs) }.
 
-eqil_keyvals(Active, FKVs, Rem) -->   % key = value
+eqil_keyvals(Mode, Active, FKVs, Rem) -->   % key = value
     indented(N), parse_key(N, K), parse_val(0, V),
     !,
-    { update_active_new_kv([], Active, N, K, V, NextActive, AKVs) },
-    eqil_keyvals(NextActive, KVs, Rem),
-    { append(AKVs, KVs, FKVs) }.
+    inline_key_value(Mode, Active, N, K, V, FKVs, Rem).
 
-eqil_keyvals(Actives, KVs, Rem) -->   % value
+eqil_keyvals(Mode, Actives, KVs, Rem) -->   % value
     indented(N), parse_val(N, V),
     { active_alignment(Actives, N, indented) },
     !,
     { update_active_val(Actives, N, V, NextActive) },
-    eqil_keyvals(NextActive, KVs, Rem).
+    eqil_keyvals(Mode, NextActive, KVs, Rem).
 
-eqil_keyvals(Active, KVs, Rem) -->   % blank line
+eqil_keyvals(Mode, Active, KVs, Rem) -->   % blank line
     indented(N), parse_val(N, val_(N, "", C)),
     !,
     { update_active_val(Active, N, val_(N, "", C), NextActive) },
-    eqil_keyvals(NextActive, KVs, Rem).
+    eqil_keyvals(Mode, NextActive, KVs, Rem).
 
-eqil_keyvals(Actives, KVs, Rem) -->   % implicit key (equidented or dedented)
+eqil_keyvals(Mode, Actives, KVs, Rem) -->   % implicit key (equidented or dedented)
     indented(N), parse_val(N, val_(N, V, C)),
     { \+ active_alignment(Actives, N, indented) },
     !,
     { update_active_new_kv([], Actives, N, key_(N, V, C), no(val), NextActive, AKVs) },
-    eqil_keyvals(NextActive, SKVs, Rem),
+    eqil_keyvals(Mode, NextActive, SKVs, Rem),
     { append(AKVs, SKVs, KVs) }.
 
-eqil_keyvals(Active, KVs, "") -->   % end
+eqil_keyvals(_Mode, Active, KVs, "") -->   % end
     blanks,
     { finish_eqil(Active, KVs) }.
 
@@ -118,6 +116,11 @@ finish_eqil([A0|AS], KVs) :-
     trim_trailing_blanks(AV, AVTrimmed),
     add_eqil(AS, [key(AN, AK)], AVTrimmed, NextKVs, KVs).
 finish_eqil([], []).
+
+inline_key_value(Mode, Active, N, K, V, FKVs, Rem) -->
+    { update_active_new_kv([], Active, N, K, V, NextActive, AKVs) },
+    eqil_keyvals(Mode, NextActive, KVs, Rem),
+    { append(AKVs, KVs, FKVs) }.
 
 trim_trailing_blanks([val_(_,"",_)|Vals], TrimmedVals) :-
     !, trim_trailing_blanks(Vals, TrimmedVals).
