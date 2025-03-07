@@ -11,14 +11,18 @@ lando_to_fret(LandoSSL, fret{ requirements:FretRequirements,
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
     phrase(extract_fret("Default", "Default",
-                        SemanticDefs, FretRequirements, FretVars),
+                        SemanticDefs, FretRequirements, FretVars, FretModes),
            Body, Remaining),
     ( Remaining == []
-    -> cross_reference(FretRequirements, FretVars, FretVariables)
+    -> modes_to_vars(FretVars, FretModes, ModeVars),
+       append(FretVars, ModeVars, AllVars),
+       cross_reference(FretRequirements, AllVars, FretVariables)
     ; format('Unexpected extra not converted to Fret: ~w~n', [Remaining])
     ).
 
 resource(fret_semantics, 'src/semantics.json').
+
+% --------------------
 
 cross_reference(_, [], []).
 cross_reference(Reqs, [V|Vars], [O|OutVars]) :-
@@ -29,20 +33,47 @@ cross_reference(Reqs, [V|Vars], [O|OutVars]) :-
 
 var_ref_req_ids(_, [], []).
 var_ref_req_ids(VarName, [R|Reqs], [RefID|RefIds]) :-
-    get_dict(variables, R, VNames),
+    get_dict(semantics, R, Semantics),
+    get_dict(variables, Semantics, VNames),
     member(VarName, VNames), !,
     get_dict('_id', R, RefID),
     var_ref_req_ids(VarName, Reqs, RefIds).
 var_ref_req_ids(VarName, [_|Reqs], RefIds) :-
     var_ref_req_ids(VarName, Reqs, RefIds).
 
+% --------------------
+
+modes_to_vars(_, [], []).
+modes_to_vars(Vars, [Mode|Modes], OutVars) :-
+    mode_vars(Vars, Mode, ModeVars),
+    modes_to_vars(Vars, Modes, MVars),
+    append(ModeVars, MVars, OutVars).
+
+mode_vars(Vars, (VarName, VarVals), MVars) :-
+    find_var(Vars, VarName, TgtVar),
+    get_dict(project, TgtVar, Proj),
+    get_dict(component_name, TgtVar, Comp),
+    Type = "boolean", % XXX?  or is it the type of TgtVar?
+    mkModeVars(Proj, Comp, VarName, VarVals, Type, MVars).
+
+mkModeVars(_, _, _, [], _, []).
+mkModeVars(Proj, Comp, VarName, [(MName, MDesc, MVal)|MVals], Type, [Var|MVars]) :-
+    format(atom(X), '~w = ~w', [VarName, MVal]),
+    atom_string(X, XS),
+    mkVar(Proj, Comp, MName, MDesc, Type, "Mode", XS, Var),
+    mkModeVars(Proj, Comp, VarName, MVals, Type, MVars).
+
+find_var([V|_], Name, V) :- get_dict(variable_name, V, Name), !.
+find_var([_|VS], Name, V) :- find_var(VS, Name, V).
+
+    
 % ----------------------------------------------------------------------
 
 get_semantics_defs(Defs) :-
     open('res://lando_fret:fret_semantics', read, Strm),
     json_read_dict(Strm, Defs).
 
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
     [ SpecElement ],
     { is_dict(SpecElement, SpecType),
       member(SpecType, [ system, subsystem ]), %%%% <- selector
@@ -50,13 +81,14 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
       specElement_ref(SpecElement, SysName),
       get_dict(body, SpecElement, SysBody),
       (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret(NewProjName, SysName, Defs, SysReqs, SysVars), SysBody, _Remaining)
+      phrase(extract_fret(NewProjName, SysName, Defs, SysReqs, SysVars, SysModes), SysBody, _Remaining)
     },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextVars),
+    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextVars, NextModes),
     { append(SysReqs, NextReqs, Reqs),
-      append(SysVars, NextVars, Vars)  % KWQ TODO normalize vars
+      append(SysVars, NextVars, Vars),  % KWQ TODO normalize vars
+      append(SysModes, NextModes, Modes)
     }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
     [ SpecElement ],
     { is_dict(SpecElement, requirement), %%%% <- selector
       !,
@@ -66,41 +98,59 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
       get_dict(indexing, SpecElement, Indexing),
       make_fret_reqs(Defs, ProjName, FretCompName, Name, Expl, UID, Indexing, ThisReqs, ThisVars)
     },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextVars),
+    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextVars, Modes),
     { append(ThisReqs, NextReqs, Reqs),
       append(ThisVars, NextVars, Vars)  % KWQ TODO normalize vars
     }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, [Var|Vars], Modes) -->
     [ SpecElement ],
     { is_dict(SpecElement, component), %%%% <- selector
       fret_usage_type(SpecElement, Usage, Type, ModeReqs),
       !,
       specElement_ref(SpecElement, VarName),
       get_dict(explanation, SpecElement, Expl),
-      format(atom(IDA), "~w~w~w", [ ProjName, FretCompName, VarName ]),
-      atom_string(IDA, ID),
-      Var = _{ project: ProjName,
-               component_name: FretCompName,
-               variable_name: VarName,
-               dataType: Type,
-               idType: Usage,
-               description: Expl,
-               '_id': ID,
-               modeRequirement: ModeReqs,
-               assignment: "", % XXX
-               copilotAssignment: "",
-               modeldoc: false,
-               modeldoc_id: "",
-               modelComponent: "",
-               completed: true
-             }
+      mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var)
     },
-    extract_fret(ProjName, FretCompName, Defs, Reqs, NextVars),
-    { append([Var], NextVars, Vars)  % KWQ TODO normalize vars
-    }.
-extract_fret(_, _, _, [], []) --> [ _ ].
-extract_fret(_, _, _, [], []) --> [].
+    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
+extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, [Mode|Modes]) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, scenarios), %%%% <- selector
+      get_dict(name, SpecElement, ScenarioName),
+      string_concat(Var, " Modes", ScenarioName),
+      !,
+      get_dict(scenarios, SpecElement, Scenarios),
+      var_modes(Scenarios, 0, VarModes),
+      Mode = (Var, VarModes)
+    },
+    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
+extract_fret(_, _, _, [], [], []) --> [ _ ].
+extract_fret(_, _, _, [], [], []) --> [].
 
+mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var) :-
+    format(atom(IDA), "~w~w~w", [ ProjName, FretCompName, VarName ]),
+    atom_string(IDA, ID),
+    Var = _{ project: ProjName,
+             component_name: FretCompName,
+             variable_name: VarName,
+             dataType: Type,
+             idType: Usage,
+             description: Expl,
+             '_id': ID,
+             modeRequirement: ModeReqs,
+             assignment: "", % XXX
+             copilotAssignment: "",
+             modeldoc: false,
+             modeldoc_id: "",
+             modelComponent: "",
+             completed: true
+           }.
+
+var_modes([], _, []).
+var_modes([Scenario|Scenarios], ModeVal, [(ModeName, ModeDesc, ModeVal)|VModes]) :-
+    get_dict(id, Scenario, ModeName),
+    get_dict(text, Scenario, ModeDesc),
+    succ(ModeVal, NextModeVal),
+    var_modes(Scenarios, NextModeVal, VModes).
 
 fret_usage_type(Element, Usage, Type, ModeReqs) :-
     get_dict(features, Element, Features),
