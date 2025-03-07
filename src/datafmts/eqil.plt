@@ -1043,7 +1043,6 @@ test(valueless_cascade, [nondet]) :-
 |         command --debug = true --inline=yes inpfile
 |       # = This is=my comment style =#
 |
-|
 |     run =
 |       help = run me
 |       exec = run it
@@ -1112,12 +1111,10 @@ test(valueless_cascade, [nondet]) :-
               val(6, "exec ="),
               val(8, "command --debug = true --inline=yes inpfile"),
               val(6, "# = This is=my comment style =#"),
-              val(0, ""),
               val(0, "")
              ]),
         eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "#")],
              [val(0, "This is=my comment style =#"),
-              val(0, ""),
               val(0, "")
              ]),
         eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "help")],
@@ -1135,7 +1132,6 @@ test(valueless_cascade, [nondet]) :-
               val(8, "command --debug = true --inline=yes inpfile"),
               val(6, "# = This is=my comment style =#"),
               val(0, ""),
-              val(0, ""),
               val(4, "run ="),
               val(6, "help = run me"),
               val(6, "exec = run it")
@@ -1147,7 +1143,6 @@ test(valueless_cascade, [nondet]) :-
               val(6, "exec ="),
               val(8, "command --debug = true --inline=yes inpfile"),
               val(6, "# = This is=my comment style =#"),
-              val(0, ""),
               val(0, ""),
               val(4, "run ="),
               val(6, "help = run me"),

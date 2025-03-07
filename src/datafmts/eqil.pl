@@ -521,6 +521,9 @@ gen_eqil_combine(K, adj(V), Sub, single(String)) :-
     stringrep_to_string(Sub, SubStr),
     format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
     atom_string(StringA, String).
+gen_eqil_combine(K, adj_multi(V,emptyline), emptystr, multi(String)) :-
+    format(atom(StringA), "~w = ~w~n", [ K, V ]), %3
+    atom_string(StringA, String).
 gen_eqil_combine(K, adj_multi(V,emptyline), Sub, multi(String)) :-
     stringrep_to_string(Sub, SubStr),
     format(atom(StringA), "~w = ~w~n~n~w", [ K, V, SubStr ]), %3
@@ -607,10 +610,13 @@ gen_key([key(N,K)|KS], String) :-
 gen_val([], emptystr) :- !.
 gen_val([val(0,"")], emptyline) :- !.
 gen_val([val(0,V)], adj(V)) :- !.
-gen_val([val(0,V)|VS], adj_multi(V,SubString)) :- !, gen_val(VS, SubString).
-gen_val([val(N,V)|VS], StringRep) :-
+gen_val([val(0,V)|VS], adj_multi(V,SubString)) :- !, gen_val_(VS, SubString).
+gen_val(V, StringRep) :- gen_val_(V, StringRep).
+
+gen_val_([], emptystr) :- !.
+gen_val_([val(N,V)|VS], StringRep) :-
     gen_spaces(N, S), !,
-    gen_val(VS, SubString),
+    gen_val_(VS, SubString),
     ret_val(SubString, S, V, StringRep).
 
 gen_spaces(0, "").
