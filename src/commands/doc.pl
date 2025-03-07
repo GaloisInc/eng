@@ -3,6 +3,7 @@
 :- use_module(library(apply)).
 :- use_module(library(lists)).
 :- use_module(library(strings)).
+:- use_module('../englib').
 :- use_module('../lando_tool').
 
 
@@ -75,10 +76,8 @@ doc_info(Doc) :-
            [ Doc, Type, Title, Loc ]),
     %% Abstract
     format('  Abstract:~n  ---------~n', []),
-    ( is_list(Abstract), !,
-      maplist(string_concat("  "), Abstract, AbsLines),
-      string_lines(AbsStr, AbsLines),
-      writeln(AbsStr)
+    ( is_list(Abstract), !, write_strings("  ", Abstract)
+    ; split_string(Abstract, "\n", "", Lines), !, write_strings("  ", Lines)
     ; write('  '), writeln(Abstract)
     ),
     %% Summary of other main-level elements in the doc

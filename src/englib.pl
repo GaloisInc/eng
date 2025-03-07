@@ -5,6 +5,7 @@
                     string_codes_rtrim/3,
                     string_rpad/4,
                     get_dict_or/4,
+                    write_strings/2,
                     assert_eng/1,
                     assert_eng/2
                   ]).
@@ -70,6 +71,12 @@ string_rpad(S, P, N, OS) :-
 
 get_dict_or(Key, Dict, _, Val) :- get_dict(Key, Dict, Val), !.
 get_dict_or(_, _, Def, Def).
+
+write_strings(Indent, Lines) :-
+    maplist(string_concat(Indent), Lines, IndLines),
+    string_lines(Str, IndLines),
+    writeln(Str).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
