@@ -90,11 +90,12 @@ dev_cmd(_, [], 1) :-
 
 subcmd_help(Cmd, CmdHelp) :-
     eng:key(dev, subcmd, Cmd, H),
+    Cmd \= test,
     (is_list(H), H = [CmdHelp|_]
     ; \+ is_list(H), split_string(H, "\n", "", [CmdHelp|_])
     ).
 subcmd_help(test, "Runs tests for this project") :-
-    eng:key(dev, subcmd, test, testcase, _), !.
+    eng:key(dev, subcmd, test, testcase, _).
 
 
 dev_subcmd_help(Cmd) :-
