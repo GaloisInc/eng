@@ -1,0 +1,605 @@
+doc =
+  lando_parser =
+    type = impl
+    title = Lando Parser Implementation
+    abstract =
+      Implementation description for the Lando parser provided by the
+      lando tool in eng as compared to the BESSPIN Lando parser.
+
+    notes =
+      notes1 = UIDs may not be stable
+
+        Required changing UID values in the requirements-1.json expected value
+        file.
+
+      notes2 = The BESSPIN Kotlin-based parser specified element types using fully
+        qualified names derived from the Java ANT
+        (e.g. com.galois.besspin.lando.ssl.ast.RawSubsystem), whereas this
+        implementation uses simple names (e.g. "subsystem").  The KAT tests
+        copied from the BESSPIN Lando implementation to here have
+        corresponding changes in the expected output files.
+
+      ? grammar issue: paragraph ends and B =
+        The grammar defines ~L :: = N | B~ and ~B ::= NN~, where ~N~ is defined as
+        a new line (followed by optional spaces, or EOL). =
+
+        This means that *two* blank lines must separate the Explanation =
+        paragraph from other elements components, because paragraph sentences =
+        have a wordSep ending with ~L~ and that ~L~ can consume two newlines =
+        by virtue of ~B~. There are many ways to fix this, including =
+        ~Wordsep~ ending with ~N~ instead of ~L~, or (as chosen by this =
+        implementation) to remove ~B~ from ~L~.  This latter choice means =
+        that we need to be more explicit about where multiple token_l are =
+        allowed. =
+
+        This can be seen with the ~naming.lando~ example. =
+
+      grammar issue: CL inconsistency =
+        In the original grammer there are many places that show a ~{CL}~
+        specification, where L is ~N|B~, indicating one or two newlines.
+        Because the overall ~{CL}~ allows for repeats, this indicates the
+        following should be considered valid and all comments should be
+        associated with the system:
+
+            // comment 1
+            // comment 2
+
+            // comment 3
+
+            // comment 4
+
+            system ...
+            
+        However, if any of those blank lines above became 2 blank lines (or
+        more) it would be a comment-only sequence followed by a ~{L}{CL}~
+        which only appears in one place: following the main body.
+
+        In addition, if there are more than one blank line, is that expected
+        to break the association with anything following?  What about at the
+        beginning of the file?
+
+        This is more complicated than normal, because comments are *retained*
+        in most cases, and therefore not simply discarded during the lexical
+        tokenization phase.
+
+        For this implementation of Lando, assume that ONE blank line does not
+        break association, but TWO does.  [Until we see otherwise.]
+        
+      grammar issue: element blank lines =
+        For all elements from body, they need to be able to be separated
+        by any number of (blank) lines.  This is fixed by changing:
+
+          clseq(_), [ w(system, _, _) ], !, sseq, name(N, _), ...
+
+        to
+
+          lseq, clseq(_), [ w(system, _, _) ], !, sseq, name(N, _), ...
+
+      grammar issue: requirement in requirements-1.lando =
+          requirement : = = {CL} requirement name [abbrev] [C]{L+} explanation
+                          [ indexing blockend ]
+                          [ contains {L} body end [C] blockend ]
+
+        Is this right? Should the same thing be done for event and scenario? =
+
+      grammar issue: abbrevnames with periods =
+        In requirements-1.lando, there are abbrevnames like "(R3.A)", but an
+        ~abbrevName~ is a parenthesized ~nameWord~, and the latter explicitly
+        does not allow periods (to avoid conflicts with qname).
+
+        In the local version, changed those to forward slashes "(R3/A)".
+
+      grammer issue: indexValue should allow spaces before the colon =
+            indexEntry :: = indexValue {S} ':' indexValuePart {{L}+ indexValuePart ]
+
+      grammar issue: index value word incorrect specification =
+          indexValueWord first character cannot be a :
+
+      grammar issue: trailing indexValuePart spaces =
+          blockend and parend should not consume eof
+
+      grammar issue: leading spaces before comments =
+          The grammar defines ~C :: = <<//[^\r\n]*>>~ which appropriately
+          captures the comment portion, but it should also define ~SC :: =
+          {S}C~ and use the latter in the main forms to replace ~C~.  This =
+          effectively states that the double-slash that starts a comment can =
+          be preceeded by whitespace that can be ignored. =
+          
+      grammar issue: ambiguous parse for comments between explanation and element =
+             paragraph :: = { sentence }+ parend
+             parend :: = [C]{B {L} | EOF}
+             B :: = NN
+             L :: = N | B
+             N :: = <<newline>>
+
+          Furthermore, the explanation is usually the last *required* element =
+          of a specElement, with all subsequent portions being optional. =
+          This creates an ambiguity: =
+            system foo
+            Explanation of system foo.
+
+            // This is bar
+            system bar
+            Explanation of system bar.
+
+          The problem here is that the comment line could be associated with =
+          either the comment following an explanation or the comment =
+          preceeding a specElement.  The BESSPIN parser prefers the latter, =
+          whereas this parser prefers the former (as the former is parsed =
+          "first"). =
+
+          This is visible in the requirements-1.lando for "Requirement One" =
+          and necessitated a change in the expected JSON output: the "R2" =
+          comment was moved to be part of R1, which also changed the starting =
+          line for "Requirement Two". =
+
+      grammar issue: whitespace before "client" or "inherit" =
+            Added {S} to start of clientClause and inheritClause
+            
+      grammar issue: conflict in componentFeature endings =
+            :: = {CL} sentBody END [wordSep][C]
+
+        However, wordSep can be a {CL} or an {L}, and required one when =
+        there's no whitespace.  This causes two problems: =
+          2. The {L} consumed by wordsep when there's no trailing spaces can =
+             consume the blank line following the block of
+             constraint/command/query and prevent the detection of the blank
+             line as a terminator for the current element.
+
+        By using {S} instead of wordSep, the parse can be successful. =
+            
+      grammar issue: parse conflict, qname and client =
+            grammar issue: parse conflict, qname and client1 =
+            component :: = {CL} component name [abbrev] {inheritClause | clientClause} [C] {L}+
+            inheritClause :: = inherit qname {L} { ',' {L} qname {L} }
+            clientClause :: = client qname {L} { ',' {L} qname {L} }
+            qname :: = name | qname ':' name
+            name :: = {S} nameWorld { {S}+ nameWord} {S}
+
+           grammar issue: parse conflict, qname and client1 = |
+            component :: = {CL} component name [abbrev] {inheritClause | clientClause} [C] {L}+
+            inheritClause :: = inherit qname {L} { ',' {L} qname {L} }
+            clientClause :: = client qname {L} { ',' {L} qname {L} }
+            qname :: = name | qname ':' name
+            name :: = {S} nameWorld { {S}+ nameWord} {S}
+
+          grammar issue: parse conflict, qname and client1 = |
+            component :: = {CL} component name [abbrev] {inheritClause | clientClause} [C] {L}+
+            inheritClause :: = inherit qname {L} { ',' {L} qname {L} }
+            clientClause :: = client qname {L} { ',' {L} qname {L} }
+            qname :: = name | qname ':' name
+            name :: = {S} nameWorld { {S}+ nameWord} {S}
+
+         grammar issue: parse conflict, qname and client1 = |
+            component :: = {CL} component name [abbrev] {inheritClause | clientClause} [C] {L}+
+            inheritClause :: = inherit qname {L} { ',' {L} qname {L} }
+            clientClause :: = client qname {L} { ',' {L} qname {L} }
+            qname :: = name | qname ':' name
+            name :: = {S} nameWorld { {S}+ nameWord} {S}
+
+        grammar issue: parse conflict, qname and client1 = |
+            component :: = {CL} component name [abbrev] {inheritClause | clientClause} [C] {L}+
+            inheritClause :: = inherit qname {L} { ',' {L} qname {L} }
+            clientClause :: = client qname {L} { ',' {L} qname {L} }
+            qname :: = name | qname ':' name
+            name :: = {S} nameWorld { {S}+ nameWord} {S}
+
+        This has a parse conflict for: =
+          component A (A1) inherit BB client DD, FF
+          description.
+
+        The ambiguous parse here results in ~inherits = ["BB client DD", "FF"]~
+        rather than the expected ~inherits = ["BB"], client=["DD, FF"]~ because
+        a name can be multiple words and "swallows" the "client" word. =
+
+        To resolve this the Lando parser assumes that there is a restriction =
+        on name such that the words "inherits" and "client" are NOT accepted. =
+
+       grammar issue: parse conflict, qname and client1 =
+        This has a parse conflict for: = =
+          component A (A1) inherit BB client DD, FF
+          description.
+
+        The ambiguous parse here results in ~inherits = ["BB client DD", "FF"]~ =
+        rather than the expected ~inherits = ["BB"], client=["DD, FF"]~ because
+        a name can be multiple words and "swallows" the "client" word. =
+
+        To resolve this the Lando parser assumes that there is a restriction =
+        on name such that the words "inherits" and "client" are NOT accepted. =
+
+      grammar issue: parse conflict, qname and client3 = |
+            component ::= {CL} component name [abbrev] {inheritClause | clientClause} [C] {L}+
+            inheritClause ::= inherit qname {L} { ',' {L} qname {L} }
+            clientClause ::= client qname {L} { ',' {L} qname {L} }
+            qname ::= name | qname ':' name
+            name ::= {S} nameWorld { {S}+ nameWord} {S}
+
+        This has a parse conflict for:
+
+          component A (A1) inherit BB client DD, FF
+          description.
+
+        The ambiguous parse here results in ~inherits=["BB client DD", "FF"]~
+        rather than the expected ~inherits=["BB"], client=["DD, FF"]~ because
+        a name can be multiple words and "swallows" the "client" word.
+
+        To resolve this the Lando parser assumes that there is a restriction
+        on name such that the words "inherits" and "client" are NOT accepted.
+
+      grammar issue: parse conflict, indexing and contains =
+          indexing :: = = indexing {S} { {L}+ indexEntry }
+          indexEntry :: = = indexValue ':' indexValuePart { {L}+ indexValuePart }
+          indexValuePart :: = = indexValue {L} [C]
+          indexValue :: = = {S} indexValueWord { {S}+ indexValueWord } {S}
+          indexValueWord :: = = [[ word not ending in : ]]
+
+        Given =
+          indexing =
+            key: value
+
+          contains =
+          end =
+
+        The above allows an indexEntry to be the index word followed by many =
+        lines of index value that can include blank lines, thus, the "key" =
+        index value will be "[value, contains, end]".  Investigation of all =
+        existing Lando shows that there is never a blank line in the indexing =
+        section, so to prevent this the current Lando implementation expects =
+        an index value to be terminated by a blank line, and thus uses: =
+          indexing :: = = indexing {S} { L indexEntry }
+          indexEntry :: = = indexValue ':' indexValuePart { L indexValuePart }
+          indexValuePart :: = = {CL} indexValue [C]
+
+      grammar issue: import names =
+          componentImport :: = {CL} import {S}+ component name [abbrev]
+                              { clientClause } [C] blockend
+
+        However, based on example.lando, this should use qname instead: =
+          componentImport :: = {CL} import {S}+ component qname [abbrev]
+                              { clientClause } [C] blockend
+
+      grammar issue: component contains =
+          component :: = {CL} component name [abbrev] { inheritClause |
+                        clientClause } [C] {L}+ explanation {
+                        componentFeature blockEnd }
+
+        to add the contains clause to the end as with system and subsystem =
+        specElements: =
+          component :: = {CL} component name [abbrev]
+                        { inheritClause | clientClause } [C] {L}+
+                        explanation { componentFeature blockEnd }
+                        [ contains {L} body end [C] blockend ]
+
+      grammar issue: ambiguity between componentFeatures and specElements. =
+         The componentFeatures can be separated from the component's
+         explanation by a blank line, and end in a ., ?, or !.
+
+         A new specElement is separated from the previous one by a blank line
+         and contains a name line followed by an explanation.
+
+         If the new specElement explanation is a single sentence, then it
+         could be combined with the specElement name line and look like a
+         (usually constraint) component feature for the preceeding component:
+
+            component A (A)
+            description.
+
+            component B (B)
+            Description for component B.
+
+         Can validly parse "component B (B) Description for component B." as
+         a constraint for component A.
+
+         To resolve this, the main specElement introduction keywords are
+         disallowed as the first word of a componentFeature.
+
+      grammar issue: ambiguity between component name and inheritClause/clientClause =
+        A name can be multiple words, so the following:
+
+          component DD inherit SS // comment
+          Description.
+
+        Can be interpreted as a component with name "DD inherit SS" and an
+        explanation of "Description".
+
+        As with other ambiguities, this one is resolved by disallowing "inherit"
+        or "client" in the component name.
+
+        Similar situation for componentImport name and the clientClause: disallow
+        "client" in the componentImport name.
+
+      grammar question: whitespace in qnames =
+        According to the grammar, this is a valid qname:
+
+            foo :bar:    what       :              long           :name
+
+        Is that intended?  Customarily, no whitespace is allowed in qualified
+        names.
+
+      grammar issue: ambiguity between events and scenarios and requirements =
+          { "type": "events", =
+            "events": [ =
+              { "id": "scenarios myscenarios", =
+                "text": "a \"one\" comes before \"two\".", ...},
+            ] =
+          } =
+        
+        The eventEntry (scenarioEntry, requirementEntry) allows multiple =
+        blank lines between the name of the scenario and the paragraph for =
+        the scenario, allowing the above. =
+
+        This is resolved in this Lando parser by changing the following: =
+          eventEntry :: = {CL} name [C] {L}+ paragraph
+          scenarioEntry :: = {CL} name [C] {L}+ paragraph
+          requirementEntry :: = {CL} name [C] {L}+ paragraph
+
+        to: =
+          eventEntry :: = {CL} name [C] {L}+ paragraph
+          scenarioEntry :: = {CL} name [C] {L}+ paragraph
+          requirementEntry :: = {CL} name [C] {L}+ paragraph
+
+        which thus disallows any blank lines between the entry name and the =
+        entry paragraph. =
+
+        It *also* disallows "events", "scenarios", and "requirements" as the =
+        name of any of these entries.  Either change is effective. =
+
+      notes4 = In (undocumented) requirement element, it has "requirements" that it
+        contains.  If there is no "contains/end", then it sets "requirements"
+        to null, but if there is an empty "contains/end", it sets
+        "requirements" to [].
+
+        This implementation always uses [].
+
+        Required changing "requirements: null" to "requirements: []" in the
+        requirements-1.json expected value file.
+
+      notes5 = Use of null for empty arrays.  In many places, the BESSPIN Lando will
+        use "null" for an element whose value should be an array instead of
+        [].  The Lando here will always supply the latter.
+
+        Required changing "body: null" to "body: []" in many of the JSON
+        files.
+
+      notes6 = Contains in relation
+
+        The grammar does not define a "contains" element for a "relation"
+        specElement, but the BESSPIN Lando parser generates a contains array
+        in the "com.galois.besspin.lando.ssl.ast.RawRelation" elements.
+
+        It does not seem like a "relation" should contain sub-elements; is
+        this an error in BESSPIN Lando?  Removed from the Lando parser here.
+
+        Required removing these blank entries from the BESSPIN json files.
+        
+      notes7 = Nested elements (requirement in the requirements list of requirement)
+        do not show their type in the BESSPIN Lando, but they do in this
+        Lando.
+
+        Required adding ~type: "requirement"~ to nested requirements in the
+        requirements-1.json expected value file.
+
+      notes8 = This Lando parser is NOT good at generating errors/warnings on
+        incorrect inputs at the point they cannot be parsed (because
+        backtracking might find a different, correct solution).
+
+      notes9 = This Lando parser requires at least one space after the comment start
+        slashes.  The grammar does not.
+
+        In order to make this parser match the grammar, we make the
+        observation that a comment start must include whitespace (incl
+        newlines) one one side of the slashes or the other, so that we can
+        successfully parse http://foo.com as a single word.  To do this,
+        either the tokenizer must be extended to require this (with special
+        handling for a comment starting at the beginning of the line) or else
+        the tokenizer doesn't recognize comments and we add that handling to
+        the parsing stage.
+        
+      notes10 = The BESSPIN Lando parser reports the componentFeature list for a
+        component under "parts", which is the same place it lists the
+        "contains" elements (which are not part of the v2 grammar, but are
+        part of the Lando KAT corpus).
+
+      notes11 =
+        notes112 =
+          indexing = =
+            key: an item for this key
+
+         notes1122 =
+          indexing =
+            key: an item for this key
+
+            key: an item for this key
+
+          notes11222 =
+        Is reported in the comments list for the system as: =
+           "comments":[ =
+              { "pos": { "line": 25, "col": 0 }, =
+                "text": "the following section is optional"
+              }, =
+              { "pos": { "line": 20, "col": 28 }, =
+                "text": "\"FOO\" is an abbreviated name
+              ... =
+           ] =
+
+         This Lando parser does not exhibit this re-ordering and shows all =
+         comments in order of line. =
+
+         Changed the example.json to accomodate this. =
+
+       notes112 =
+          indexing = =
+            key: an item for this key
+
+        Is reported in the comments list for the system as: =
+           "comments":[ =
+              { "pos": { "line": 25, "col": 0 }, =
+                "text": "the following section is optional"
+              }, =
+              { "pos": { "line": 20, "col": 28 }, =
+                "text": "\"FOO\" is an abbreviated name
+              ... =
+           ] =
+
+         This Lando parser does not exhibit this re-ordering and shows all =
+         comments in order of line. =
+
+         Changed the example.json to accomodate this. =
+
+      notes12 =
+          indexing =
+            key: an item for this key
+
+        Is reported in the comments list for the system as: =
+           "comments":[ =
+              { "pos": { "line": 25, "col": 0 }, =
+                "text": "the following section is optional"
+              }, =
+              { "pos": { "line": 20, "col": 28 }, =
+                "text": "\"FOO\" is an abbreviated name
+              ... =
+           ] =
+
+         This Lando parser does not exhibit this re-ordering and shows all =
+         comments in order of line. =
+
+         Changed the example.json to accomodate this. =
+
+      markdown change =
+        markdown change13 =
+           system blah
+           A mandatory description PARAGRAPH.
+           
+        the Lando markdown emits: =
+           ## <a id = "blah"></a>blah
+           A mandatory description PARAGRAPH. =
+
+        whereas this Lando markdown conversion correctly emits: =
+           ## <a id = "blah">System blah</a>
+           A mandatory description PARAGRAPH. =
+
+        which also adds the element type in the description. =
+          ### <a id = "aaaa"></a>AAAA (A4)
+          
+        This Lando markdown (aside from other notes regarding indentation, =
+        fixing anchor specifications, adding element type, and using =
+        abbrevName for anchors) does NOT change the case of the HTML anchor =
+        id. =
+
+        markdown change14 =
+           <!-- BEGIN ITEM -->
+           - **Standby-X** description.
+           <!-- END ITEM -->
+
+           [Standby-X]: ## "description."
+
+        The second form seems to be ignored by Markdown.  This Lando markdown =
+        output only outputs the first form.  This Lando markdown also does =
+        not emit any other blank lines between items, causing the HTML =
+        rendering of the events to be adjacent without blank line separators. =
+             System = 1
+             Subsystem = 2
+             Requirement = 2
+             Component = 3
+
+          indexes =
+            next key : first line =
+                       another line
+
+        The BESSPIN Lando markdown output is: =
+          <!-- BEGIN INDEX ENTRY -->
+          Indexing mykey: * the key value
+          <!-- END INDEX ENTRY -->
+          
+          <!-- BEGIN INDEX ENTRY -->
+          Indexing next key: * first line * another line
+          <!-- END INDEX ENTRY -->
+          
+        This Lando markdown output is: =
+          - Indexed **next key**: =
+            - first line
+            - another line
+          <!-- END Index Entry --> =
+           <!-- END Index Entry -->3 =
+           ### <a id = "aaaa"></a>AAAA (A4)
+                       "b2"></a>B2 (BB)
+           And yet another mandatory description PARAGRAPH. =
+             * inherits [BB](#bb)  * client of DD  * client of FF<!-- END COMPONENT -->
+
+           <!-- BEGIN COMPONENT --> =
+           Description here. =
+             * inherits [A4](#a4)  * part <!-- BEGIN CONSTRAINT -->
+           * constraint.<!-- only a single newline is needed between these --> =
+           <!-- END CONSTRAINT --> =
+             * part <!-- BEGIN QUERY -->
+           * query?<!-- END QUERY --> =
+             * part <!-- BEGIN COMMAND -->
+           * command!<!-- but then we need a blank line before anything else --> =
+           <!-- END COMMAND --> =
+
+          <!-- END Index Entry -->3 =
+           ### <a id = "aaaa"></a>AAAA (A4) =
+                       "b2"></a>B2 (BB)
+           And yet another mandatory description PARAGRAPH. = =
+             * inherits [BB](#bb)  * client of DD  * client of FF<!-- END COMPONENT -->
+
+           <!-- BEGIN COMPONENT --> =
+           Description here. =
+             * inherits [A4](#a4)  * part <!-- BEGIN CONSTRAINT -->
+           * constraint.<!-- only a single newline is needed between these --> =
+           <!-- END CONSTRAINT --> =
+             * part <!-- BEGIN QUERY -->
+           * query?<!-- END QUERY --> =
+             * part <!-- BEGIN COMMAND -->
+           * command!<!-- but then we need a blank line before anything else --> =
+           <!-- END COMMAND --> =
+
+        Aside from changes noted elsewhere, Lando markdown output from this =
+        tool will always place comments on their own line (and does not emit =
+        comments extracted from the Lando source). =
+           ### <a id = "A4">Component: AAAA (A4)</a>
+                       "BB">Component: B2 (BB)</a>
+           And yet another mandatory description PARAGRAPH. =
+             * inherits: [BB](#bb)
+             * client of: DD
+             * client of: FF
+           <!-- END Component --> =
+
+           <!-- BEGIN Component --> =
+           Description here. =
+             * inherits [A4](#a4)
+
+             <!-- BEGIN CONSTRAINT -->
+             * **Constraint**: constraint.
+             <!-- END CONSTRAINT -->
+
+             <!-- BEGIN QUERY -->
+             * **Query**: query?
+             <!-- END QUERY -->
+
+             <!-- BEGIN COMMAND -->
+             * **Command**: command!
+             <!-- END COMMAND -->
+
+      lando naming behavior =
+        The gramamar states that a qname is made up of a series of names, and
+        the qname is the reference for an "inherit" or "clientOf".  However,
+        in at least example.lando, an "inherit" statement references an
+        abbrevName.
+
+        What is the policy here?  Are abbrevName and name always
+        interchangeable?
+        
+      lando naming references =
+        The "relation" entry must specify a qname, but in example.lando, it's
+        simply:
+
+          relation DD client B2 
+          relation DD inherit B2
+
+        And these are defined at the same nesting level as DD and B2, so a
+        plain reference is OK?  Or should a relation *always* require a fully
+        qualified qname?  Are qname references relative to the current
+        heirarchy?
+      
+      markdown proposed feature = Add UID to markdown output somewhere
