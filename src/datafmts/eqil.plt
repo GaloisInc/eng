@@ -1370,6 +1370,183 @@ test(block_values, [nondet]) :-
     revert_assert_eng.
 
 
+test(blank_key_and_values, [nondet]) :-
+    Inp = {|string||
+| key =
+|   =
+|     foo =
+|       bar
+| key
+|   =
+|     cow =
+|       = moo
+|       = graze
+|
+| = blank
+| mid = point
+| = another blank
+| =
+| end =
+|  here
+|},
+    % spaces around =, adds an extra blank line for %3 gen_eqil_combine
+    Out = {|string||
+| key =
+|   key1 =
+|     foo =
+|       bar
+|   key4 =
+|     cow =
+|       cow2 = moo
+|       cow3 = graze
+|
+| 5 = blank
+| mid = point
+| 6 = another blank
+| 7 =
+| end =
+|  here
+|},
+    E0 = eqil([key(0, "key"), key(2, ""), key(4, "foo")],
+              [val(6, "bar")
+              ]),
+    E1 = eqil([key(0, "key"), key(2, "")],
+              [val(4, "foo ="),
+               val(6, "bar")
+              ]),
+    E2 = eqil([key(0, "key")],
+              [val(2, ""),
+               val(4, "foo ="),
+               val(6, "bar")
+              ]),
+    E3 = eqil([key(0, "key"), key(2, ""), key(4, "cow"), key(6, "")],
+              [val(0, "moo")
+              ]),
+    E4 = eqil([key(0, "key"), key(2, ""), key(4, "cow"), key(6, "")],
+              [val(0, "graze"),
+               val(0, "")
+              ]),
+    E5 = eqil([key(0, "key"), key(2, ""), key(4, "cow")],
+              [val(6, "= moo"),
+               val(6, "= graze"),
+               val(0, "")
+              ]),
+    E6 = eqil([key(0, "key"), key(2, "")],
+              [val(4, "cow ="),
+               val(6, "= moo"),
+               val(6, "= graze"),
+               val(0, "")
+              ]),
+    E7 = eqil([key(0, "key")],
+              [val(2, ""),
+               val(4, "cow ="),
+               val(6, "= moo"),
+               val(6, "= graze"),
+               val(0, "")
+              ]),
+    E8 = eqil([key(0, "")], [val(0, "blank")]),
+    E9 = eqil([key(0, "mid")], [val(0,"point")]),
+    E10 = eqil([key(0, "")], [val(0,"another blank")]),
+    E11 = eqil([key(0, "")], []),
+    E12 = eqil([key(0, "end")], [val(1,"here")]),
+    Parsed = [ E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12 ],
+    Normalized = [
+        % E0 with assigned key:
+        eqil([key(0, "key"), key(2, "key1"), key(4, "foo")],
+             [val(6, "bar")
+              ]),
+        % E1 with assigned key:
+        eqil([key(0, "key"), key(2, "key1")],
+              [val(4, "foo ="),
+               val(6, "bar")
+              ]),
+        % E2 removed,
+        % E3 with assigned key:
+        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow2")],
+              [val(0, "moo")
+              ]),
+        % E4 with assigned key
+        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow3")],
+             [val(0, "graze"),
+              val(0, "")
+             ]),
+        % E5 with assigned key:
+        eqil([key(0, "key"), key(2, "key4"), key(4, "cow")],
+              [val(6, "= moo"),
+               val(6, "= graze"),
+               val(0, "")
+              ]),
+        % E6 with assigned key:
+        eqil([key(0, "key"), key(2, "key4")],
+              [val(4, "cow ="),
+               val(6, "= moo"),
+               val(6, "= graze"),
+               val(0, "")
+              ]),
+        % E7 removed.
+        % E8 with assigned key:
+        eqil([key(0, "5")], [val(0, "blank")]),
+        E9,
+        % E10 with assigned key:
+        eqil([key(0, "6")], [val(0,"another blank")]),
+        % E11 with assigned key:
+        eqil([key(0, "7")], []),
+        E12 ],
+    ReParsed = [
+        % E0 with assigned key:
+        eqil([key(0, "key"), key(2, "key1"), key(4, "foo")],
+             [val(6, "bar")
+              ]),
+        % E1 with assigned key:
+        eqil([key(0, "key"), key(2, "key1")],
+              [val(4, "foo ="),
+               val(6, "bar")
+              ]),
+        % E2 removed,
+        % E3 with assigned key:
+        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow2")],
+              [val(0, "moo")
+              ]),
+        % E4 with assigned key
+        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow3")],
+             [val(0, "graze"),
+              val(0, "")
+             ]),
+        % E5 with assigned key and value updates for assigned keys:
+        eqil([key(0, "key"), key(2, "key4"), key(4, "cow")],
+              [val(6, "cow2 = moo"),
+               val(6, "cow3 = graze"),
+               val(0, "")
+              ]),
+        % E6 with assigned key and value updates for assigned keys:
+        eqil([key(0, "key"), key(2, "key4")],
+              [val(4, "cow ="),
+               val(6, "cow2 = moo"),
+               val(6, "cow3 = graze"),
+               val(0, "")
+              ]),
+        % E2 + E7 with value updates for assigned keys:
+        eqil([key(0, "key")],
+              [val(2, "key1 ="),
+               val(4, "foo ="),
+               val(6, "bar"),
+               val(2, "key4 ="),
+               val(4, "cow ="),
+               val(6, "cow2 = moo"),
+               val(6, "cow3 = graze"),
+               val(0, "")
+              ]),
+        % E8 with assigned key:
+        eqil([key(0, "5")], [val(0, "blank")]),
+        E9,
+        % E10 with assigned key:
+        eqil([key(0, "6")], [val(0,"another blank")]),
+        % E11 with assigned key:
+        eqil([key(0, "7")], []),
+        E12 ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
+
+
 test(duplicate_keys, [nondet]) :-
     Inp = {|string||
 | key =

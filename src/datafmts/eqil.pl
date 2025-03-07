@@ -370,12 +370,13 @@ raw_val(val(_, V), V).
 %% Normalization:
 %%
 %%  1. Replace blank keys with "parent.N" where parent is the parent key name,
-%%     and N is a consecutive value.  NOTE: this key replacement ONLY occurs
-%%     in the key portions, not in the value portion of the parents.
-%%     To avoid an inconsistent eqil representation, this also removes the
-%%     parent specification in which those keys would be part of the value.
-%%     This removal might also affect the application depending on which
-%%     key values it was consuming.  See the rewriting noted above.
+%%     and N is a consecutive value.  NOTE: this key replacement ONLY occurs in
+%%     the key portions (at this key level and in sub-key chains), not in the
+%%     value portion of the parents.  To avoid an inconsistent eqil
+%%     representation, this also removes the parent specification in which those
+%%     keys would be part of the value.  This removal might also affect the
+%%     application depending on which key values it was consuming.  See the
+%%     rewriting noted above.
 %%
 %%  2. Consolidate entries with the same parent.  For example:
 %%        key1 =
@@ -409,7 +410,6 @@ raw_val(val(_, V), V).
 %%              value2
 %%              value3
 
-% KWQ TODO uniqueness against FULL EQIL from ALL files?
 normalize_eqil([], _) :- !, fail.
 normalize_eqil(InpEqil, OutEqil) :-
     ( assign_blank_keys(InpEqil, UpdEqil), !,
@@ -418,25 +418,35 @@ normalize_eqil(InpEqil, OutEqil) :-
     ).
 
 assign_blank_keys(InpEqil, OutEqil) :-
-    rewrite_blank_keys(InpEqil, InpEqil, 1, NewEqil, RemoveKeys),
+    rewrite_blank_keys(InpEqil, InpEqil, 1, NewEqil, _, RemoveKeys),
+    !,
     \+ RemoveKeys == [],
     remove_keys(NewEqil, RemoveKeys, OutEqil).
 assign_blank_keys([], []).
 
 rewrite_blank_keys(EQIL, [eqil([key(N,"")],V)|InpEqil], KeyVal,
-                   [eqil([key(N,K)],V),UpdEqil], RemoveKeys) :-
+                   [Out|UpdEqil],
+                   [([key(N,"")],[K])|Replace],
+                   RemoveKeys) :-
     !,
+    % Top level key is blank and needs assignment
     new_unique_key(EQIL, N, KeyVal, K, NextVal),
-    rewrite_blank_keys(EQIL, InpEqil, NextVal, UpdEqil, RemoveKeys).
+    propagate_replacement([key(N,"")], [K], InpEqil, InpEQIL2),
+    rewrite_blank_keys(EQIL, InpEQIL2, NextVal, UpdEqil, NxtReplace, RemoveKeys),
+    apply_replacements(NxtReplace, eqil([K],V), Out, Replace).
 rewrite_blank_keys(EQIL, [eqil(K,V)|InpEqil], KeyVal,
-                   [eqil(NewKey,V)|UpdEqil],
+                   [Out|UpdEqil],
+                   [(K, NewKey)|Replace],
                    [K|RmvKeys]) :-
     reverse(K, [key(N, ""),key(NP,ParentKey)|KR]), !,
     new_unique_key(EQIL, KR, N, key(NP,ParentKey), ParentKey, KeyVal, NewKey, NextVal),
-    rewrite_blank_keys(EQIL, InpEqil, NextVal, UpdEqil, RmvKeys).
-rewrite_blank_keys(EQIL, [Eqil|InpEqil], KeyVal, [Eqil|OutEqil], RemoveKeys) :-
-    rewrite_blank_keys(EQIL, InpEqil, KeyVal, OutEqil, RemoveKeys).
-rewrite_blank_keys(_, [], _, [], []).
+    propagate_replacement(K, NewKey, InpEqil, InpEQIL2),
+    rewrite_blank_keys(EQIL, InpEQIL2, NextVal, UpdEqil, NxtReplace, RmvKeys),
+    apply_replacements(NxtReplace, eqil(NewKey,V), Out, Replace).
+rewrite_blank_keys(EQIL, [Eqil|InpEqil], KeyVal, [Out|OutEqil], Replace, Remove) :-
+    rewrite_blank_keys(EQIL, InpEqil, KeyVal, OutEqil, NxtReplace, Remove),
+    apply_replacements(NxtReplace, Eqil, Out, Replace).
+rewrite_blank_keys(_, [], _, [], [], []).
 
 new_unique_key(EQIL, KR, N, PKey, Pfx, Val, OutKey, OutVal) :-
     succ(Val, NextVal),
@@ -450,7 +460,7 @@ new_unique_key(EQIL, KR, N, PKey, Pfx, Val, OutKey, OutVal) :-
 new_unique_key(EQIL, N, Val, OutKey, OutVal) :-
     succ(Val, NextVal),
     atom_string(Val, KS),
-    reverse([key(N,KS)], NewKey),
+    NewKey = key(N,KS),
     ( is_unique_key(EQIL, NewKey), !, OutVal = NextVal, OutKey = NewKey
     ; new_unique_key(EQIL, N, NextVal, OutKey, OutVal)
     ).
@@ -458,6 +468,35 @@ new_unique_key(EQIL, N, Val, OutKey, OutVal) :-
 is_unique_key([], _).
 is_unique_key([eqil(K,_)|_], K) :- !, fail.
 is_unique_key([_|ES], K) :- is_unique_key(ES, K).
+
+% Moves forward through input EQIL, replacing OldKey with NewKey until reaching
+% the point where the EQIL key is shorter than OldKey, indicating the end of this
+% assignment block
+propagate_replacement(_, _, [], []) :- !.
+propagate_replacement(OldKey, _NewKey, [eqil(K,V)|EQIL], [eqil(K,V)|EQIL]) :-
+    length(OldKey, OKL),
+    length(K, KL),
+    KL =< OKL, !.
+propagate_replacement(OldKey, NewKey, [eqil(K,V)|EQIL], [eqil(NK,V)|SubEQIL]) :-
+    append(OldKey, M, K), !, append(NewKey, M, NK),
+    propagate_replacement(OldKey, NewKey, EQIL, SubEQIL).
+propagate_replacement(OldKey, NewKey, [eqil(K,V)|EQIL], [eqil(K,V)|SubEQIL]) :-
+    propagate_replacement(OldKey, NewKey, EQIL, SubEQIL).
+
+% Given a set of replacements, apply those applicable to this key, and discard
+% any replacements longer than this key (we've reached the boundary of this
+% assignment block).
+apply_replacements([], Entry, Entry, []).
+apply_replacements([(O,_)|RS], eqil(K,V), OutEqil, UpdatedRS) :-
+    length(O, OL),
+    length(K, KL),
+    KL =< OL, !,
+    apply_replacements(RS, eqil(K,V), OutEqil, UpdatedRS).
+apply_replacements([(O,N)|RS], eqil(K,V), OutEqil, [(O,N)|UpdatedRS]) :-
+    append(O, M, K), !, append(N, M, NK),
+    apply_replacements(RS, eqil(NK, V), OutEqil, UpdatedRS).
+apply_replacements([R|RS], E, OE, [R|ORS]) :-
+    apply_replacements(RS, E, OE, ORS).
 
 remove_keys([eqil(K,_)|InpEqil], RKeys, OutEqil) :-
     append(K, _, RKey),
