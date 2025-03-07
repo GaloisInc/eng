@@ -41,7 +41,7 @@ show_type(X, "compound") :- compound(X), writeln(X), !.
 show_type(_, "other").
 
 string_trim(IS, OS) :-
-    split_string(IS, "", "\t\s", [OS]).
+    split_string(IS, "", "\t\s\n", [OS]).
     %% string_codes(IS, IC),
     %% string_codes_rtrim(IC, MC, _),
     %% string_codes_ltrim(MC, OC, _),
