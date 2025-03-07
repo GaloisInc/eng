@@ -31,12 +31,6 @@ dev =
           unzip -l ../engdist.zip > ../engdist.manifest
 
     test =
-      help = Runs the tests for the project
-             All tests are run.
-        Some may fail.
-      needs = build
-
-    test =
       testcase =
         eqil parsing =
           type = EXE
