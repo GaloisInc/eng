@@ -572,6 +572,9 @@ gen_eqil_combine(K, multi(VS), Sub, multi(String)) :-
 gen_eqil_combine(K, emptyline, multi(Sub), multi(String)) :-
     format(atom(StringA), "~w =~n~n~w", [ K, Sub ]),
     atom_string(StringA, String).
+gen_eqil_combine(K, emptyline, single(Sub), multi(String)) :-
+    format(atom(StringA), "~w =~n~n~w", [ K, Sub ]),
+    atom_string(StringA, String).
 
 % gen_eqil_match is called to get all sub-elements that match the locked-in
 % CurKeyPfx and return those in StringRep and the non-matches in RemEqil.
