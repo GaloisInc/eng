@@ -37,10 +37,7 @@ lando(LandoSource, ['to-fret', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     open(OutFile, write, OutStrm),
     lando_to_fret(SSL, FretProject),
-    writeln(FretProject),
-    json_write_dict(OutStrm, FretProject, [
-                        % tag(type)
-                    ]),
+    json_write_dict(OutStrm, FretProject, []),
     format(OutStrm, '~n', []).
 
 lando(LandoSource, _, 1) :-

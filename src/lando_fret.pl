@@ -8,7 +8,6 @@
 
 lando_to_fret(LandoSSL, fret{ requirements:FretRequirements,
                               variables:FretVariables }) :-
-    writeln(LandoSSL),
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
     phrase(extract_fret("Default", "Default",
@@ -74,7 +73,7 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
 extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
     [ SpecElement ],
     { is_dict(SpecElement, component), %%%% <- selector
-      fret_usage_type(SpecElement, Usage, Type),
+      fret_usage_type(SpecElement, Usage, Type, ModeReqs),
       !,
       specElement_ref(SpecElement, VarName),
       get_dict(explanation, SpecElement, Expl),
@@ -87,7 +86,7 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars) -->
                idType: Usage,
                description: Expl,
                '_id': ID,
-               modeRequirement: "", % XXX
+               modeRequirement: ModeReqs,
                assignment: "", % XXX
                copilotAssignment: "",
                modeldoc: false,
@@ -103,25 +102,39 @@ extract_fret(_, _, _, [], []) --> [ _ ].
 extract_fret(_, _, _, [], []) --> [].
 
 
-fret_usage_type(Element, Usage, Type) :-
+fret_usage_type(Element, Usage, Type, ModeReqs) :-
     get_dict(features, Element, Features),
-    fret_var_usage_feature(Features, Usage),
+    fret_var_usage_feature(Features, Usage, ModeReqs),
     fret_var_type_feature(Features, Type).
 
-fret_var_usage_feature(Features, Usage) :-
+fret_var_usage_feature(Features, Usage, ModeReqs) :-
     member(Feature, Features),
-    fret_var_usage_(Feature, Usage).
-fret_var_usage_(Feature, Usage) :-
+    fret_var_usage_(Features, Feature, Usage, ModeReqs).
+fret_var_usage_(Features, Feature, Usage, ModeReqs) :-
     get_dict(text, Feature, T),
     string_concat(Before, " var.", T),
-    string_concat("FRET ", Usage, Before).
+    string_concat("FRET ", Usage, Before),
+    var_modereqs(Features, Usage, ModeReqs).
+
+var_modereqs(Features, "Mode", ModeReqs) :-
+    !,
+    findall(T, regular_constraints(Features, T), TS),
+    conjunction(TS, ModeReqs).
+var_modereqs(_, _, "").
+
+regular_constraints(Features, Constraint) :-
+    member(Feature, Features),
+    get_dict(text, Feature, T),
+    \+ string_concat("FRET ", _, T),
+    string_concat(Constraint, ".", T).
 
 fret_var_type_feature(Features, Type) :-
     member(Feature, Features),
     fret_var_type_(Feature, Type).
 fret_var_type_(Feature, Type) :-
     get_dict(text, Feature, T),
-    string_concat("FRET : ", Type, T).
+    string_concat("FRET : ", FT, T),
+    string_concat(Type, ".", FT).
 
 make_fret_reqs(_Defs, _ProjName, _CompName, _ReqName, _Expl, _UID, [], [], []).
 make_fret_reqs(Defs, ProjName, _CompName, ReqName, Expl, UID, [Index|_IXS], [Req], Vars) :-
@@ -152,12 +165,9 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, [_|IXS], Reqs, Vars
 %% Parses a Frettish English requirement to a Fret structured requirement, using
 %% the definitions and templates provided to enhance the structured requirement.
 parse_fret(Defs, English, FretRequirement) :-  % KWQ: return vars as well
-    writeln(English),
-    writeln(tbd),
     string_chars(English, ECodes),
     enumerate(ECodes, Input),
     phrase(frettish(Defs, Semantics), Input, Remaining),
-    writeln(fretted),
     ( Remaining == [], ! ;
       format('Unexpected frettish extra not parsed: ~w~n', [ Remaining ])
     ),
@@ -202,7 +212,8 @@ frettish(Defs, Semantics) -->
 
 make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
               Response, RespVars, Semantics) -->
-    { append([ScopeVars, CondVars, RespVars], Vars), % TODO: uniqueness
+    { append([ScopeVars, CondVars, RespVars], AllVars),
+      list_to_set(AllVars, Vars),
       SemanticsBase = semantics{ type: "nasa",
                                  variables: Vars
                                },
@@ -230,12 +241,10 @@ make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
 create_variable_description(Inp, VarDesc):-
     get_dict(scope, Inp, Scope),
     get_dict(type, Scope, ST),
-    writeln(cvd1),
     cvd_st(Inp, ST, VarDesc).
 
 cvd_st(Inp, "null", VarDesc) :-
     !,
-    writeln(cvd2),
     get_dict(condition, Inp, C),
     cvd_cnd(Inp, C, VarDesc).
 cvd_st(Inp, _, VarDesc) :-
@@ -314,7 +323,7 @@ generate_formulae(Defs, Inp, Out) :-
     fetched_ft_pt_update(Defs, O4, O5),
     Out = O5.
 
-scope_mode_transform(Defs, Inp, Out) :-
+scope_mode_transform(_Defs, Inp, Out) :-
     get_dict(scope, Inp, S),
     get_dict(type, S, ST),
     sc_mo_tr(ST, Inp, Out).
@@ -365,8 +374,8 @@ xform_cond(Defs, Inp, C, PT, FT, SMVPT, SMVFT) :-
     get_dict(left, Endpoints, Left),
     get_dict(right, Endpoints, Right),
     get_dict('SMVptExtleft', Endpoints, SMVLeft),
-    get_dict('SMVptExtright', Endpoints, SMVRight),
-    get_dict('SMVftExtleft2', Endpoints, SMVLeftF),
+    %% get_dict('SMVptExtright', Endpoints, SMVRight),
+    %% get_dict('SMVftExtleft2', Endpoints, SMVLeftF),
     get_dict('SMVftExtright2', Endpoints, SMVRightF),
     get_dict(scope_mode_pt, Inp, ScopeModePT),
     get_dict(scope_mode_ft, Inp, ScopeModeFT),
@@ -406,6 +415,7 @@ fetched_ft_pt_update(Defs, Inp, Out) :-
     transform_to_AST(PSMV, PAST),
     ast_to_LTL(PAST, PLTL),
     ast_to_CoCo(PAST, PCOCO),
+
     get_dict(ftExpanded, Defs, FTE),
     subst("$regular_condition$", "$regular_condition_SMV_ft$", FTE, FE2),
     subst("$post_condition$", "$post_condition_SMV_ft$", FE2, FE3),
@@ -486,14 +496,16 @@ scope_mode(Mode, [Mode], P) --> lexeme(word, Mode, P).
 % --------------------------------------------------
 
 conditions(ReqCond, Vars) -->
-    and(P0), cond_(C,CP,Vars),
+    and(P0), cond_(C,CP,AllVars),
     { pos(P0, CP, P),
       range(P, Range),
+      list_to_set(AllVars, Vars),
       put_dict(C, _{condition:"regular", conditionTextRange:Range}, ReqCond )
     }.
 conditions(ReqCond, Vars) -->
-    cond_(C,CP,Vars),
+    cond_(C,CP,AllVars),
     { range(CP, Range),
+      list_to_set(AllVars, Vars),
       put_dict(C, _{condition:"regular", conditionTextRange:Range}, ReqCond )
     }.
 conditions(null, []) --> [].
@@ -595,11 +607,13 @@ timing(_{ timing: "always"}) --> [].
 responses(_{response: "satisfaction",
             post_condition: E,
             responseTextRange: Range
-           }, V) --> lexeme(satisfy, SP), !, postcond(EP, V, CP),
-                     { format(atom(EA), '(~w)', [EP]), atom_string(EA, E),
-                       pos(SP, CP, P),
-                       range(P, Range)
-                     }.
+           }, Vars) -->
+    lexeme(satisfy, SP), !, postcond(EP, AllVars, CP),
+    { format(atom(EA), '(~w)', [EP]), atom_string(EA, E),
+      pos(SP, CP, P),
+      list_to_set(AllVars, Vars),
+      range(P, Range)
+    }.
 
 postcond(E, V, P) --> bool_expr(E, V, P).
 
@@ -608,6 +622,15 @@ postcond(E, V, P) --> bool_expr(E, V, P).
 %% bool_expr(E, V, P) --> [ (N,'!') ], bool_expr(E, PE, V), { pos(N, PE, P) }.
 %% bool_expr(E, Vars, P) --> [ (N,'~') ], bool_expr(E, PE, V), { pos(N, PE, P) }.
 bool_expr(V, [V], P) --> lexeme(word, V, P).
+
+conjunction([], "").
+conjunction([E|ES], C) :-
+    conjunction(ES, ESC),
+    (ESC == ""
+    -> format(atom(CA), "~w", [E])
+    ; format(atom(CA), "(~w) & (~w)", [E, ESC])
+    ),
+    atom_string(CA, C).
 
 % --------------------------------------------------
 
