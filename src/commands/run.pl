@@ -27,8 +27,7 @@ run_help(Info) :-
 
 run_help(SubCmd, Help) :- eng:key(run, subcmd, SubCmd, Help).
 
-run_cmd(Context, [CmdStr|Args], Sts) :-
-    atom_string(Cmd, CmdStr),
+run_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, run, Cmd, Args, Sts).
 run_cmd(_, [Cmd|_], 1) :-
     print_message(error, invalid_subcmd(run, Cmd)).

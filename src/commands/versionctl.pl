@@ -59,8 +59,7 @@ vctl_cmd(Context, [push|Args], Sts) :-
 vctl_cmd(_, [Cmd|_], 1) :-
     member(Cmd, [ status, push ]), !,
     print_message(error, vcs_tool_undefined).
-vctl_cmd(Context, [CmdStr|Args], Sts) :-
-    atom_string(Cmd, CmdStr),
+vctl_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, vctl, Cmd, Args, Sts).
 vctl_cmd(_, [Cmd|_], 1) :-
     print_message(error, invalid_subcmd(vctl, Cmd)).

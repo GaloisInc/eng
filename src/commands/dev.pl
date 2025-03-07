@@ -76,8 +76,7 @@ dev_help(Info) :-
 
 dev_help(SubCmd, Help) :- subcmd_help(SubCmd, Help).
 
-dev_cmd(Context, [CmdStr|Args], Sts) :-
-    atom_string(Cmd, CmdStr),
+dev_cmd(Context, [Cmd|Args], Sts) :-
     eng:key(dev, subcmd, Cmd), !,
     ( member('--help', Args), dev_subcmd_help(Cmd), Sts = 0
     ; dev_subcmd_do(Context, Cmd, Args, Sts)
