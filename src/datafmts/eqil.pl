@@ -91,7 +91,7 @@ eqil_keyvals(norm, Active, FKVs, Rem) -->   % key = value
     indented(N), parse_key(N, K), parse_val(0, V),
     !,
     inline_key_value(norm, Active, N, K, V, FKVs, Rem).
-eqil_keyvals(valblock(VN), Active, FKVs, Rem) -->   % key = value
+eqil_keyvals(valblock(VN), Active, FKVs, Rem) -->   % key = block value
     indented(N), parse_key(N, K), {N =< VN}, parse_val(0, V),
     !,
     inline_key_value(norm, Active, N, K, V, FKVs, Rem).
@@ -204,11 +204,12 @@ update_active_new_kv(KVs, [A0|AS], N, K, V, UpdActive, RKVs) :-
     % added to the outputs, then recursively compare this new line to the next
     % Active stack element.
     active_parts(A0, AN, AK, _, AV), !,
-    add_eqil(AS, [key(AN, AK)], AV, KVs, UKVs),
-    update_active_new_kv(UKVs, AS, N, K, V, UpdActive, RKVs).
+    update_active_new_kv(KVs, AS, N, K, V, UpdActive, UKVs),
+    add_eqil(AS, [key(AN, AK)], AV, UKVs, RKVs).
 % empty Actives stack, push this element
 update_active_new_kv(KVs, [], _, K, no(val), [active(K, [])], KVs).
 update_active_new_kv(KVs, [], _, K, V, [active(K, [V])], KVs).
+
 
 % Update the Active stack with a value-only line.  This could still be an
 % implicit key as well, depending on the indentation relative to the last value.
