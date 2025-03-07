@@ -86,17 +86,16 @@ dev =
 
 
 bug =
-  =
+  bug1 =
     description =
       Running doc lando BADFILENAME gets to debugger.
 
-bug
-  =
+  bug2 =
     description =
       Imported components have a QName, but there is probably
       not a valid reference for that QName, so it forms a bad link.
 
 todo =
-  lando lando
-  description
-    Write lando spec for lando itself.
+  lando lando =
+    description =
+      Write lando spec for lando itself.
