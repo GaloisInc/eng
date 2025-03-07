@@ -41,10 +41,11 @@ show_type(X, "compound") :- compound(X), writeln(X), !.
 show_type(_, "other").
 
 string_trim(IS, OS) :-
-    string_codes(IS, IC),
-    string_codes_rtrim(IC, MC, _),
-    string_codes_ltrim(MC, OC, _),
-    string_codes(OS, OC).
+    split_string(IS, "", "\t\s", [OS]).
+    %% string_codes(IS, IC),
+    %% string_codes_rtrim(IC, MC, _),
+    %% string_codes_ltrim(MC, OC, _),
+    %% string_codes(OS, OC).
 
 % Remove spaces from the right of the IS string codes list, returning the
 % trimmed string codes, and the number of removed spaces.
