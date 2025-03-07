@@ -1,4 +1,5 @@
 :- module(lando_tool, [ lando/3,
+                        write_lando_fret/2,
                         write_lando_json/2,
                         write_lando_markdown/2
                       ]).
@@ -36,9 +37,7 @@ lando(LandoSource, ['to-markdown', OutFile], 0) :-
 lando(LandoSource, ['to-fret', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     open(OutFile, write, OutStrm),
-    lando_to_fret(SSL, FretProject),
-    json_write_dict(OutStrm, FretProject, []),
-    format(OutStrm, '~n', []).
+    write_lando_fret(OutStrm, SSL).
 
 lando(LandoSource, _, 1) :-
     \+ parse_lando_file(LandoSource, _),
@@ -51,6 +50,11 @@ prolog:message(parse_failure(S)) --> [ 'Failed to parse ~w Lando file.' - [S] ].
 %% ----------------------------------------------------------------------
 
 write_lando_json(Strm, SSL) :- json_write_dict(Strm, SSL, [tag(type)]).
+
+write_lando_fret(OutStrm, SSL) :-
+    lando_to_fret(SSL, FretProject),
+    json_write_dict(OutStrm, FretProject, []),
+    format(OutStrm, '~n', []).
 
 %% ----------------------------------------------------------------------
 

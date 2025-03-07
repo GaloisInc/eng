@@ -38,7 +38,7 @@ system_help(Info) :-
 |         format = { lando | other }
 |         generate =
 |           OUTPUT_FILENAME
-|             format = { json | markdown }
+|             format = { ALL | fret | json | markdown }
 |
 |}.
 
@@ -184,3 +184,9 @@ generate_spec_outputs(Spec, "lando", SSL, 0) :-
     open(OutFile, write, OutStrm),
     write_lando_markdown(OutStrm, SSL),
     format('Wrote lando spec "~w" to markdown file ~w~n', [ Spec, OutFile ]).
+generate_spec_outputs(Spec, "lando", SSL, 0) :-
+    eng:key(system, spec, Spec, generate, OutFile),
+    eng:eng(system, spec, Spec, generate, OutFile, format, "fret"),
+    open(OutFile, write, OutStrm),
+    write_lando_fret(OutStrm, SSL),
+    format('Wrote lando spec "~w" to fret file ~w~n', [ Spec, OutFile ]).
