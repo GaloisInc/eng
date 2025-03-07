@@ -80,6 +80,9 @@ get_dict_or(_, _, Def, Def).
 :- dynamic eng:key/5.
 :- dynamic eng:key/6.
 :- dynamic eng:key/7.
+:- dynamic eng:key/8.
+:- dynamic eng:key/9.
+:- dynamic eng:key/10.
 
 :- dynamic eng:eng/1.
 :- dynamic eng:eng/2.
@@ -89,6 +92,9 @@ get_dict_or(_, _, Def, Def).
 :- dynamic eng:eng/6.
 :- dynamic eng:eng/7.
 :- dynamic eng:eng/8.
+:- dynamic eng:eng/9.
+:- dynamic eng:eng/10.
+:- dynamic eng:eng/11.
 
 
 % Assert a fact with no value.  The replication here is ugly, but there's no good
@@ -135,6 +141,39 @@ assert_eng([K1,K2,K3,K4,K5,K6,K7]) :-
     atom_string(K6a, K6),
     atom_string(K7a, K7),
     assertz(eng:key(K1a,K2a,K3a,K4a,K5a,K6a,K7a)).
+assert_eng([K1,K2,K3,K4,K5,K6,K7,K8]) :-
+    atom_string(K1a, K1),
+    atom_string(K2a, K2),
+    atom_string(K3a, K3),
+    atom_string(K4a, K4),
+    atom_string(K5a, K5),
+    atom_string(K6a, K6),
+    atom_string(K7a, K7),
+    atom_string(K8a, K8),
+    assertz(eng:key(K1a,K2a,K3a,K4a,K5a,K6a,K7a,K8a)).
+assert_eng([K1,K2,K3,K4,K5,K6,K7,K8,K9]) :-
+    atom_string(K1a, K1),
+    atom_string(K2a, K2),
+    atom_string(K3a, K3),
+    atom_string(K4a, K4),
+    atom_string(K5a, K5),
+    atom_string(K6a, K6),
+    atom_string(K7a, K7),
+    atom_string(K8a, K8),
+    atom_string(K9a, K9),
+    assertz(eng:key(K1a,K2a,K3a,K4a,K5a,K6a,K7a,K8a,K9a)).
+assert_eng([K1,K2,K3,K4,K5,K6,K7,K8,K9,K10]) :-
+    atom_string(K1a, K1),
+    atom_string(K2a, K2),
+    atom_string(K3a, K3),
+    atom_string(K4a, K4),
+    atom_string(K5a, K5),
+    atom_string(K6a, K6),
+    atom_string(K7a, K7),
+    atom_string(K8a, K8),
+    atom_string(K9a, K9),
+    atom_string(K10a, K10),
+    assertz(eng:key(K1a,K2a,K3a,K4a,K5a,K6a,K7a,K8a,K9a,K10a)).
 
 assert_val(X, X) :- \+ is_list(X).
 
@@ -194,3 +233,42 @@ assert_eng([K1,K2,K3,K4,K5,K6,K7],VS) :-
     assert_val(VS, VA),
     assertz(eng:key(K1a, K2a, K3a, K4a, K5a, K6a, K7a)),
     assertz(eng:eng(K1a, K2a, K3a, K4a, K5a, K6a, K7a, VA)).
+assert_eng([K1,K2,K3,K4,K5,K6,K7,K8],VS) :-
+    atom_string(K1a, K1),
+    atom_string(K2a, K2),
+    atom_string(K3a, K3),
+    atom_string(K4a, K4),
+    atom_string(K5a, K5),
+    atom_string(K6a, K6),
+    atom_string(K7a, K7),
+    atom_string(K8a, K8),
+    assert_val(VS, VA),
+    assertz(eng:key(K1a, K2a, K3a, K4a, K5a, K6a, K7a, K8a)),
+    assertz(eng:eng(K1a, K2a, K3a, K4a, K5a, K6a, K7a, K8a, VA)).
+assert_eng([K1,K2,K3,K4,K5,K6,K7,K8,K9],VS) :-
+    atom_string(K1a, K1),
+    atom_string(K2a, K2),
+    atom_string(K3a, K3),
+    atom_string(K4a, K4),
+    atom_string(K5a, K5),
+    atom_string(K6a, K6),
+    atom_string(K7a, K7),
+    atom_string(K8a, K8),
+    atom_string(K9a, K9),
+    assert_val(VS, VA),
+    assertz(eng:key(K1a, K2a, K3a, K4a, K5a, K6a, K7a, K8a, K9a)),
+    assertz(eng:eng(K1a, K2a, K3a, K4a, K5a, K6a, K7a, K8a, K9a, VA)).
+assert_eng([K1,K2,K3,K4,K5,K6,K7,K8,K9,K10],VS) :-
+    atom_string(K1a, K1),
+    atom_string(K2a, K2),
+    atom_string(K3a, K3),
+    atom_string(K4a, K4),
+    atom_string(K5a, K5),
+    atom_string(K6a, K6),
+    atom_string(K7a, K7),
+    atom_string(K8a, K8),
+    atom_string(K9a, K9),
+    atom_string(K10a, K10),
+    assert_val(VS, VA),
+    assertz(eng:key(K1a, K2a, K3a, K4a, K5a, K6a, K7a, K8a, K9a, K10a)),
+    assertz(eng:eng(K1a, K2a, K3a, K4a, K5a, K6a, K7a, K8a, K9a, K10a, VA)).
