@@ -1,0 +1,251 @@
+:- module(exec_subcmds, [ exec_subcmd_help/2,
+                          exec_subcmd_do/5,
+                          do_exec/7,
+                          prep_args/3
+                        ]).
+
+:- use_module(library(strings)).
+:- use_module("../englib").
+
+% This module does not define a command directly, but provides definitions to
+% support the use of the eng configuration files to define sub-commands.  These
+% definitions can be used with other commands that wish to introduce this
+% extensible functionality.
+
+exec_subcmd_help(Cmd, Info) :-
+    Info = {|string(Cmd)||
+| Sub-commands which run an external executable can be defined:
+|
+|     {Cmd} =
+|       subcmd =
+|         CMDNAME =
+|           DESCRIPTION =
+|             needs = CMDNAME TO RUN BEFORE THIS ONE
+|             exec = SHELL COMMAND(S) TO RUN WITH Args
+|             exec = ANOTHER SHELL COMMAND
+|             in dir = DIRECTORY
+|             env vars =
+|               VARNAME = VARVALUE
+|               ...
+|
+| The "exec" value can contain Args in curly braces: this will be replaced with
+| any additional arguments specified on the eng command-line.  The first word
+| of the each exec specification is replaced by any 'exec bin' value, allowing
+| high-level use of any launcher (e.g. "nix run").  Note that an "exec" with
+| multiple lines will only have the first such word replaced (and the entire
+| block is executed in a single shell operation); multiple "exec" keys can
+| specify multiple lines that will be executed in sequence with the first word
+| of each allowing an 'exec bin' substitution:
+|
+|     exec bin =
+|       BIN1 = SUBST1
+|       ...
+|     exec env vars =
+|       VARNAME = VARVALUE
+|       ...
+|
+| All entries are optional.
+|
+| If provided, environment variables will be set and the current directory will
+| be set to "in dir" before the "Exec" is run. The "exec", "in dir", and
+| "env vars" values may contain EngDir and/or TopDir in curly braces: these will
+| be replaced with the directory containing the eng specifications and the
+| directory containing the EngDir, respectively.  Any "exec env vars" will be
+| set for *all* executed commands.  The "exec bin" and "exec env vars" settings
+| are commonly found in the home configuration directory configuration for the
+| user (e.g. /home/USER/.config/eng/___.eng).
+|}.
+
+exec_subcmd_do(Context, Cmd, SubCmd, Args, Sts) :-
+    eng:key(Cmd, subcmd, SubCmd), !,
+    exec_subcmd_ready(Context, Cmd, SubCmd, Args, Sts).
+
+exec_subcmd_ready(Context, Cmd, SubCmd, Args, Sts) :-
+    eng:eng(Cmd, subcmd, SubCmd, needs, PreCmd),
+    atom_string(PCmd, PreCmd),
+    exec_subcmd_do(Context, Cmd, PCmd, Args, Sts),
+    ( Sts == 0, fail  %% PreCmd succeeded, move on to retry
+    ; \+ Sts == 0, !, true  %% PreCmd failed, don't try anything else.
+    ).
+exec_subcmd_ready(Context, Cmd, SubCmd, Args, Sts) :-
+    exec_subcmd_each(Context, Cmd, SubCmd, Args, Sts).
+
+exec_subcmd_each(Context, Cmd, SubCmd, Args, Sts) :-
+    % Each SubCmd may have multiple instances delineated by the Descr.  The Descr
+    % provides a summary for help information, and helps to keep the key/values
+    % for different parts of the SubCmd isolated (SubCmds are compositional).
+    findall(D, eng:key(Cmd, subcmd, SubCmd, D), Descrs),
+    maplist(exec_subcmd_descr(Context, Cmd, SubCmd, Args), Descrs, AllSts),
+    sum_list(AllSts, Sts).
+
+exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, Sts) :-
+    get_subcmd_execs(Cmd, SubCmd, Descr, Execs, EnvVars, InDir),
+    subcmd_args_argmap(Args, ArgMap),
+    print_message(informational, running_exec_subcmd(Cmd, SubCmd, Descr)),
+    format(atom(Ref), '~w ~w command', [ Cmd, SubCmd ]),
+    do_exec(Context, Ref, ArgMap, Execs, EnvVars, InDir, Sts).
+
+get_subcmd_execs(Cmd, SubCmd, Descr, Execs, EnvVars, InDir) :-
+    (eng:eng(Cmd, subcmd, SubCmd, Descr, 'in dir', InDir), !; InDir = curdir),
+    findall(E, eng:eng(Cmd, subcmd, SubCmd, Descr, exec, E), Execs),
+    findall((N,V), eng:eng(Cmd, subcmd, SubCmd, Descr, 'env vars', N, V), EnvVars).
+
+subcmd_args_argmap(Args, [ 'Args' = ArgStr ]) :-
+    maplist([E,O]>>format(atom(O), "\"~w\"", [E]), Args, QuotedArgs),
+    foldl([S,A,O]>>(string_concat(A, " ", AS),
+                    string_concat(AS, S, O)), QuotedArgs, "", ArgStr).
+
+%% ----------------------------------------------------------------------
+
+%% do_exec is a general function to execute a list of commands or a single
+%% command string, setting the specified environment variables, possibly in a
+%% specified directory, and substituting various arguments into the executed
+%% command.  It can also substitute EngDir and TopDir in the environment variable
+%% values and target directory).  The result is returned in the last argument: 0
+%% on success or non-zero on failure.
+
+do_exec(_, _Ref, _ArgMap, [], _EnvVars, _InDir, 0).
+do_exec(Context, Ref, ArgMap, [C|CS], EnvVars, InDir, Sts) :-
+    do_exec_single(Context, Ref, ArgMap, C, EnvVars, InDir, ThisSts),
+    ( ThisSts = 0, !, do_exec(Context, Ref, ArgMap, CS, EnvVars, InDir, Sts)
+    ; Sts = ThisSts,
+      (CS == [], !
+      ; length(CS, CSL),
+        print_message(warning, abort_exec_on_failure(Ref, CSL))
+      )
+    ).
+do_exec(Context, Ref, ArgMap, C, EnvVars, InDir, Sts) :-
+    string(C),
+    do_exec_single(Context, Ref, ArgMap, C, EnvVars, InDir, Sts).
+
+% Run the C, which is a list of executable and args, capturing the stdout.  Only
+% completes if the command exits successfully.
+do_exec(Context, Ref, ArgMap, capture(C), EnvVars, InDir, Sts) :-
+    do_exec_single(Context, Ref, ArgMap, capture(C), EnvVars, InDir, Sts).
+
+do_exec_single(Context, Ref, ArgMap, capture([Cmd|Args]), EnvVars, InDir, StdOut) :- !,
+    set_env_vars(Context, EnvVars),
+    (eng:eng('exec bin', Cmd, E), !; E = Cmd),
+    maplist(prep_args(ArgMap), Args, EArgs),
+    %% writeln(FullExec),
+    dir_runproc(Context, Ref, E, EArgs, InDir, StdOut).
+do_exec_single(Context, Ref, ArgMap, ShellCmd, EnvVars, InDir, Sts) :-
+    set_env_vars(Context, EnvVars),
+    subst_exec(ShellCmd, ExecCmd),
+    prep_args(ArgMap, ExecCmd, FullExec),
+    print_message(informational, running_exec(FullExec)),
+    %% writeln(FullExec),
+    dir_shell(Context, Ref, FullExec, InDir, ThisSts),
+    ( ThisSts = 0, !, Sts = ThisSts
+    ; Sts = ThisSts,
+      print_message(error, exec_failure(Ref, ShellCmd, Sts))
+    ).
+
+
+%% ----------------------------------------------------------------------
+
+subst_exec(Cmd, Actual) :-
+    atom_string(Cmd,CmdS),
+    string_codes(CmdS, Chars),
+    phrase(exec_bin(ActualExec), Chars, Remaining), !,
+    atom_string(ActualExec, ExecStr),
+    string_concat(ExecStr, " ", E1),
+    string_codes(RemString, Remaining),
+    string_concat(E1, RemString, Actual).
+subst_exec(Cmd, Cmd).
+
+exec_bin(E) --> { eng:eng('exec bin', Cmd, E),
+                  atom_string(Cmd,CmdS),
+                  string_codes(CmdS, CmdCodes)
+                },
+                CmdCodes, " ".
+
+prep_args(ArgMap, TE, TECmd) :-
+    catch(interpolate_string(TE, TECmd, ArgMap, []),
+          _Err, % error(existence_error(procedure, CmdHPred/2), context(_,_))
+
+          %% Here, the interpolate_string has failed.  This could be because the
+          %% wrong X was used in an {X} substitution, or it could just be that
+          %% the command string contains a {X} that should be passed-through as
+          %% is.  Options are to (1) fail, which breaks the second case, or (2)
+          %% just use the input string.  The preference here is (2) to support
+          %% the second case, but note that it's all or nothing: if the input
+          %% string contains "foo {X} as {Y}" and {X} is supposed to be
+          %% substituted but {Y} is supposed to be passed through, the failure to
+          %% substitute {Y} will return without {X} substituted either.
+           TECmd = TE).
+
+
+%% ----------------------------------------------------------------------
+
+set_env_vars(Context, EnvVars) :-
+    % Apply global env vars before command-specific env vars so that the latter
+    % can override the former.
+    global_set_env_vars(Context),
+    set_env_vars_(Context, EnvVars).
+global_set_env_vars(Context) :-
+    findall((N, V), eng:eng('exec env vars', N, V), GlobalEnvVars),
+    set_env_vars_(Context, GlobalEnvVars).
+set_env_vars_(_, []).
+set_env_vars_(context(EngDir, TopDir), [(VarName, VarVal)|EnvVars]) :-
+    prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], VarVal, SubstVarVal),
+    string_trim(SubstVarVal, SetVarVal),
+    setenv(VarName, SetVarVal),
+    set_env_vars_(context(EngDir, TopDir), EnvVars).
+
+%% ----------------------------------------------------------------------
+
+dir_shell(_, _, FullExec, curdir, ExecSts) :- shell(FullExec, ExecSts).
+dir_shell(context(EngDir, TopDir), Ref, FullExec, InDir, ExecSts) :-
+    prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], InDir, SubstDir),
+    string_trim(SubstDir, TgtDir),
+    (exists_directory(TgtDir), !,
+     working_directory(OldDir, TgtDir),
+     shell(FullExec, ExecSts),
+     working_directory(_, OldDir)
+    ; print_message(error, invalid_directory(Ref, TgtDir)),
+      ExecSts = 1
+    ).
+
+%% ----------------------------------------------------------------------
+
+dir_runproc(_, _, Exe, Args, curdir, StdOut) :-
+    %% format('Run ~w with ~w~n', [Exe, Args]),
+    setup_call_cleanup(
+        process_create(Exe, Args, [stdout(pipe(Out))]),
+        read_lines(Out, StdOut),
+        close(Out)).
+dir_runproc(context(EngDir, TopDir), _Ref, Exe, Args, InDir, StdOut) :-
+    prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], InDir, SubstDir),
+    string_trim(SubstDir, TgtDir),
+    %% format('Run ~w (~w) with ~w in ~w~n', [Exe, path(Exe), Args, TgtDir]),
+    setup_call_cleanup(
+        process_create(path(Exe), Args, [stdout(pipe(Out)), cwd(TgtDir)]),
+        read_lines(Out, StdOut),
+        close(Out)).
+
+read_lines(Out, Lines) :-
+    read_line_to_codes(Out, Line1),
+    read_lines(Line1, Out, Lines).
+
+read_lines(end_of_file, _, []) :- !.
+read_lines(Codes, Out, [Line|Lines]) :-
+    atom_codes(Line, Codes),
+    read_line_to_codes(Out, Line2),
+    read_lines(Line2, Out, Lines).
+
+%% ----------------------------------------------------------------------
+
+prolog:message(invalid_directory(Ref, InDir)) -->
+    [ 'Requested exec target directory ~w does not exist when running ~w' -
+      [ InDir, Ref ] ].
+prolog:message(running_exec_subcmd(Cmd, SubCmd, Descr)) -->
+    [ 'Running "~w" sub-command "~w" (~w)' - [ Cmd, SubCmd, Descr ] ].
+prolog:message(running_exec(Exec)) -->
+    { string_concat("$ ", Exec, O) },
+    [ '~w' - [ O ] ].
+prolog:message(exec_failure(Ref, C, Sts)) -->
+    [ 'ERROR ~w executing ~w: ~w' - [ Sts, Ref, C ] ].
+prolog:message(abort_exec_on_failure(Ref, SkipCnt)) -->
+    [ 'ERROR skipping ~w commands due to previous failures for ~w'
+      - [ SkipCnt, Ref ] ].

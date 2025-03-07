@@ -1,0 +1,119 @@
+* eng: the Engineering tool
+
+** What is it?
+
+ The eng tool is designed to perform project and product engineering tasks.
+ Engineering tasks include:
+
+   * design
+   * development
+   * documentation
+   * release management
+   * bug tracking
+   * feature tracking
+   * task management
+   * requirements definitions
+   * configuration management
+
+ Most software developers and projects are familiar with the development process
+ from an applied manner: projects have some sort of build description that lets a
+ build tool create a runnable version of the project.
+
+ Some projects have documentation to varying degrees: README's are common, guides
+ for installation, usage, and quickstart are the next most common.  Other
+ documentation tends to be rare: requirements documents, design documents, API
+ specifications, etc.
+
+ Many projects are maintained in a tool that provides varying amounts of
+ additional capabilities such as release management and bug tracking, but those
+ tend to exist in the tooling itself and separate from the project data.  For
+ example, Github provides issues (bug tracking), pull requests (development), and
+ tags/artifacts (release management), but these are all part of Github itself and
+ not available to anyone working with an offline clone of the repo.
+
+ The ~eng~ tool is intended to consolidate all these different aspects of
+ engineering into the main portion of a project and provide a way to interact
+ with them.
+
+** How does it work?
+
+ Information for the ~eng~ tool is provided by adding ~.eng~ files to the project
+ (normally in an ~_eng_~ directory at the project's top-level); each ~.eng~ file
+ provides information related to one or more of the above areas, with data
+ appropriate to that type of information.  Although a single ~.eng~ file can
+ contain multiple types of data, it's more typical to use a different ~.eng~ file
+ for each component of information.  The ~.eng~ files are intended to be managed
+ via the version control for the project just like the other sources.
+
+ The ~eng~ tool is run, specifying a sub-command.  The tool will read the various
+ ~eng~ files provided for the project to perform the requested sub-command.  Each
+ sub-command can use various portions of the information to perform an action
+ associated with that sub-command.  Some of the commands may create or update
+ ~.eng~ files; this updates the project state managed by ~eng~ and these changes
+ should be committed to the version control system to maintain accurate project
+ state.
+
+** Syntax for ~.eng~ files
+
+ The syntax for the ~.eng~ files is associated with the type of information being
+ provided; the "type" of information refers to a category of engineering tasks or
+ concerns like to those described in the introduction section above.  There may
+ be (and usually are) multiple "components" of information in each category
+ (e.g. multiple "bugs" in the bug tracking category).  Each component is
+ introduced by an "introductory phrase" that uniquely identifies the type of
+ information; the introductory phrase is followed by additional phrases that
+ together provide all the data for that component.  If multiple components are
+ presented in the same ~.eng~ file, each is started by a corresponding
+ "introductory phrase" that terminates the information for any preceding
+ component and begins the new component; multiple components in the same file do
+ not necessarily need to have the same type.
+
+ Specific syntax is provided in detailed sections of the [[syntax.org]]
+ documentation.
+
+** ~eng~ commands
+
+ The user invokes the ~eng~ tool with a sub-command to be performed in that
+ particular run.  The sub-commands are pre-defined, although many provide a way
+ for the user (project developers) to extend or configure the command with
+ regards to the specific actions it performs.
+
+ Many of the commands will update the ~.eng~ files; these updates should be
+ preserved as they maintain the evolving engineering state of the project.  Note
+ that this means that "rolling back" to a previous commit for the project will
+ also roll-back this state.  Automated updates to the ~eng~ files are intended to
+ be compatible with merge processes, but some sub-commands may perform parallel
+ actions that will result in ~.eng~ conflicts when merged together; these
+ situations represent Engineering practices that require manual resolution
+ anyhow, so this is viewed as somewhat of a feature: resolving these conflicts in
+ the ~.eng~ files helps resolve the associated Engineering issue.  This latter
+ statement is understandably vague; more information will be provided to clarify
+ these in the description of the commands where these are likely to occur.
+
+ Tne various ~eng~ commands provided are described in detailed sections of the
+ [[commands.org]] document.
+
+** Ease of use
+
+ The ~eng~ command is designed to be easily used to perform engineering
+ management for a project.  To facilitate this, it is utilized as a single file
+ written in an interpreted language for which an interpreter is widely avaiable
+ for multiple platforms.  It is possible to copy the entire ~eng~ tool into the
+ project itself as a single file, or else use an ~eng~ implementation referenced
+ from the current ~PATH~ or other executable specification method.
+
+ All ~eng~ commands will provide help describing their action if passed the
+ ~--help~ argument.  Most commands provide a ~--dry-run~ argument that would
+ describe what would be done without actually performing those actions, and the
+ effects of any command which has impacts purely local to the working directory
+ tree can be reversed by using the version control tool to discard or revert the
+ changes; the same is not necessarily true for commands that have impact outside
+ of the current working directory tree, although many of those commands provide a
+ ~--revert~ argument; see their individual ~--help~ for more information.
+
+** Ouroboros
+
+ The ~eng~ tool is managed by: the ~eng~ tool.  It is perhaps a more complex use
+ of the tool than is useful for *learning* the tool, but it should be a good
+ representative example of what can actually be done with the tool.
+

@@ -1,0 +1,68 @@
+dev =
+  subcmd =
+    build =
+      Builds the project from source =
+        exec =
+          swipl --goal=main -o eng -c src/top.pl
+        #= Can use --emulator=swipl, but that has immediate effect. =#
+
+    run =
+      Runs the project main application =
+        needs = build
+        exec = ./eng {Args}
+
+    debugrun =
+      Runs the project main application in debug mode
+        exec =
+          swipl -t main src/top.pl {Args}
+
+    mkdist =
+      Create a source distribution zipfile
+        in dir = src
+        exec =
+          rm -f ../engdist.zip
+        exec =
+          zip -ru9 ../engdist.zip $(find . -type f ! -name '*~')
+        exec =
+          unzip -l ../engdist.zip > ../engdist.manifest
+        exec =
+          zip -u ../engdist.zip ../engdist.manifest
+        exec =
+          unzip -l ../engdist.zip > ../engdist.manifest
+
+    test =
+      help = Runs the tests for the project
+             All tests are run.
+        Some may fail.
+      needs = build
+
+    test =
+      testcase =
+        eqil parsing =
+          type = EXE
+          runner = EXE:prolog tests
+
+      testrunner =
+        EXE:prolog tests =
+          exec = swipl -t test_all src/test.pl
+        EXE:lando =
+          exec =
+            ./eng doc lando {Input}
+        KAT:lando =
+          exec =
+            mkdir -p $(dirname {Output})  # for {TestName}
+            rm -f {Output}
+            ./eng doc lando {Input} to-json {Output}
+            diff {Expected} {Output}
+        KAT:lando json =
+          exec =
+            mkdir -p $(dirname {Output})  # for {TestName}
+            rm -f {Output}
+            ./eng doc lando {Input} to-json {Output}
+            diff <(nix run nixpkgs#python3Packages.jsondiff -- {Expected} {Output}; echo) <(echo {})
+        KAT:lando markdown =
+          exec =
+            mkdir -p $(dirname {Output})  # for {TestName}
+            rm -f {Output}
+            ./eng doc lando {Input} to-markdown {Output}
+            diff {Expected} {Output}

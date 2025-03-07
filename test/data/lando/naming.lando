@@ -1,0 +1,10 @@
+subsystem The-System-Name Word+2/3%x (One-Word-System-Abbreviation)
+Paragraph.
+
+events A-B
+
+  Standby-X
+  description.
+
+  A+B+C
+  description.

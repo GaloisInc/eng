@@ -1,0 +1,755 @@
+{
+    "body": [
+        {
+            "type": "system",
+            "uid": 1,
+            "pos": {
+                "line": 1,
+                "col": 0
+            },
+            "name": "The foo system",
+            "abbrevName": "FOO",
+            "explanation": "This is a mandatory description. It is a PARAGRAPH, and so it can consist of several sentences and be spread over several lines. It must be terminated by blank line.",
+            "indexing": [
+                {
+                    "pos": {
+                        "line": 27,
+                        "col": 3
+                    },
+                    "key": "key",
+                    "values": [
+                        "an item for this key",
+                        "another item for this key (separated by the blank line)"
+                    ],
+                    "comments": [
+                    ]
+                },
+                {
+                    "pos": {
+                        "line": 29,
+                        "col": 3
+                    },
+                    "key": "url",
+                    "values": [
+                        "http://notice.the.internal.colon.html"
+                    ],
+                    "comments": [
+                    ]
+                },
+                {
+                    "pos": {
+                        "line": 30,
+                        "col": 3
+                    },
+                    "key": "misc",
+                    "values": [
+                        "but words here must not end with a colon",
+                        "and this:might not parse as you might expect"
+                    ],
+                    "comments": [
+                    ]
+                }
+            ],
+            "body": [
+                {
+                    "type": "subsystem",
+                    "uid": 2,
+                    "pos": {
+                        "line": 34,
+                        "col": 2
+                    },
+                    "name": "The Bar subsystem",
+                    "abbrevName": "BAR",
+                    "clientOf": [
+                    ],
+                    "explanation": "Again, a mandatory description PARAGRAPH.",
+                    "indexing": [
+                    ],
+                    "body": [
+                        {
+                            "type": "component",
+                            "uid": 3,
+                            "pos": {
+                                "line": 41,
+                                "col": 5
+                            },
+                            "name": "AAAA",
+                            "abbrevName": "A4",
+                            "inherits": [
+                                [
+                                    "BB"
+                                ]
+                            ],
+                            "clientOf": [
+                                [
+                                    "DD"
+                                ],
+                                [
+                                    "FF"
+                                ]
+                            ],
+                            "explanation": "And yet another mandatory description PARAGRAPH.",
+                            "parts": [
+                            ],
+                            "features": [],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 41,
+                                        "col": 5
+                                    },
+                                    "text": "The body of the BAR subsystem follows."
+                                }
+                            ]
+                        },
+                        {
+                            "type": "component",
+                            "uid": 4,
+                            "pos": {
+                                "line": 46,
+                                "col": 5
+                            },
+                            "name": "B2",
+                            "abbrevName": "BB",
+                            "inherits": [
+                                [
+                                    "A4"
+                                ]
+                            ],
+                            "clientOf": [
+                            ],
+                            "explanation": "Description here.",
+                            "parts": [],
+                            "features": [
+                                {
+                                    "type": "constraint",
+                                    "pos": {
+                                        "line": 49,
+                                        "col": 7
+                                    },
+                                    "text": "constraint.",
+                                    "comments": [
+                                        {
+                                            "pos": {
+                                                "line": 49,
+                                                "col": 21
+                                            },
+                                            "text": "only a single newline is needed between these"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "query",
+                                    "pos": {
+                                        "line": 50,
+                                        "col": 7
+                                    },
+                                    "text": "query?",
+                                    "comments": [
+                                    ]
+                                },
+                                {
+                                    "type": "command",
+                                    "pos": {
+                                        "line": 51,
+                                        "col": 7
+                                    },
+                                    "text": "command!",
+                                    "comments": [
+                                        {
+                                            "pos": {
+                                                "line": 51,
+                                                "col": 21
+                                            },
+                                            "text": "but then we need a blank line before anything else"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 46,
+                                        "col": 34
+                                    },
+                                    "text": "error: cyclic inheritance graph"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "component",
+                            "uid": 5,
+                            "pos": {
+                                "line": 53,
+                                "col": 5
+                            },
+                            "name": "DD",
+                            "abbrevName": null,
+                            "inherits": [
+                                [
+                                    "SS",
+                                    "Baz"
+                                ]
+                            ],
+                            "clientOf": [
+                            ],
+                            "explanation": "Description.",
+                            "parts": [
+                            ],
+                            "features": [],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 53,
+                                        "col": 34
+                                    },
+                                    "text": "colon is used to construct qualified names (instead of .)"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "relation",
+                            "uid": 6,
+                            "pos": {
+                                "line": 56,
+                                "col": 5
+                            },
+                            "name": [
+                                "DD"
+                            ],
+                            "inherits": [
+                            ],
+                            "clientOf": [
+                                [
+                                    "B2"
+                                ]
+                            ],
+                            "comments": [
+                            ]
+                        },
+                        {
+                            "type": "relation",
+                            "uid": 7,
+                            "pos": {
+                                "line": 57,
+                                "col": 5
+                            },
+                            "name": [
+                                "DD"
+                            ],
+                            "inherits": [
+                                [
+                                    "B2"
+                                ]
+                            ],
+                            "clientOf": [
+                            ],
+                            "comments": [
+                            ]
+                        },
+                        {
+                            "type": "componentImport",
+                            "uid": 8,
+                            "pos": {
+                                "line": 59,
+                                "col": 5
+                            },
+                            "name": [
+                                "FF"
+                            ],
+                            "abbrevName": null,
+                            "clientOf": [
+                                [
+                                    "DD"
+                                ]
+                            ],
+                            "comments": [
+                            ]
+                        },
+                        {
+                            "type": "componentImport",
+                            "uid": 9,
+                            "pos": {
+                                "line": 60,
+                                "col": 5
+                            },
+                            "name": [
+                                "FF"
+                            ],
+                            "abbrevName": null,
+                            "clientOf": [
+                            ],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 60,
+                                        "col": 37
+                                    },
+                                    "text": "illegal: duplicate name "
+                                }
+                            ]
+                        },
+                        {
+                            "type": "componentImport",
+                            "uid": 10,
+                            "pos": {
+                                "line": 61,
+                                "col": 5
+                            },
+                            "name": [
+                                "FF"
+                            ],
+                            "abbrevName": "myFF",
+                            "clientOf": [
+                            ],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 61,
+                                        "col": 37
+                                    },
+                                    "text": "abbreviation given: imported as \"myFF\""
+                                }
+                            ]
+                        },
+                        {
+                            "type": "componentImport",
+                            "uid": 11,
+                            "pos": {
+                                "line": 62,
+                                "col": 5
+                            },
+                            "name": [
+                                "SS",
+                                "Baz"
+                            ],
+                            "abbrevName": null,
+                            "clientOf": [
+                            ],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 62,
+                                        "col": 37
+                                    },
+                                    "text": "imported as \"Baz\" (last facet of qualified name)"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "componentImport",
+                            "uid": 12,
+                            "pos": {
+                                "line": 63,
+                                "col": 5
+                            },
+                            "name": [
+                                "SS",
+                                "Baz"
+                            ],
+                            "abbrevName": "myBaz",
+                            "clientOf": [
+                            ],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 63,
+                                        "col": 37
+                                    },
+                                    "text": "abbreviation given: imported as \"myBaz\""
+                                }
+                            ]
+                        }
+                    ],
+                    "comments": [
+                        {
+                            "pos": {
+                                "line": 34,
+                                "col": 2
+                            },
+                            "text": "The body of the system follows."
+                        },
+                        {
+                            "pos": {
+                                "line": 36,
+                                "col": 2
+                            },
+                            "text": "The indentation is not significant to the parser"
+                        },
+                        {
+                            "pos": {
+                                "line": 37,
+                                "col": 38
+                            },
+                            "text": "all on one line comment"
+                        },
+                        {
+                            "pos": {
+                                "line": 65,
+                                "col": 6
+                            },
+                            "text": "The Bar subsystem"
+                        }
+                    ]
+                }
+            ],
+            "comments": [
+                {
+                    "pos": {
+                        "line": 1,
+                        "col": 0
+                    },
+                    "text": "This file attempts to illustrate features of Lando SSL v2 by example."
+                },
+                {
+                    "pos": {
+                        "line": 3,
+                        "col": 0
+                    },
+                    "text": "There are four kinds of \"free text\" in specs:"
+                },
+                {
+                    "pos": {
+                        "line": 4,
+                        "col": 0
+                    },
+                    "text": "- NAMES consist of one or more words separated by white space (but no newlines)"
+                },
+                {
+                    "pos": {
+                        "line": 5,
+                        "col": 0
+                    },
+                    "text": "These words must not contain the characters '(', ')' or ':' and also must not "
+                },
+                {
+                    "pos": {
+                        "line": 6,
+                        "col": 0
+                    },
+                    "text": "end with ',', '.', '!', or '?'. Finally, the two keywords 'client' and 'inherit'"
+                },
+                {
+                    "pos": {
+                        "line": 7,
+                        "col": 0
+                    },
+                    "text": "are not allowed as words in names. [This is unpleasantly ad hoc and could be"
+                },
+                {
+                    "pos": {
+                        "line": 8,
+                        "col": 0
+                    },
+                    "text": "fixed...]"
+                },
+                {
+                    "pos": {
+                        "line": 9,
+                        "col": 0
+                    },
+                    "text": "- SENTENCES consist of one or more words separated by white space and/or newlines,"
+                },
+                {
+                    "pos": {
+                        "line": 10,
+                        "col": 0
+                    },
+                    "text": "and terminated by a '.', '!', or '?' character. Words in sentences can contain"
+                },
+                {
+                    "pos": {
+                        "line": 11,
+                        "col": 0
+                    },
+                    "text": "any printing character."
+                },
+                {
+                    "pos": {
+                        "line": 12,
+                        "col": 0
+                    },
+                    "text": "- PARAGRAPHS consist of one or more sentences, separated by white space and/or"
+                },
+                {
+                    "pos": {
+                        "line": 13,
+                        "col": 0
+                    },
+                    "text": "newlines, and terminated by a blank line.  The terminating '.', '!', or '?'"
+                },
+                {
+                    "pos": {
+                        "line": 14,
+                        "col": 0
+                    },
+                    "text": "character at the end of the last sentence in the paragraph may be omitted,"
+                },
+                {
+                    "pos": {
+                        "line": 15,
+                        "col": 0
+                    },
+                    "text": "but a warning is given."
+                },
+                {
+                    "pos": {
+                        "line": 16,
+                        "col": 0
+                    },
+                    "text": "- INDEX keys and values consist of one or more words separated by white space"
+                },
+                {
+                    "pos": {
+                        "line": 17,
+                        "col": 0
+                    },
+                    "text": "that must not end with the character ':' "
+                },
+                {
+                    "pos": {
+                        "line": 18,
+                        "col": 0
+                    },
+                    "text": ""
+                },
+                {
+                    "pos": {
+                        "line": 20,
+                        "col": 28
+                    },
+                    "text": "\"FOO\" is an abbreviated name for \"The foo system\""
+                },
+                {
+                    "pos": {
+                        "line": 25,
+                        "col": 0
+                    },
+                    "text": "the following section is optional"
+                },
+                {
+                    "pos": {
+                        "line": 67,
+                        "col": 4
+                    },
+                    "text": "The foo system (FOO)"
+                }
+            ]
+        },
+        {
+            "type": "component",
+            "uid": 13,
+            "pos": {
+                "line": 69,
+                "col": 0
+            },
+            "name": "FF",
+            "abbrevName": null,
+            "inherits": [
+            ],
+            "clientOf": [
+            ],
+            "explanation": "This is a top-level component, which can be referenced from anywhere, including from imports.",
+            "features": [],
+            "parts": [
+            ],
+            "comments": [
+            ]
+        },
+        {
+            "type": "subsystem",
+            "uid": 14,
+            "pos": {
+                "line": 72,
+                "col": 0
+            },
+            "name": "SS",
+            "abbrevName": null,
+            "clientOf": [
+            ],
+            "explanation": "This is a top-level subsystem, which can be referenced from anywhere, including from imports.",
+            "indexing": [
+            ],
+            "body": [
+                {
+                    "type": "component",
+                    "uid": 15,
+                    "pos": {
+                        "line": 77,
+                        "col": 2
+                    },
+                    "name": "Baz",
+                    "abbrevName": null,
+                    "inherits": [
+                    ],
+                    "clientOf": [
+                    ],
+                    "explanation": "Description of Baz.",
+                    "parts": [
+                    ],
+                    "features": [],
+                    "comments": [
+                    ]
+                }
+            ],
+            "comments": [
+            ]
+        },
+        {
+            "type": "subsystem",
+            "uid": 16,
+            "pos": {
+                "line": 82,
+                "col": 0
+            },
+            "name": "UU",
+            "abbrevName": null,
+            "clientOf": [
+            ],
+            "explanation": "Description.",
+            "indexing": [
+            ],
+            "body": [
+                {
+                    "type": "component",
+                    "uid": 17,
+                    "pos": {
+                        "line": 95,
+                        "col": 2
+                    },
+                    "name": "A",
+                    "abbrevName": null,
+                    "inherits": [
+                    ],
+                    "clientOf": [
+                    ],
+                    "explanation": "Inside this description, I will talk about \"FF\" and \"SS:Baz\" (or \"SS : Baz\") and \"The foo system\" but also \"utter nonsense\".",
+                    "parts": [
+                    ],
+                    "features": [],
+                    "comments": [
+                    ]
+                },
+                {
+                    "type": "events",
+                    "uid": 18,
+                    "pos": {
+                        "line": 98,
+                        "col": 2
+                    },
+                    "name": "myevents",
+                    "events": [
+                        {
+                            "pos": {
+                                "line": 100,
+                                "col": 2
+                            },
+                            "id": "one",
+                            "text": "the first event.",
+                            "comments": [
+                            ]
+                        },
+                        {
+                            "pos": {
+                                "line": 103,
+                                "col": 2
+                            },
+                            "id": "two",
+                            "text": "the second event.",
+                            "comments": [
+                            ]
+                        }
+                    ],
+                    "comments": [
+                    ]
+                },
+                {
+                    "type": "scenarios",
+                    "uid": 19,
+                    "pos": {
+                        "line": 106,
+                        "col": 2
+                    },
+                    "name": "myscenarios",
+                    "scenarios": [
+                        {
+                            "pos": {
+                                "line": 108,
+                                "col": 2
+                            },
+                            "id": "a",
+                            "text": "\"one\" comes before \"two\".",
+                            "comments": [
+                            ]
+                        },
+                        {
+                            "pos": {
+                                "line": 111,
+                                "col": 2
+                            },
+                            "id": "b",
+                            "text": "\"two\" comes before \"three\".",
+                            "comments": [
+                            ]
+                        }
+                    ],
+                    "comments": [
+                    ]
+                }
+            ],
+            "comments": [
+                {
+                    "pos": {
+                        "line": 85,
+                        "col": 0
+                    },
+                    "text": "It is common for NAMES to appear in SENTENCES, and it is desirable to check"
+                },
+                {
+                    "pos": {
+                        "line": 86,
+                        "col": 0
+                    },
+                    "text": "that such names are in fact bound.  Ultimately, extracting the names from"
+                },
+                {
+                    "pos": {
+                        "line": 87,
+                        "col": 0
+                    },
+                    "text": "sentences may be done by natural language parsing, but as a temporary measure"
+                },
+                {
+                    "pos": {
+                        "line": 88,
+                        "col": 0
+                    },
+                    "text": "any sequence of words enclosed in double quotes (e.g. \"foo bar\") will be"
+                },
+                {
+                    "pos": {
+                        "line": 89,
+                        "col": 0
+                    },
+                    "text": "interpreted as a (qualified) name for the purposes of well-boundedness checking."
+                },
+                {
+                    "pos": {
+                        "line": 90,
+                        "col": 0
+                    },
+                    "text": "NOTE: not currently implemented, we likely will be using more \"traditional\" syntax"
+                },
+                {
+                    "pos": {
+                        "line": 91,
+                        "col": 0
+                    },
+                    "text": "such as `Name` or $NAME$."
+                }
+            ]
+        }
+    ],
+    "comments": [
+    ]
+}

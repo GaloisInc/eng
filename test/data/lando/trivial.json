@@ -1,0 +1,24 @@
+{
+    "body": [
+        {
+            "type": "subsystem",
+            "uid": 1,
+            "pos": {
+                "line": 1,
+                "col": 0
+            },
+            "name": "blah",
+            "abbrevName": null,
+            "clientOf": [
+            ],
+            "explanation": "A mandatory description PARAGRAPH.",
+            "indexing": [
+            ],
+            "body": [],
+            "comments": [
+            ]
+        }
+    ],
+    "comments": [
+    ]
+}

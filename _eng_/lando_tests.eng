@@ -1,0 +1,103 @@
+dev =
+  subcmd =
+    test =
+      testcase =
+        lando parsing: trivial =
+          type = EXE
+          runner = EXE:lando
+          Input = test/data/lando/trivial.lando
+        lando parsing: example =
+          type = EXE
+          runner = EXE:lando
+          Input = test/data/lando/example.lando
+        lando parsing: naming =
+          type = EXE
+          runner = EXE:lando
+          Input = test/data/lando/naming.lando
+        lando parsing: requirements =
+          type = EXE
+          runner = EXE:lando
+          Input = test/data/lando/requirements-1.lando
+        lando parsing: system-no-body =
+          type = EXE
+          runner = EXE:lando
+          Input = test/data/lando/system-no-body.lando
+      testcase =
+        lando to json: trivial =
+          type = KAT
+          runner = KAT:lando json
+          Input = test/data/lando/trivial.lando
+          Output = test/out/trivial.json
+          Expected = test/data/lando/trivial.json
+        lando to markdown: trivial =
+          type = KAT
+          runner = KAT:lando markdown
+          Input = test/data/lando/trivial.lando
+          Output = test/out/trivial.md
+          Expected = test/data/lando/trivial.md
+        lando to json: naming =
+          type = KAT
+          runner = KAT:lando json
+          Input = test/data/lando/naming.lando
+          Output = test/out/naming.json
+          Expected = test/data/lando/naming.json
+        lando to markdown: naming =
+          type = KAT
+          runner = KAT:lando markdown
+          Input = test/data/lando/naming.lando
+          Output = test/out/naming.md
+          Expected = test/data/lando/naming.md
+        lando to json: requirements-1 =
+          type = KAT
+          runner = KAT:lando json
+          Input = test/data/lando/requirements-1.lando
+          Output = test/out/requirements-1.json
+          Expected = test/data/lando/requirements-1.json
+        lando to markdown: requirements-1 =
+          type = KAT
+          runner = KAT:lando markdown
+          Input = test/data/lando/requirements-1.lando
+          Output = test/out/requirements-1.md
+          Expected = test/data/lando/requirements-1.md
+        lando to json: system-no-body =
+          type = KAT
+          runner = KAT:lando json
+          Input = test/data/lando/system-no-body.lando
+          Output = test/out/system-no-body.json
+          Expected = test/data/lando/system-no-body.json
+        lando to markdown: system-no-body =
+          type = KAT
+          runner = KAT:lando markdown
+          Input = test/data/lando/system-no-body.lando
+          Output = test/out/system-no-body.md
+          Expected = test/data/lando/system-no-body.md
+        lando to json: example =
+          type = KAT
+          runner = KAT:lando json
+          Input = test/data/lando/example.lando
+          Output = test/out/example.json
+          Expected = test/data/lando/example.json
+        lando to markdown: example =
+          type = KAT
+          runner = KAT:lando markdown
+          Input = test/data/lando/example.lando
+          Output = test/out/example.md
+          Expected = test/data/lando/example.md
+
+
+
+bug =
+  =
+    description =
+      Running doc lando BADFILENAME gets to debugger.
+
+bug
+  =
+    description =
+      Imported components have a QName, but there is probably
+      not a valid reference for that QName, so it forms a bad link.
+
+todo =
+  lando lando
+  description
+    Write lando spec for lando itself.

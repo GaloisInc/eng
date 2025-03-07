@@ -1,0 +1,57 @@
+{
+    "body": [
+        {
+            "type": "subsystem",
+            "uid": 1,
+            "pos": {
+                "line": 1,
+                "col": 0
+            },
+            "name": "The-System-Name Word+2/3%x",
+            "abbrevName": "One-Word-System-Abbreviation",
+            "clientOf": [
+            ],
+            "explanation": "Paragraph.",
+            "indexing": [
+            ],
+            "body": [],
+            "comments": [
+            ]
+        },
+        {
+            "type": "events",
+            "uid": 2,
+            "pos": {
+                "line": 4,
+                "col": 0
+            },
+            "name": "A-B",
+            "events": [
+                {
+                    "pos": {
+                        "line": 6,
+                        "col": 2
+                    },
+                    "id": "Standby-X",
+                    "text": "description.",
+                    "comments": [
+                    ]
+                },
+                {
+                    "pos": {
+                        "line": 9,
+                        "col": 2
+                    },
+                    "id": "A+B+C",
+                    "text": "description.",
+                    "comments": [
+                    ]
+                }
+            ],
+            "comments": [
+            ]
+        }
+    ],
+    "comments": [
+    ]
+}

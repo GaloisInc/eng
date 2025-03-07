@@ -1,0 +1,43 @@
+{
+    "body": [
+        {
+            "type": "system",
+            "uid": 1,
+            "pos": {
+                "line": 1,
+                "col": 0
+            },
+            "name": "The System Name",
+            "abbrevName": "One-Word-System-Abbreviation",
+            "explanation": "The system explanation as a paragraph needing a word on line until the end.",
+            "indexing": [
+            ],
+            "body": [],
+            "comments": [
+                {
+                    "pos": {
+                        "line": 1,
+                        "col": 0
+                    },
+                    "text": "comment1"
+                },
+                {
+                    "pos": {
+                        "line": 2,
+                        "col": 0
+                    },
+                    "text": "comment2"
+                },
+                {
+                    "pos": {
+                        "line": 11,
+                        "col": 0
+                    },
+                    "text": "comment4 (note, this associated with System, not with file/toplevel.)"
+                }
+            ]
+        }
+    ],
+    "comments": [
+    ]
+}

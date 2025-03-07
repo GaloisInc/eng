@@ -1,0 +1,49 @@
+// Testing Recursive Requirements
+
+// R1 Comment-1
+requirement Requirement One (R1)
+Details.
+
+// R2 This should parse similarly to R1 above
+requirement Requirement Two (R2)
+Details, details.
+
+  contains
+  end
+  
+
+// R3 Comment-1: Show nested requirements.
+requirement Requirement Three (R3) // R3 comment-2
+Details, details.
+
+  contains
+  requirement Requirement Three A (R3/A)
+  Details, details.
+  
+  requirement Requirement Three B (R3/B)
+  Details, details.
+
+  requirement Requirement Three C (R3/C)
+  Details, details.
+
+    contains
+
+    // NOTE: 2 level deep requirement
+    requirement Requirement Three C-A (R3/C-A)
+    Details, details.
+
+    end
+  end
+  
+// R4 Comment-1: Show indexing
+requirement Requirement Four (R4) // R4 comment-2
+Details, details.
+
+  indexing
+    owner: Ramy Tadros <rtadros@galois.com>  
+    etc  : And other things.
+
+
+
+
+

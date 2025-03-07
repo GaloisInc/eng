@@ -1,0 +1,11 @@
+// comment1
+// comment2
+
+system The System Name (One-Word-System-Abbreviation)
+The system explanation as a paragraph // must end in '.'
+needing a word on line until // ok, these comments are not kept.
+the end.
+// comment3
+
+
+// comment4 (note, this associated with System, not with file/toplevel.)

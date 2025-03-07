@@ -1,0 +1,6 @@
+// System specification describing Lando itself
+
+subsystem lando
+Lando is a tool for describing a system in a Systems Specificaion Language
+(defined by Lando) and performing validation on and conversion of that SSL
+to other useful forms.

@@ -1,0 +1,217 @@
+{
+    "body": [
+        {
+            "type": "requirement",
+            "uid": 1,
+            "pos": {
+                "line": 1,
+                "col": 0
+            },
+            "name": "Requirement One",
+            "abbrevName": "R1",
+            "explanation": "Details.",
+            "indexing": [
+            ],
+            "requirements": [],
+            "comments": [
+                {
+                    "pos": {
+                        "line": 1,
+                        "col": 0
+                    },
+                    "text": "Testing Recursive Requirements"
+                },
+                {
+                    "pos": {
+                        "line": 3,
+                        "col": 0
+                    },
+                    "text": "R1 Comment-1"
+                },
+                {
+                    "pos": {
+                        "line": 7,
+                        "col": 0
+                    },
+                    "text": "R2 This should parse similarly to R1 above"
+                }
+            ]
+        },
+        {
+            "type": "requirement",
+            "uid": 2,
+            "pos": {
+                "line": 8,
+                "col": 0
+            },
+            "name": "Requirement Two",
+            "abbrevName": "R2",
+            "explanation": "Details, details.",
+            "indexing": [
+            ],
+            "requirements": [
+            ],
+            "comments": [
+            ]
+        },
+        {
+            "type": "requirement",
+            "uid": 3,
+            "pos": {
+                "line": 15,
+                "col": 0
+            },
+            "name": "Requirement Three",
+            "abbrevName": "R3",
+            "explanation": "Details, details.",
+            "indexing": [
+            ],
+            "requirements": [
+                {
+                    "type": "requirement",
+                    "uid": 4,
+                    "pos": {
+                        "line": 20,
+                        "col": 2
+                    },
+                    "name": "Requirement Three A",
+                    "abbrevName": "R3/A",
+                    "explanation": "Details, details.",
+                    "indexing": [
+                    ],
+                    "requirements": [],
+                    "comments": [
+                    ]
+                },
+                {
+                    "type": "requirement",
+                    "uid": 5,
+                    "pos": {
+                        "line": 23,
+                        "col": 2
+                    },
+                    "name": "Requirement Three B",
+                    "abbrevName": "R3/B",
+                    "explanation": "Details, details.",
+                    "indexing": [
+                    ],
+                    "requirements": [],
+                    "comments": [
+                    ]
+                },
+                {
+                    "type": "requirement",
+                    "uid": 6,
+                    "pos": {
+                        "line": 26,
+                        "col": 2
+                    },
+                    "name": "Requirement Three C",
+                    "abbrevName": "R3/C",
+                    "explanation": "Details, details.",
+                    "indexing": [
+                    ],
+                    "requirements": [
+                        {
+                            "type": "requirement",
+                            "uid": 7,
+                            "pos": {
+                                "line": 31,
+                                "col": 4
+                            },
+                            "name": "Requirement Three C-A",
+                            "abbrevName": "R3/C-A",
+                            "explanation": "Details, details.",
+                            "indexing": [
+                            ],
+                            "requirements": [],
+                            "comments": [
+                                {
+                                    "pos": {
+                                        "line": 31,
+                                        "col": 4
+                                    },
+                                    "text": "NOTE: 2 level deep requirement"
+                                }
+                            ]
+                        }
+                    ],
+                    "comments": [
+                    ]
+                }
+            ],
+            "comments": [
+                {
+                    "pos": {
+                        "line": 15,
+                        "col": 0
+                    },
+                    "text": "R3 Comment-1: Show nested requirements."
+                },
+                {
+                    "pos": {
+                        "line": 16,
+                        "col": 35
+                    },
+                    "text": "R3 comment-2"
+                }
+            ]
+        },
+        {
+            "type": "requirement",
+            "uid": 8,
+            "pos": {
+                "line": 38,
+                "col": 0
+            },
+            "name": "Requirement Four",
+            "abbrevName": "R4",
+            "explanation": "Details, details.",
+            "indexing": [
+                {
+                    "pos": {
+                        "line": 43,
+                        "col": 4
+                    },
+                    "key": "owner",
+                    "values": [
+                        "Ramy Tadros <rtadros@galois.com>"
+                    ],
+                    "comments": [
+                    ]
+                },
+                {
+                    "pos": {
+                        "line": 44,
+                        "col": 4
+                    },
+                    "key": "etc",
+                    "values": [
+                        "And other things."
+                    ],
+                    "comments": [
+                    ]
+                }
+            ],
+            "requirements": [],
+            "comments": [
+                {
+                    "pos": {
+                        "line": 38,
+                        "col": 0
+                    },
+                    "text": "R4 Comment-1: Show indexing"
+                },
+                {
+                    "pos": {
+                        "line": 39,
+                        "col": 34
+                    },
+                    "text": "R4 comment-2"
+                }
+            ]
+        }
+    ],
+    "comments": [
+    ]
+}
