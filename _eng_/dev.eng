@@ -6,16 +6,6 @@ dev =
           swipl --goal=main -o eng -c src/top.pl
         #= Can use --emulator=swipl, but that has immediate effect. =#
 
-    run =
-      Runs the project main application =
-        needs = build
-        exec = ./eng {Args}
-
-    debugrun =
-      Runs the project main application in debug mode
-        exec =
-          swipl -t main src/top.pl {Args}
-
     mkdist =
       Create a source distribution zipfile
         in dir = src
@@ -60,3 +50,16 @@ dev =
             rm -f {Output}
             ./eng doc lando {Input} to-markdown {Output}
             diff {Expected} {Output}
+
+run
+  subcmd
+    run =
+      Runs the project main application =
+        needs = build
+        exec = ./eng {Args}
+
+    debugrun =
+      Runs the project main application in debug mode
+        exec =
+          swipl -t main src/top.pl {Args}
+
