@@ -1,5 +1,7 @@
 :- module(lando, [ process_lando_file/1,
-                   parse_lando_file/2
+                   parse_lando_file/2,
+                   specElement_type/2,
+                   specElement_ref/2
                  ]).
 
 :- use_module(library(apply)).
@@ -46,6 +48,22 @@ parse_lando(Source, Tokens, Result) :-
 parse_lando(Source, _Tokens, []) :-
     print_message(error, lando_parse_failure(Source)),
     fail.
+
+% ----------------------------------------------------------------------
+% Helpers for working with the resulting Lando
+
+% Returns a capitalized string name for this element type.
+specElement_type(D, "Imported Component") :- is_dict(D, componentImport), !.
+specElement_type(D, T) :- is_dict(D, TA),
+                          atom_chars(TA, [TAC0|TACR]),
+                          upcase_atom(TAC0, TAC0U),
+                          atom_string([TAC0U|TACR], T).
+
+% Returns the abbrevName if set, otherwise the Name.
+specElement_ref(D, R) :- get_dict(abbrevName, D, R), \+ R == null, !.
+specElement_ref(D, R) :- get_dict(name, D, R).
+
+% ----------------------------------------------------------------------
 
 prolog:message(parsing_lando_file(FName)) -->
     [ 'Parsing Lando file ~w' - [FName] ].

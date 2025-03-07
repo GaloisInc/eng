@@ -4,6 +4,7 @@
                     string_codes_ltrim/3,
                     string_codes_rtrim/3,
                     string_rpad/4,
+                    subst/4,
                     get_dict_or/4,
                     write_strings/2,
                     assert_eng/1,
@@ -68,6 +69,23 @@ string_rpad(S, P, N, OS) :-
     succ(D, N),
     string_rpad(S, P, D, SS),
     string_concat(SS, P, OS).
+
+% Substitue all occurrences of This with That in Inp list.  From
+% https://github.com/SWI-Prolog/plweb-examples/blob/master/usage/substitute-with-append.md
+substl(This, That, Inp, Out) :-
+    append(This, After, Rest),
+    append(Before, Rest, Inp),
+    !,
+    substl(This, That, After, AfterResult),
+    append([Before, That, AfterResult], Out).
+substl(_, _, S, S).
+
+subst(ThisStr, ThatStr, InpStr, OutStr) :-
+    string_chars(ThisStr, This),
+    string_chars(ThatStr, That),
+    string_chars(InpStr, Inp),
+    substl(This, That, Inp, Out),
+    string_chars(OutStr, Out).
 
 get_dict_or(Key, Dict, _, Val) :- get_dict(Key, Dict, Val), !.
 get_dict_or(_, _, Def, Def).

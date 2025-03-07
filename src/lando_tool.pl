@@ -8,6 +8,7 @@
 :- use_module(library(http/json)).
 :- use_module('src/datafmts/lando').
 :- use_module('englib').
+:- use_module(lando_fret).
 
 lando(LandoSource, [], Sts) :-
     ( parse_lando_file(LandoSource, SSL), !,
@@ -31,6 +32,16 @@ lando(LandoSource, ['to-markdown', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     open(OutFile, write, OutStrm),
     write_lando_markdown(OutStrm, SSL).
+
+lando(LandoSource, ['to-fret', OutFile], 0) :-
+    parse_lando_file(LandoSource, SSL),
+    open(OutFile, write, OutStrm),
+    lando_to_fret(SSL, FretProject),
+    writeln(FretProject),
+    json_write_dict(OutStrm, FretProject, [
+                        % tag(type)
+                    ]),
+    format(OutStrm, '~n', []).
 
 lando(LandoSource, _, 1) :-
     \+ parse_lando_file(LandoSource, _),
@@ -200,15 +211,6 @@ specElement_clientOf_markdown(AllElements, QNames, MDL) :-
 
 
 %% ------------------------------
-
-specElement_type(D, "Imported Component") :- is_dict(D, componentImport), !.
-specElement_type(D, T) :- is_dict(D, TA),
-                          atom_chars(TA, [TAC0|TACR]),
-                          upcase_atom(TAC0, TAC0U),
-                          atom_string([TAC0U|TACR], T).
-
-specElement_ref(D, R) :- get_dict(abbrevName, D, R), \+ R == null, !.
-specElement_ref(D, R) :- get_dict(name, D, R).
 
 getRefToElement([E|AllElements], Name, Ref) :-
     get_dict(name, E, EName),

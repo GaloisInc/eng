@@ -5,6 +5,12 @@ dev =
         exec = swipl --goal=main -o eng -c src/top.pl
         # = Can use --emulator=swipl, but that has immediate effect. =#
 
+    fret_fetch
+      Fetches/updates fret semantics file from github
+        in dir = src
+        exec =
+          curl -o semantics.json https://raw.githubusercontent.com/NASA-SW-VnV/fret/refs/heads/master/fret-electron/app/parser/semantics.json
+          
     mkdist =
       Create a source distribution zipfile =
         in dir = src

@@ -194,7 +194,7 @@ reprocess_eng_file(File, Updated_EQIL) :-
     emit_eqil(Updated_EQIL, OutText),
     string_concat(File, ".new", NewFile),
     open(NewFile, write, Out, [create([read, write]), type(text)]),
-    format(Out, '~w', [OutText]),
+    format(Out, '~w~n', [OutText]),
     close(Out),
     rename_file(NewFile, File),
     print_message(informational, rewrote_eng_file(File)), !,
