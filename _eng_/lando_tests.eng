@@ -22,7 +22,6 @@ dev =
           type = EXE
           runner = EXE:lando
           Input = test/data/lando/system-no-body.lando
-      testcase =
         lando to json: trivial =
           type = KAT
           runner = KAT:lando json

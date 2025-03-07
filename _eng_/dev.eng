@@ -3,20 +3,16 @@ dev =
     build =
       Builds the project from source =
         exec = swipl --goal=main -o eng -c src/top.pl
-        #= Can use --emulator=swipl, but that has immediate effect. =#
+        # = Can use --emulator=swipl, but that has immediate effect. =#
 
     mkdist =
-      Create a source distribution zipfile
+      Create a source distribution zipfile =
         in dir = src
         exec =
           rm -f ../engdist.zip
-        exec =
           zip -ru9 ../engdist.zip $(find . -type f ! -name '*~')
-        exec =
           unzip -l ../engdist.zip > ../engdist.manifest
-        exec =
           zip -u ../engdist.zip ../engdist.manifest
-        exec =
           unzip -l ../engdist.zip > ../engdist.manifest
 
     test =
@@ -50,15 +46,14 @@ dev =
             ./eng doc lando {Input} to-markdown {Output}
             diff {Expected} {Output}
 
-run
-  subcmd
+run =
+  subcmd =
     run =
       Runs the project main application =
         needs = build
         exec = ./eng {Args}
 
     debugrun =
-      Runs the project main application in debug mode
+      Runs the project main application in debug mode =
         exec =
           swipl -t main src/top.pl {Args}
-
