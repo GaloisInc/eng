@@ -1,5 +1,6 @@
 :- begin_tests(eqil).
 :- use_module("eqil").
+:- use_module("../englib").
 :- use_module(library(strings)).
 
 % Note: many tests are nondet because the show_warnings has separate predicates
@@ -7,23 +8,20 @@
 % though only one will be used.
 
 test(empty, [nondet]) :-
-    parse_eng_eqil(empty, {|string||
+    Inp = {|string||
 |
-|}, Result),
-    writeln(Result),
-    assertion(Result == []).
+|},
+    check(Inp, [], _).
+    %% writeln(Result),
+    %% assertion(Result == []).
 
 test(simple_key_val, [nondet]) :-
     Inp = {|string||
 | key = value
 |},
-    parse_eng_eqil(basic1, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-                  [ eqil([key(0, "key")], [val(0, "value")])
-                  ]
-             ),
-    \+ normalize_eqil(Result, _),
+    check(Inp,
+          [ eqil([key(0, "key")], [val(0, "value")])
+          ], Result),
     % n.b. Do not want asserted eng:key and eng:eng predicates from this test to
     % affect other tests.  We cannot perform the assert_eqil and the subsequent
     % tests inside of a snapshot because assertion failures in a snapshot are not
@@ -44,15 +42,12 @@ test(multiple_key_val, [nondet]) :-
 |
 | another key = another value
 |},
-    parse_eng_eqil(basic2, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-                  [ eqil([key(0, "key")], [val(0, "value")]),
-                    eqil([key(0, "key2")], [val(0, "value2"), val(0, "")]),
-                    eqil([key(0, "another key")], [val(0, "another value")])
-                  ]
-                 ),
-    \+ normalize_eqil(Result, _),
+    check(Inp,
+          [ eqil([key(0, "key")], [val(0, "value")]),
+            eqil([key(0, "key2")], [val(0, "value2"), val(0, "")]),
+            eqil([key(0, "another key")], [val(0, "another value")])
+          ],
+          Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -72,16 +67,13 @@ test(key_only, [nondet]) :-
 | another key = another value
 | just a key =
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")], [val(0, "value")]),
-                eqil([key(0, "key2")], [val(0, "value2"), val(0, "")]),
-                eqil([key(0, "another key")], [val(0, "another value")]),
-                eqil([key(0, "just a key")], [])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    check(Inp,
+          [ eqil([key(0, "key")], [val(0, "value")]),
+            eqil([key(0, "key2")], [val(0, "value2"), val(0, "")]),
+            eqil([key(0, "another key")], [val(0, "another value")]),
+            eqil([key(0, "just a key")], [])
+          ],
+          Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -102,18 +94,15 @@ test(multi_line_value, [nondet]) :-
 | another key = another value
 |
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")], [val(0, "value")]),
-                eqil([key(0, "key2")], [val(0, "This is a multi-line value"),
-                                        val(7, "that is on two lines.")
-                                       ]),
-                eqil([key(0, "another key")], [val(0, "another value")
-                                              ])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    check(Inp,
+          [ eqil([key(0, "key")], [val(0, "value")]),
+            eqil([key(0, "key2")], [val(0, "This is a multi-line value"),
+                                    val(7, "that is on two lines.")
+                                   ]),
+            eqil([key(0, "another key")], [val(0, "another value")
+                                          ])
+          ],
+          Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -136,20 +125,26 @@ test(multi_line_value_implicit_key, [nondet]) :-
 | key2 = This is a multi-line value
 |        that is on two lines.
 | another key
-    another value
+|   another value
 |
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")], [val(0, "value")]),
-                eqil([key(0, "key2")], [val(0, "This is a multi-line value"),
-                                        val(7, "that is on two lines.")]),
-                eqil([key(0, "another key")], [val(2, "another value")
-                                              ])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    % When emitting, keys always have a following =
+    Out = {|string||
+|
+| key = value
+| key2 = This is a multi-line value
+|        that is on two lines.
+| another key =
+|   another value
+|
+|},
+    Parsed = [ eqil([key(0, "key")], [val(0, "value")]),
+               eqil([key(0, "key2")], [val(0, "This is a multi-line value"),
+                                       val(7, "that is on two lines.")]),
+               eqil([key(0, "another key")], [val(2, "another value")
+                                             ])
+             ],
+    check(Inp, Parsed, Out, Parsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -173,19 +168,16 @@ test(multi_line_value_with_empty_trailing, [nondet]) :-
 |
 | another key = another value
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")], [val(0, "value")]),
-                eqil([key(0, "key2")], [val(0, "This is a multi-line value"),
-                                        val(7, "that is on two lines."),
-                                        val(0, "")]),
-                eqil([key(0, "another key")], [val(0, "another value")])
-              ]
-             ),
+    check(Inp,
+          [ eqil([key(0, "key")], [val(0, "value")]),
+            eqil([key(0, "key2")], [val(0, "This is a multi-line value"),
+                                    val(7, "that is on two lines."),
+                                    val(0, "")]),
+            eqil([key(0, "another key")], [val(0, "another value")])
+          ],
+          Result),
     revert_assert_eng,
     assert_eqil(Result),
-    \+ normalize_eqil(Result, _),
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
@@ -210,26 +202,57 @@ test(multi_line_indented_value, [nondet]) :-
 | another key = another value
 |
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")], [val(0, "value")]),
-                eqil([key(0, "key2"), key(3, "This is a multi-line value")],
-                     [val(7, "that is on three lines")]),
-                eqil([key(0, "key2")], [val(3, "This is a multi-line value"),
-                                        val(7, "that is on three lines"),
-                                        val(2, "and this is the third.")]),
-                eqil([key(0, "key2"), key(2, "and this is the third.")], []),
-                eqil([key(0, "another key")], [val(0, "another value")])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    % When emitting, keys always have a following =
+    Out = {|string||
+|
+| key = value
+| key2 =
+|    This is a multi-line value =
+|        that is on three lines
+|   and this is the third. =
+| another key = another value
+|
+|},
+    Parsed = [
+        %E1:
+        eqil([key(0, "key")], [val(0, "value")]),
+        %E2:
+        eqil([key(0, "key2"), key(3, "This is a multi-line value")],
+             [val(7, "that is on three lines")]),
+        %E3:
+        eqil([key(0, "key2")], [val(3, "This is a multi-line value"),
+                                val(7, "that is on three lines"),
+                                val(2, "and this is the third.")]),
+        %E4:
+        eqil([key(0, "key2"), key(2, "and this is the third.")], []),
+        %E5:
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    Normalized = [
+        %E1:
+        eqil([key(0, "key")], [val(0, "value")]),
+        %E2:
+        eqil([key(0, "key2"), key(3, "This is a multi-line value")],
+             [val(7, "that is on three lines")]),
+        %E3:
+        eqil([key(0, "key2")], [val(3, "This is a multi-line value ="),
+                                val(7, "that is on three lines"),
+                                val(2, "and this is the third. =")
+                                %% val(0, "")
+                               ]),
+        %E4:
+        eqil([key(0, "key2"), key(2, "and this is the third.")], [%val(0, "")
+             ]),
+        %E5:
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    check(Inp, Parsed, Out, Normalized, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is a multi-line value\nthat is on three lines\nand this is the third.")),
+    assertion(eng:eng(key2, "This is a multi-line value =\nthat is on three lines\nand this is the third. =")),
     assertion(eng:key('another key')),
     assertion(eng:eng('another key', "another value")),
     findall(K, eng:key(K), KS),
@@ -254,33 +277,62 @@ test(multi_line_indented_value_with_blanks, [nondet]) :-
 | another key = another value
 |
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(4, "key")], [val(0, "value"), val(0, "")]),
-                eqil([key(0, "key2"), key(3, "This is a multi-line value")],
-                     [val(7, "that is on five lines"),
-                      val(5, "staggered leftwards")
-                     ]),
-                eqil([key(0, "key2")], [val(0, ""),
-                                        val(3, "This is a multi-line value"),
-                                        val(7, "that is on five lines"),
-                                        val(5, "staggered leftwards"),
-                                        val(2, "and this is the fourth"),
-                                        val(12, "except the last."),
-                                        val(0, "")]),
-                eqil([key(0, "key2"), key(2, "and this is the fourth")],
-                     [val(12, "except the last."), val(0, "")]),
-                eqil([key(0, "another key")], [val(0, "another value")])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    %% keys are always followed by =
+    Out = {|string||
+|
+|     key = value
+|
+| key2 =
+|    This is a multi-line value =
+|        that is on five lines
+|      staggered leftwards
+|   and this is the fourth =
+|             except the last.
+|
+| another key = another value
+|
+|},
+    Parsed = [
+        eqil([key(4, "key")], [val(0, "value"), val(0, "")]),
+        eqil([key(0, "key2"), key(3, "This is a multi-line value")],
+             [val(7, "that is on five lines"),
+              val(5, "staggered leftwards")
+             ]),
+        eqil([key(0, "key2")], [val(0, ""),
+                                val(3, "This is a multi-line value"),
+                                val(7, "that is on five lines"),
+                                val(5, "staggered leftwards"),
+                                val(2, "and this is the fourth"),
+                                val(12, "except the last."),
+                                val(0, "")]),
+        eqil([key(0, "key2"), key(2, "and this is the fourth")],
+             [val(12, "except the last."), val(0, "")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    %% Same as Parsed except key2 where sub-keys are followed by =
+    Normalized = [
+        eqil([key(4, "key")], [val(0, "value"), val(0, "")]),
+        eqil([key(0, "key2"), key(3, "This is a multi-line value")],
+             [val(7, "that is on five lines"),
+              val(5, "staggered leftwards")
+             ]),
+        eqil([key(0, "key2")], [val(3, "This is a multi-line value ="),
+                                val(7, "that is on five lines"),
+                                val(5, "staggered leftwards"),
+                                val(2, "and this is the fourth ="),
+                                val(12, "except the last."),
+                                val(0, "")]),
+        eqil([key(0, "key2"), key(2, "and this is the fourth")],
+             [val(12, "except the last."), val(0, "")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    check(Inp, Parsed, Out, Normalized, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is a multi-line value\nthat is on five lines\nstaggered leftwards\nand this is the fourth\nexcept the last.")),
+    assertion(eng:eng(key2, "This is a multi-line value =\nthat is on five lines\nstaggered leftwards\nand this is the fourth =\nexcept the last.")),
     assertion(eng:key('another key')),
     assertion(eng:eng('another key', "another value")),
     findall(K, eng:key(K), KS),
@@ -300,55 +352,84 @@ test(multi_line_value_only, [nondet]) :-
 | another key = another value
 |
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
-                eqil([key(0, "key2"), key(3, "This is")],
-                     [val(0, "a multi-line value"),
-                      val(7, "that is on three lines =")]),
-                eqil([key(0, "key2"),
-                      key(3, "This is"),
-                      key(7, "that is on three lines")],
-                     []),
-                eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
-                                        val(7, "that is on three lines ="),
-                                        val(2, "= and = this is the third.")]),
-                eqil([key(0, "key2"), key(2, "")],
-                     [val(0, "and = this is the third.")]),
-                eqil([key(0, "another key")], [val(0, "another value")])
-              ]
-             ),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
-                eqil([key(0, "key2"), key(3, "This is")],
-                     [val(0, "a multi-line value"),
-                      val(7, "that is on three lines =")]),
-                eqil([key(0, "key2"),
-                      key(3, "This is"),
-                      key(7, "that is on three lines")],
-                     []),
-                %% eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
-                %%                         val(7, "that is on three lines ="),
-                %%                         val(2, "= and = this is the third.")]),
-                eqil([key(0, "key2"),
-                      key(2, "key21")],
-                     [val(0, "and = this is the third.")]),
-                eqil([key(0, "another key")], [val(0, "another value")])
-              ]
-             ),
+    % This one is unusual: not only is there a blank key that normalize will fill
+    % in, but there is a key with a value that also has sub-keys.  At the present
+    % time, eqil does not support having a key with a value *and* sub-keys, and
+    % the value itself will be dropped on emitting/
+    Out = {|string||
+| key = value
+|
+| key2 =
+|    This is =
+|        that is on three lines =
+|   key21 = and = this is the third.
+| another key = another value
+|
+|},
+    Parsed = [
+        eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
+        eqil([key(0, "key2"), key(3, "This is")],
+             [val(0, "a multi-line value"),
+              val(7, "that is on three lines =")]),
+        eqil([key(0, "key2"),
+              key(3, "This is"),
+              key(7, "that is on three lines")],
+             []),
+        eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
+                                val(7, "that is on three lines ="),
+                                val(2, "= and = this is the third.")]),
+        eqil([key(0, "key2"), key(2, "")],
+             [val(0, "and = this is the third.")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+        ],
+    Normalized = [
+        eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
+        eqil([key(0, "key2"), key(3, "This is")],
+             [val(0, "a multi-line value"),
+              val(7, "that is on three lines =")]),
+        eqil([key(0, "key2"),
+              key(3, "This is"),
+              key(7, "that is on three lines")],
+             []),
+        % Removed because key21 supplied below
+        %% eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
+        %%                         val(7, "that is on three lines ="),
+        %%                         val(2, "= and = this is the third.")]),
+        eqil([key(0, "key2"),
+              key(2, "key21")],
+             [val(0, "and = this is the third.")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    ReParsed = [
+        eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
+        % emitting removes the value if there are sub-keys
+        eqil([key(0, "key2"), key(3, "This is")],
+             [% val(0, "a multi-line value"),
+              val(7, "that is on three lines =")]),
+        eqil([key(0, "key2"),
+              key(3, "This is"),
+              key(7, "that is on three lines")],
+             []),
+        % Re-parsing sees the new version of this
+        eqil([key(0, "key2")], [val(3, "This is ="),
+                                val(7, "that is on three lines ="),
+                                val(2, "key21 = and = this is the third.")]),
+        eqil([key(0, "key2"),
+              key(2, "key21")],
+             [val(0, "and = this is the third.")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is = a multi-line value\nthat is on three lines =\n= and = this is the third.")),
+    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey21 = and = this is the third.")),
     assertion(eng:key(key2, 'This is')),
-    assertion(eng:eng(key2, 'This is', "a multi-line value\nthat is on three lines =")),
-    assertion(eng:key(key2, 'This is', 'that is on three lines')),
-    assertion(eng:key(key2, '')),
-    assertion(eng:eng(key2, '', "and = this is the third.")),
+    assertion(eng:eng(key2, 'This is', "that is on three lines =")),
+    assertion(eng:key(key2, 'key21')),
+    assertion(eng:eng(key2, 'key21', "and = this is the third.")),
     assertion(eng:key('another key')),
     assertion(eng:eng('another key', "another value")),
     findall(K, eng:key(K), KS),
@@ -371,65 +452,102 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
 | another key = another value
 |
 |},
-    parse_eng_eqil(basic3, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
-                eqil([key(0, "key2"), key(3, "This is")],
-                     [val(0, "a multi-line value"),
-                      val(7, "that is on three lines =")]),
-                eqil([key(0, "key2"),
-                      key(3, "This is"),
-                      key(7, "that is on three lines")],
-                     []),
-                eqil([key(0, "key2")], [val(0, ""),
-                                        val(3, "This is = a multi-line value"),
-                                        val(7, "that is on three lines ="),
-                                        val(2, "= and = this is the third."),
-                                        val(4, "and the fourth"),
-                                        val(0, "")]),
-                eqil([key(0, "key2"), key(2, "")],
-                     [val(0, "and = this is the third."),
-                      val(4, "and the fourth"),
-                      val(0, "")]),
-                eqil([key(0, "another key")], [val(0, "another value")])
-              ]
-             ),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
-                eqil([key(0, "key2"), key(3, "This is")],
-                     [val(0, "a multi-line value"),
-                      val(7, "that is on three lines =")]),
-                eqil([key(0, "key2"),
-                      key(3, "This is"),
-                      key(7, "that is on three lines")],
-                     []),
-                %% eqil([key(0, "key2")], [val(0, ""),
-                %%                         val(3, "This is = a multi-line value"),
-                %%                         val(7, "that is on three lines ="),
-                %%                         val(2, "= and = this is the third."),
-                %%                         val(4, "and the fourth"),
-                %%                         val(0, "")]),
-                eqil([key(0, "key2"),
-                      key(2, "key21")],
-                     [val(0, "and = this is the third."),
-                      val(4, "and the fourth"),
-                      val(0, "")]),
-                eqil([key(0, "another key")], [val(0, "another value")])
-              ]
-             ),
+    % Blank lines between the key and value are dropped, if a key has a value and
+    % subkeys, the value is dropped, and blank keys are auto-generated.
+    Out = {|string||
+| key = value
+|
+| key2 =
+|    This is =
+|        that is on three lines =
+|   key21 = and = this is the third.
+|     and the fourth
+|
+| another key = another value
+|
+|},
+    Parsed = [
+        eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
+        eqil([key(0, "key2"), key(3, "This is")],
+             [val(0, "a multi-line value"),
+              val(7, "that is on three lines =")]),
+        eqil([key(0, "key2"),
+              key(3, "This is"),
+              key(7, "that is on three lines")],
+             []),
+        eqil([key(0, "key2")], [val(0, ""),
+                                val(3, "This is = a multi-line value"),
+                                val(7, "that is on three lines ="),
+                                val(2, "= and = this is the third."),
+                                val(4, "and the fourth"),
+                                val(0, "")]),
+        eqil([key(0, "key2"), key(2, "")],
+             [val(0, "and = this is the third."),
+              val(4, "and the fourth"),
+              val(0, "")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    % Generates a value for the previously blank key and removes parent key
+    % values
+    Normalized = [
+        eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
+        eqil([key(0, "key2"), key(3, "This is")],
+             [val(0, "a multi-line value"),
+              val(7, "that is on three lines =")]),
+        eqil([key(0, "key2"),
+              key(3, "This is"),
+              key(7, "that is on three lines")],
+             []),
+        %% eqil([key(0, "key2")], [val(0, ""),
+        %%                         val(3, "This is = a multi-line value"),
+        %%                         val(7, "that is on three lines ="),
+        %%                         val(2, "= and = this is the third."),
+        %%                         val(4, "and the fourth"),
+        %%                         val(0, "")]),
+        eqil([key(0, "key2"),
+              key(2, "key21")],
+             [val(0, "and = this is the third."),
+              val(4, "and the fourth"),
+              val(0, "")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    % Adds the generated key value replacing the blank key and re-introduces the
+    % parent key value, but drops the value for keys with value and sub-keys.
+    ReParsed = [
+        eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
+        eqil([key(0, "key2"), key(3, "This is")],
+             [ % val(0, "a multi-line value"),
+              val(7, "that is on three lines =")]),
+        eqil([key(0, "key2"),
+              key(3, "This is"),
+              key(7, "that is on three lines")],
+             []),
+        eqil([key(0, "key2")], [val(3, "This is ="),
+                                val(7, "that is on three lines ="),
+                                val(2, "key21 = and = this is the third."),
+                                val(4, "and the fourth"),
+                                val(0, "")]),
+        eqil([key(0, "key2"),
+              key(2, "key21")],
+             [val(0, "and = this is the third."),
+              val(4, "and the fourth"),
+              val(0, "")]),
+        eqil([key(0, "another key")], [val(0, "another value")])
+    ],
+    writeln(frogs),
+    check(Inp, Parsed, Out, Normalized, ReParsed, Result),
+    writeln(elephants),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is = a multi-line value\nthat is on three lines =\n= and = this is the third.\nand the fourth")),
+    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey21 = and = this is the third.\nand the fourth")),
     assertion(eng:key(key2, 'This is')),
-    assertion(eng:eng(key2, 'This is', "a multi-line value\nthat is on three lines =")),
+    assertion(eng:eng(key2, 'This is', "that is on three lines =")),
     assertion(eng:key(key2, 'This is', 'that is on three lines')),
-    assertion(eng:key(key2, '')),
-    assertion(eng:eng(key2, '', "and = this is the third.\nand the fourth")),
+    assertion(eng:key(key2, 'key21')),
+    assertion(eng:eng(key2, 'key21', "and = this is the third.\nand the fourth")),
     assertion(eng:key('another key')),
     assertion(eng:eng('another key', "another value")),
     findall(K, eng:key(K), KS),
@@ -447,22 +565,19 @@ test(nested_keyvals, [nondet]) :-
 | another key =
 |   ! = another value with a blank key
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
-                eqil([key(0, "key")],
-                     [val(2, "subkey = subval1"),
-                      val(2, "subkey2 = subval2")
-                     ]),
-                eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
-                eqil([key(0, "another key"), key(2, "!")],
-                     [val(0, "another value with a blank key")]),
-                eqil([key(0, "another key")],
-                     [val(2, "! = another value with a blank key")])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    Parsed = [
+        eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
+        eqil([key(0, "key")],
+             [val(2, "subkey = subval1"),
+              val(2, "subkey2 = subval2")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
+        eqil([key(0, "another key"), key(2, "!")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "! = another value with a blank key")])
+    ],
+    check(Inp, Parsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -489,22 +604,28 @@ test(nested_keyvals_with_implicit_key, [nondet]) :-
 | another key
 |   ! = another value with a blank key
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
-                eqil([key(0, "key")],
-                     [val(2, "subkey = subval1"),
-                      val(2, "subkey2 = subval2")
-                     ]),
-                eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
-                eqil([key(0, "another key"), key(2, "!")],
-                     [val(0, "another value with a blank key")]),
-                eqil([key(0, "another key")],
-                     [val(2, "! = another value with a blank key")])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    % all keys have an =
+    Out = {|string||
+|
+| key =
+|   subkey = subval1
+|   subkey2 = subval2
+| another key =
+|   ! = another value with a blank key
+|},
+    Parsed = [
+        eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
+        eqil([key(0, "key")],
+             [val(2, "subkey = subval1"),
+              val(2, "subkey2 = subval2")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
+        eqil([key(0, "another key"), key(2, "!")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "! = another value with a blank key")])
+    ],
+    check(Inp, Parsed, Out, Parsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -530,46 +651,63 @@ test(nested_keyvals_with_blank_keys, [nondet]) :-
 | another key
 |   = another value with a blank key
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
-                eqil([key(0, "key")],
-                     [val(2, "subkey = subval1"),
-                      val(2, "subkey2 = subval2")
-                     ]),
-                eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
-                eqil([key(0, "another key"), key(2, "")],
-                     [val(0, "another value with a blank key")]),
-                eqil([key(0, "another key")],
-                     [val(2, "= another value with a blank key")])
-              ]
-             ),
+    % all keys have an = and blank keys are replaced
+    Out = {|string||
+| key =
+|   subkey = subval1
+|   subkey2 = subval2
+| another key =
+|   another key1 = another value with a blank key
+|},
+    Parsed = [
+        eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
+        eqil([key(0, "key")],
+             [val(2, "subkey = subval1"),
+              val(2, "subkey2 = subval2")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
+        eqil([key(0, "another key"), key(2, "")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "= another value with a blank key")])
+    ],
+    Normalized = [
+        eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
+        eqil([key(0, "key")],
+             [val(2, "subkey = subval1"),
+              val(2, "subkey2 = subval2")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
+        eqil([key(0, "another key"),
+              key(2, "another key1")],
+             [val(0, "another value with a blank key")])
+        %% eqil([key(0, "another key")],
+        %%      [val(2, "= another value with a blank key")])
+    ],
+    ReParsed = [
+        eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
+        eqil([key(0, "key")],
+             [val(2, "subkey = subval1"),
+              val(2, "subkey2 = subval2")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
+        eqil([key(0, "another key"),
+              key(2, "another key1")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "another key1 = another value with a blank key")])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
-                eqil([key(0, "key")],
-                     [val(2, "subkey = subval1"),
-                      val(2, "subkey2 = subval2")
-                     ]),
-                eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
-                eqil([key(0, "another key"),
-                      key(2, "another key1")],
-                     [val(0, "another value with a blank key")])
-                %% eqil([key(0, "another key")],
-                %%      [val(2, "= another value with a blank key")])
-              ]
-             ),
     assertion(eng:key(key)),
     assertion(eng:key(key, subkey)),
     assertion(eng:eng(key, subkey, "subval1")),
     assertion(eng:key(key, subkey2)),
     assertion(eng:eng(key, subkey2, "subval2")),
     assertion(eng:key('another key')),
-    assertion(eng:key('another key', '')),
-    assertion(eng:eng('another key', '', "another value with a blank key")),
+    assertion(eng:key('another key', 'another key1')),
+    assertion(eng:eng('another key', 'another key1', "another value with a blank key")),
     findall(K, eng:key(K), KS),
     assertion(KS == [ key, 'another key' ]),
     %% findall((K,V), eng:eng(K,,V), KVS),
@@ -600,8 +738,28 @@ test(nested_nested_keyvals, [nondet]) :-
 |       one = 1
 |       2 = two
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
+    % Removes blank lines between key and value, all keys have an =
+    Out = {|string||
+| key =
+|   subkey =
+|     <first_subkey> = #1!
+|     another key = double sub
+|                   multi-line value
+|     key with no value =
+|
+|     and =
+|       an implicit key above with a multi-line value here
+|       and here
+|
+|       that contains blanks
+|       internally, preceeding, and following.
+|
+|   subkey2 = subval2
+|   subkey3 =
+|     sub key 3.1 =
+|       one = 1
+|       2 = two
+|},
     Exp = [ eqil([key(0, "key"), key(2, "subkey"), key(4, "<first_subkey>")],
                  [val(0, "#1!")]),
             eqil([key(0, "key"), key(2, "subkey"), key(4, "another key")],
@@ -670,9 +828,77 @@ test(nested_nested_keyvals, [nondet]) :-
                   val(6, "2 = two")
                  ])
           ],
-    assertall(Result, Exp),
-    \+ normalize_eqil(Result, _),
-    assertion(Result == Exp),
+    % keys all have = and no blank lines between keys and their values
+    ReParsed = [
+        eqil([key(0, "key"), key(2, "subkey"), key(4, "<first_subkey>")],
+             [val(0, "#1!")]),
+        eqil([key(0, "key"), key(2, "subkey"), key(4, "another key")],
+             [val(0, "double sub"), val(18, "multi-line value")]),
+        eqil([key(0, "key"), key(2, "subkey"), key(4, "key with no value")],
+             [val(0, "")]),
+        eqil([key(0, "key"), key(2, "subkey")],
+             [val(4, "<first_subkey> = #1!"),
+              val(4, "another key = double sub"),
+              val(18, "multi-line value"),
+              val(4, "key with no value ="),
+              val(0, ""),
+              val(4, "and ="),
+              %% val(0, ""),
+              val(6, "an implicit key above with a multi-line value here"),
+              val(6, "and here"),
+              val(0, ""),
+              val(6, "that contains blanks"),
+              val(6, "internally, preceeding, and following."),
+              val(0, "")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey"), key(4, "and")],
+             [% val(0, ""),
+              val(6, "an implicit key above with a multi-line value here"),
+              val(6, "and here"),
+              val(0, ""),
+              val(6, "that contains blanks"),
+              val(6, "internally, preceeding, and following."),
+              val(0, "")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey2")], [val(0, "subval2")]),
+        eqil([key(0, "key"), key(2, "subkey3"), key(4, "sub key 3.1"),
+              key(6, "one")],
+             [val(0, "1")]),
+        eqil([key(0, "key"), key(2, "subkey3"), key(4, "sub key 3.1"),
+              key(6, "2")],
+             [val(0, "two")]),
+        eqil([key(0, "key"), key(2, "subkey3"), key(4, "sub key 3.1")],
+             [val(6, "one = 1"),
+              val(6, "2 = two")
+             ]),
+        eqil([key(0, "key"), key(2, "subkey3")],
+             [val(4, "sub key 3.1 ="),
+              val(6, "one = 1"),
+              val(6, "2 = two")
+             ]),
+        eqil([key(0, "key")],
+             [val(2, "subkey ="),
+              val(4, "<first_subkey> = #1!"),
+              val(4, "another key = double sub"),
+              val(18, "multi-line value"),
+              val(4, "key with no value ="),
+              val(0, ""),
+              val(4, "and ="),
+              %% val(0, ""),
+              val(6, "an implicit key above with a multi-line value here"),
+              val(6, "and here"),
+              val(0, ""),
+              val(6, "that contains blanks"),
+              val(6, "internally, preceeding, and following."),
+              val(0, ""),
+              val(2, "subkey2 = subval2"),
+              val(2, "subkey3 ="),
+              val(4, "sub key 3.1 ="),
+              val(6, "one = 1"),
+              val(6, "2 = two")
+             ])
+    ],
+    check(Inp, Exp, Out, already_normalized, ReParsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -720,53 +946,72 @@ test(value_reconstruction_is_valid, [nondet]) :-
 | another key
 |   = another value with a blank key
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key")],
-                     [val(2, "exec ="),
-                      val(4, "command --debug=true --inline=yes inpfile")
-                     ]),
-                eqil([key(0, "key"), key(2, "exec")],
-                     [val(4, "command --debug=true --inline=yes inpfile")]),
-                eqil([key(0, "key"), key(2, "exec"), key(4, "command --debug")],
-                     [val(0, "true --inline=yes inpfile")]),
-                eqil([key(0, "another key"), key(2, "")],
-                     [val(0, "another value with a blank key")]),
-                eqil([key(0, "another key")],
-                     [val(2, "= another value with a blank key")])
-              ]
-             ),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "key")],
-                     [val(2, "exec ="),
-                      val(4, "command --debug=true --inline=yes inpfile")
-                     ]),
-                eqil([key(0, "key"), key(2, "exec")],
-                     [val(4, "command --debug=true --inline=yes inpfile")]),
-                eqil([key(0, "key"), key(2, "exec"), key(4, "command --debug")],
-                     [val(0, "true --inline=yes inpfile")]),
-                eqil([key(0, "another key"), key(2, "another key1")],
-                     [val(0, "another value with a blank key")])
-                %% eqil([key(0, "another key")],
-                %%      [val(2, "= another value with a blank key")])
-              ]
-             ),
+    % All keys have = with surrounding spaces, assigned keys for blanks
+    % KWQ: need to suppress the addition of spaces around =
+    Out = {|string||
+| key =
+|   exec =
+|     command --debug = true --inline=yes inpfile
+| another key =
+|   another key1 = another value with a blank key
+|},
+    Parsed = [
+        eqil([key(0, "key")],
+             [val(2, "exec ="),
+              val(4, "command --debug=true --inline=yes inpfile")
+             ]),
+        eqil([key(0, "key"), key(2, "exec")],
+             [val(4, "command --debug=true --inline=yes inpfile")]),
+        eqil([key(0, "key"), key(2, "exec"), key(4, "command --debug")],
+             [val(0, "true --inline=yes inpfile")]),
+        eqil([key(0, "another key"), key(2, "")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "= another value with a blank key")])
+    ],
+    Normalized = [
+        eqil([key(0, "key")],
+             [val(2, "exec ="),
+              val(4, "command --debug=true --inline=yes inpfile")
+             ]),
+        eqil([key(0, "key"), key(2, "exec")],
+             [val(4, "command --debug=true --inline=yes inpfile")]),
+        eqil([key(0, "key"), key(2, "exec"), key(4, "command --debug")],
+             [val(0, "true --inline=yes inpfile")]),
+        eqil([key(0, "another key"), key(2, "another key1")],
+             [val(0, "another value with a blank key")])
+        %% eqil([key(0, "another key")],
+        %%      [val(2, "= another value with a blank key")])
+    ],
+    ReParsed = [
+        eqil([key(0, "key")],
+             [val(2, "exec ="),
+              val(4, "command --debug = true --inline=yes inpfile")
+             ]),
+        eqil([key(0, "key"), key(2, "exec")],
+             [val(4, "command --debug = true --inline=yes inpfile")]),
+        eqil([key(0, "key"), key(2, "exec"), key(4, "command --debug")],
+             [val(0, "true --inline=yes inpfile")]),
+        eqil([key(0, "another key"), key(2, "another key1")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "another key1 = another value with a blank key")])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
     assertion(eng:key(key, exec)),
-    assertion(eng:eng(key, exec, "command --debug=true --inline=yes inpfile")),
+    assertion(eng:eng(key, exec, "command --debug = true --inline=yes inpfile")),
     assertion(eng:key(key, exec, 'command --debug')),
     assertion(eng:eng(key, exec, 'command --debug', "true --inline=yes inpfile")),
     assertion(eng:key('another key')),
-    assertion(eng:key('another key', '')),
-    assertion(eng:eng('another key', '', "another value with a blank key")),
+    assertion(eng:key('another key', 'another key1')),
+    assertion(eng:eng('another key', 'another key1', "another value with a blank key")),
     findall(K, eng:key(K), KS),
     assertion(KS == [ key, 'another key' ]),
     findall((K1,K2), eng:key(K1,K2), K2S),
-    assertion(K2S == [ (key,exec), ('another key','') ]),
+    assertion(K2S == [ (key,exec), ('another key','another key1') ]),
     findall((K1,K2,K3), eng:key(K1,K2,K3), K3S),
     assertion(K3S == [ (key,exec,'command --debug') ]),
     %% findall((K,V), eng:eng(K,,V), KVS),
@@ -788,61 +1033,128 @@ test(valueless_cascade, [nondet]) :-
 |       help = run me
 |       exec = run it
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "help")],
-                     [val(0, "build operation for op")]),
-                eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "exec")],
-                     [val(8, "command --debug=true --inline=yes inpfile")]),
-                eqil([key(0, "key"), key(2,"op"), key(4, "build"),
-                      key(6, "exec"), key(8, "command --debug")],
-                     [val(0, "true --inline=yes inpfile")]),
-                eqil([key(0, "key"), key(2,"op"), key(4, "build")],
-                     [val(6, "help = build operation for op"),
-                      val(6, "exec ="),
-                      val(8, "command --debug=true --inline=yes inpfile"),
-                      val(6, "#= This is=my comment style =#"),
-                      val(0, "")
-                     ]),
-                eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "#")],
-                     [val(0, "This is=my comment style =#"),
-                      val(0, "")
-                     ]),
-                eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "help")],
-                     [val(0, "run me")]),
-                eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "exec")],
-                     [val(0, "run it")]),
-                eqil([key(0, "key"), key(2,"op"), key(4, "run")],
-                     [val(6, "help = run me"),
-                      val(6, "exec = run it")
-                     ]),
-                eqil([key(0, "key"), key(2,"op")],
-                     [val(4, "build ="),
-                      val(6, "help = build operation for op"),
-                      val(6, "exec ="),
-                      val(8, "command --debug=true --inline=yes inpfile"),
-                      val(6, "#= This is=my comment style =#"),
-                      val(0, ""),
-                      val(4, "run ="),
-                      val(6, "help = run me"),
-                      val(6, "exec = run it")
-                     ]),
-                eqil([key(0, "key")],
-                     [val(2, "op ="),
-                      val(4, "build ="),
-                      val(6, "help = build operation for op"),
-                      val(6, "exec ="),
-                      val(8, "command --debug=true --inline=yes inpfile"),
-                      val(6, "#= This is=my comment style =#"),
-                      val(0, ""),
-                      val(4, "run ="),
-                      val(6, "help = run me"),
-                      val(6, "exec = run it")
-                     ])
-              ]
-             ),
-    \+ normalize_eqil(Result, _),
+    % spaces around =, adds an extra blank line for %3 gen_eqil_combine
+    Out = {|string||
+| key =
+|   op =
+|     build =
+|       help = build operation for op
+|       exec =
+|         command --debug = true --inline=yes inpfile
+|       # = This is=my comment style =#
+|
+|
+|     run =
+|       help = run me
+|       exec = run it
+|},
+    Parsed = [
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "help")],
+             [val(0, "build operation for op")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "exec")],
+             [val(8, "command --debug=true --inline=yes inpfile")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"),
+              key(6, "exec"), key(8, "command --debug")],
+             [val(0, "true --inline=yes inpfile")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build")],
+             [val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug=true --inline=yes inpfile"),
+              val(6, "#= This is=my comment style =#"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "#")],
+             [val(0, "This is=my comment style =#"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "help")],
+             [val(0, "run me")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "exec")],
+             [val(0, "run it")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "run")],
+             [val(6, "help = run me"),
+              val(6, "exec = run it")
+             ]),
+        eqil([key(0, "key"), key(2,"op")],
+             [val(4, "build ="),
+              val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug=true --inline=yes inpfile"),
+              val(6, "#= This is=my comment style =#"),
+              val(0, ""),
+              val(4, "run ="),
+              val(6, "help = run me"),
+              val(6, "exec = run it")
+             ]),
+        eqil([key(0, "key")],
+             [val(2, "op ="),
+              val(4, "build ="),
+              val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug=true --inline=yes inpfile"),
+              val(6, "#= This is=my comment style =#"),
+              val(0, ""),
+              val(4, "run ="),
+              val(6, "help = run me"),
+              val(6, "exec = run it")
+             ])
+    ],
+    ReParsed = [
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "help")],
+             [val(0, "build operation for op")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "exec")],
+             [val(8, "command --debug = true --inline=yes inpfile")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"),
+              key(6, "exec"), key(8, "command --debug")],
+             [val(0, "true --inline=yes inpfile")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build")],
+             [val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug = true --inline=yes inpfile"),
+              val(6, "# = This is=my comment style =#"),
+              val(0, ""),
+              val(0, "")
+             ]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "#")],
+             [val(0, "This is=my comment style =#"),
+              val(0, ""),
+              val(0, "")
+             ]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "help")],
+             [val(0, "run me")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "exec")],
+             [val(0, "run it")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "run")],
+             [val(6, "help = run me"),
+              val(6, "exec = run it")
+             ]),
+        eqil([key(0, "key"), key(2,"op")],
+             [val(4, "build ="),
+              val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug = true --inline=yes inpfile"),
+              val(6, "# = This is=my comment style =#"),
+              val(0, ""),
+              val(0, ""),
+              val(4, "run ="),
+              val(6, "help = run me"),
+              val(6, "exec = run it")
+             ]),
+        eqil([key(0, "key")],
+             [val(2, "op ="),
+              val(4, "build ="),
+              val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug = true --inline=yes inpfile"),
+              val(6, "# = This is=my comment style =#"),
+              val(0, ""),
+              val(0, ""),
+              val(4, "run ="),
+              val(6, "help = run me"),
+              val(6, "exec = run it")
+             ])
+    ],
+    check(Inp, Parsed, Out, already_normalized, ReParsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
@@ -852,7 +1164,7 @@ test(valueless_cascade, [nondet]) :-
     assertion(eng:key(key, op, build, exec)),
     assertion(eng:key(key, op, build, '#')),
     assertion(eng:eng(key, op, build, help, "build operation for op")),
-    assertion(eng:eng(key, op, build, exec, "command --debug=true --inline=yes inpfile")),
+    assertion(eng:eng(key, op, build, exec, "command --debug = true --inline=yes inpfile")),
     assertion(eng:eng(key, op, build, '#', "This is=my comment style =#")),
     assertion(eng:key(key, op, run)),
     assertion(eng:key(key, op, run, help)),
@@ -881,63 +1193,92 @@ test(duplicate_keys, [nondet]) :-
 |     of things
 |   = left
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key"), key(2,"op")], [val(0, "build")]),
-                eqil([key(0, "key"), key(2,"op")], [val(0, "test")]),
-                eqil([key(0, "key"), key(2,"op")], [val(0, "run")]),
-                eqil([key(0, "key"), key(2,"")], [val(0, "right")]),
-                eqil([key(0, "key"), key(2,"")], [val(0, "center"),
-                                                  val(4, "of things")]),
-                eqil([key(0, "key"), key(2,"")], [val(0, "left")]),
-                eqil([key(0, "key")],
-                     [val(2, "op = build"),
-                      val(2, "op = test"),
-                      val(2, "op = run"),
-                      val(2, "= right"),
-                      val(2, "= center"),
-                      val(4, "of things"),
-                      val(2, "= left")
-                     ])
-              ]
-             ),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "key"), key(2,"op")], [val(0, "build"),
-                                                    val(0, "test"),
-                                                    val(0, "run")]),
-                eqil([key(0, "key"), key(2, "key1")], [val(0, "right")]),
-                eqil([key(0, "key"), key(2, "key2")], [val(0, "center"),
-                                                        val(4, "of things")]),
-                eqil([key(0, "key"), key(2, "key3")], [val(0, "left")])
-
-                %% eqil([key(0, "key")],
-                %%      [val(2, "op = build"),
-                %%       val(2, "op = test"),
-                %%       val(2, "op = run"),
-                %%       val(2, "= right"),
-                %%       val(2, "= center"),
-                %%       val(4, "of things"),
-                %%       val(2, "= left")
-                %%      ])
-              ]
-             ),
+    % generated keys for blank keys
+    Out = {|string||
+| key =
+|   op = build
+|        test
+|        run
+|   key1 = right
+|   key2 = center
+|     of things
+|   key3 = left
+|},
+    Parsed = [
+        eqil([key(0, "key"), key(2,"op")], [val(0, "build")]),
+        eqil([key(0, "key"), key(2,"op")], [val(0, "test")]),
+        eqil([key(0, "key"), key(2,"op")], [val(0, "run")]),
+        eqil([key(0, "key"), key(2,"")], [val(0, "right")]),
+        eqil([key(0, "key"), key(2,"")], [val(0, "center"),
+                                          val(4, "of things")]),
+        eqil([key(0, "key"), key(2,"")], [val(0, "left")]),
+        eqil([key(0, "key")],
+             [val(2, "op = build"),
+              val(2, "op = test"),
+              val(2, "op = run"),
+              val(2, "= right"),
+              val(2, "= center"),
+              val(4, "of things"),
+              val(2, "= left")
+             ])
+    ],
+    Normalized = [
+        eqil([key(0, "key"), key(2,"op")], [val(0, "build"),
+                                            val(7, "test"),
+                                            val(7, "run")]),
+        eqil([key(0, "key"), key(2, "key1")], [val(0, "right")]),
+        eqil([key(0, "key"), key(2, "key2")], [val(0, "center"),
+                                               val(4, "of things")]),
+        eqil([key(0, "key"), key(2, "key3")], [val(0, "left")])
+        %% eqil([key(0, "key")],
+        %%      [val(2, "op = build"),
+        %%       val(2, "op = test"),
+        %%       val(2, "op = run"),
+        %%       val(2, "= right"),
+        %%       val(2, "= center"),
+        %%       val(4, "of things"),
+        %%       val(2, "= left")
+        %%      ])
+    ],
+    ReParsed = [
+        eqil([key(0, "key"), key(2,"op")], [val(0, "build"),
+                                            val(7, "test"),
+                                            val(7, "run")
+                                           ]),
+        %% eqil([key(0, "key"), key(2,"op")], [val(0, "test")]),
+        %% eqil([key(0, "key"), key(2,"op")], [val(0, "run")]),
+        eqil([key(0, "key"), key(2, "key1")], [val(0, "right")]),
+        eqil([key(0, "key"), key(2, "key2")], [val(0, "center"),
+                                               val(4, "of things")]),
+        eqil([key(0, "key"), key(2, "key3")], [val(0, "left")]),
+        eqil([key(0, "key")],
+             [val(2, "op = build"),
+              val(7, "test"),
+              val(7, "run"),
+              val(2, "key1 = right"),
+              val(2, "key2 = center"),
+              val(4, "of things"),
+              val(2, "key3 = left")
+             ])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(key)),
     assertion(eng:key(key, op)),
-    assertion(eng:eng(key, op, "build")),
-    assertion(eng:eng(key, op, "test")),
-    assertion(eng:eng(key, op, "run")),
-    assertion(eng:key(key, '')),
-    assertion(eng:eng(key, '', "left")),
-    assertion(eng:eng(key, '', "center\nof things")),
-    assertion(eng:eng(key, '', "right")),
+    assertion(eng:eng(key, op, "build\ntest\nrun")),
+    %% assertion(eng:eng(key, op, "test")),
+    %% assertion(eng:eng(key, op, "run")),
+    assertion(eng:key(key, 'key1')),
+    assertion(eng:key(key, 'key2')),
+    assertion(eng:key(key, 'key3')),
+    assertion(eng:eng(key, 'key3', "left")),
+    assertion(eng:eng(key, 'key2', "center\nof things")),
+    assertion(eng:eng(key, 'key1', "right")),
     findall(K, eng:key(K), KS),
     assertion(KS == [ key ]),
     findall((K1,K2), eng:key(K1,K2), K2S),
-    assertion(K2S == [ (key,op), (key,op), (key,op), (key,''), (key,''), (key,'') ]),
+    assertion(K2S == [ (key,op), (key,'key1'), (key,'key2'), (key,'key3') ]),
     findall((K1,K2,K3), eng:key(K1,K2,K3), K3S),
     assertion(K3S == []),
     %% findall((K,V), eng:eng(K,,V), KVS),
@@ -958,100 +1299,165 @@ test(top_level_implicit_keys, [nondet]) :-
 |       'not = used
 |
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "name")],
-                     [val(0, "foo")]),
-                eqil([key(0, "system"), key(2, "spec")],
-                     [val(4, "This is my Specification ="),
-                      val(6, "name = foo"),
-                      val(6, "file = foo.spec")
-                     ]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification")],
-                     [val(6, "name = foo"),
-                      val(6, "file = foo.spec")
-                     ]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "file")],
-                     [val(0, "foo.spec")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec"), key(6, "name")],
-                     [val(0, "'nuther")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec"), key(6, "'not")],
-                     [val(0, "used")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec")],
-                     [val(0, "here"),
-                      val(6, "name = 'nuther"),
-                      val(6, "'not = used")
-                     ]),
-                eqil([key(0, "system"), key(2, "spec")],
-                     [val(4, "Another spec = here"),
-                      val(6, "name = 'nuther"),
-                      val(6, "'not = used")
-                     ]),
-                eqil([key(0, "system")],
-                     [val(2, "spec"),
-                      val(4, "This is my Specification ="),
-                      val(6, "name = foo"),
-                      val(6, "file = foo.spec"),
-                      val(2, "spec"),
-                      val(4, "Another spec = here"),
-                      val(6, "name = 'nuther"),
-                      val(6, "'not = used")
-                     ])
-              ]
-             ),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "name")],
-                     [val(0, "foo")]),
-                eqil([key(0, "system"), key(2, "spec")],
-                     [val(4, "This is my Specification ="),
-                      val(6, "name = foo"),
-                      val(6, "file = foo.spec"),
-                      val(4, "Another spec = here"),
-                      val(6, "name = 'nuther"),
-                      val(6, "'not = used")
-                     ]),
-
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification")],
-                     [val(6, "name = foo"),
-                      val(6, "file = foo.spec")
-                     ]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "file")],
-                     [val(0, "foo.spec")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec"), key(6, "name")],
-                     [val(0, "'nuther")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec"), key(6, "'not")],
-                     [val(0, "used")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec")],
-                     [val(0, "here"),
-                      val(6, "name = 'nuther"),
-                      val(6, "'not = used")
-                     ]),
-                eqil([key(0, "system")],
-                     [val(2, "spec"),
-                      val(4, "This is my Specification ="),
-                      val(6, "name = foo"),
-                      val(6, "file = foo.spec"),
-                      val(2, "spec"),
-                      val(4, "Another spec = here"),
-                      val(6, "name = 'nuther"),
-                      val(6, "'not = used")
-                     ])
-              ]
-             ),
+    % all keys have =, normalizing combines keys, keys cannot have values and
+    % subkeys
+    Out = {|string||
+| system =
+|   spec =
+|     This is my Specification =
+|       name = foo
+|       file = foo.spec
+|     Another spec =
+|       name = 'nuther
+|       'not = used
+|
+|},
+    Parsed = [
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "name")],
+             [val(0, "foo")]),
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "This is my Specification ="),
+              val(6, "name = foo"),
+              val(6, "file = foo.spec")
+             ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification")],
+             [val(6, "name = foo"),
+              val(6, "file = foo.spec")
+             ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "file")],
+             [val(0, "foo.spec")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"), key(6, "name")],
+             [val(0, "'nuther")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"), key(6, "'not")],
+             [val(0, "used")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec")],
+             [val(0, "here"),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ]),
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "Another spec = here"),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ]),
+        eqil([key(0, "system")],
+             [val(2, "spec"),
+              val(4, "This is my Specification ="),
+              val(6, "name = foo"),
+              val(6, "file = foo.spec"),
+              val(2, "spec"),
+              val(4, "Another spec = here"),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ])
+    ],
+    % Combine identical keys
+    Normalized = [
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "name")],
+             [val(0, "foo")]),
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "This is my Specification ="),
+              val(6, "name = foo"),
+              val(6, "file = foo.spec"),
+              % Added:
+              val(4, "Another spec = here"),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification")],
+             [val(6, "name = foo"),
+              val(6, "file = foo.spec")
+             ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "file")],
+             [val(0, "foo.spec")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"), key(6, "name")],
+             [val(0, "'nuther")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"), key(6, "'not")],
+             [val(0, "used")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec")],
+             [val(0, "here"),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ]),
+        eqil([key(0, "system")],
+             [val(2, "spec"),
+              val(4, "This is my Specification ="),
+              val(6, "name = foo"),
+              val(6, "file = foo.spec"),
+              val(2, "spec"),
+              val(4, "Another spec = here"),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ])
+    ],
+    ReParsed = [
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "name")],
+             [val(0, "foo")]),
+        %% Moved vvvv
+        %% eqil([key(0, "system"), key(2, "spec")],
+        %%      [val(4, "This is my Specification ="),
+        %%       val(6, "name = foo"),
+        %%       val(6, "file = foo.spec"),
+        %%       % Added:
+        %%       val(4, "Another spec ="),
+        %%       val(6, "name = 'nuther"),
+        %%       val(6, "'not = used")
+        %%      ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification")],
+             [val(6, "name = foo"),
+              val(6, "file = foo.spec")
+             ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "file")],
+             [val(0, "foo.spec")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"), key(6, "name")],
+             [val(0, "'nuther")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"), key(6, "'not")],
+             [val(0, "used")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec")],
+             [%% val(0, "here"),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ]),
+        % Moved here:
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "This is my Specification ="),
+              val(6, "name = foo"),
+              val(6, "file = foo.spec"),
+              % Added:
+              val(4, "Another spec ="),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ]),
+        eqil([key(0, "system")],
+             [val(2, "spec ="),
+              val(4, "This is my Specification ="),
+              val(6, "name = foo"),
+              val(6, "file = foo.spec"),
+              %% val(2, "spec"),
+              val(4, "Another spec ="),
+              val(6, "name = 'nuther"),
+              val(6, "'not = used")
+             ])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, Result),
     revert_assert_eng,
     assert_eqil(Result),
     assertion(eng:key(system)),
@@ -1064,7 +1470,7 @@ test(top_level_implicit_keys, [nondet]) :-
     findall(K, eng:key(K), KS),
     assertion(KS == [ system ]),
     findall((K1,K2), eng:key(K1,K2), K2S),
-    assertion(K2S == [ (system,spec), (system,spec) ]),
+    assertion(K2S == [ (system,spec) ]),
     findall((K1,K2,K3), eng:key(K1,K2,K3), K3S),
     assertion(K3S == [ (system,spec,'This is my Specification'),
                        (system,spec,'Another spec')
@@ -1087,109 +1493,171 @@ test(blank_keys, [nondet]) :-
 |       = there
 |
 |},
-    parse_eng_eqil(testinp, Inp, Result),
-    writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "")],
-                     [val(0, "foo")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "")],
-                     [val(0, "foo.spec")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "")],
-                     [val(0, "used")]),
-                eqil([key(0, "system"), key(2, "spec")],
-                     [val(4, "This is my Specification ="),
-                      val(6, "= foo"),
-                      val(6, "= foo.spec"),
-                      val(6, "= used"),
-                      val(6, "= at this time")
-                     ]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification")],
-                     [val(6, "= foo"),
-                      val(6, "= foo.spec"),
-                      val(6, "= used"),
-                      val(6, "= at this time")
-                     ]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"), key(6, "")],
-                     [val(0, "at this time")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec"), key(6, "")],
-                     [val(0, "there")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec")],
-                     [val(0, "here"),
-                      val(6, "= there")]),
-                eqil([key(0, "system"), key(2, "spec")],
-                     [val(4, "Another spec = here"),
-                      val(6, "= there")]),
-                eqil([key(0, "system")],
-                     [val(2, "spec"),
-                      val(4, "This is my Specification ="),
-                      val(6, "= foo"),
-                      val(6, "= foo.spec"),
-                      val(6, "= used"),
-                      val(6, "= at this time"),
+    % All keys have =, keys cannot have values and sub-keys, similar keys
+    % combined
+    Out = {|string||
+| system =
+|   spec =
+|     This is my Specification =
+|       This is my Specification1 = foo
+|       This is my Specification2 = foo.spec
+|       This is my Specification3 = used
+|       This is my Specification4 = at this time
+|     Another spec =
+|       Another spec5 = there
+|
+|},
+    Parsed = [
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "")],
+             [val(0, "foo")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "")],
+             [val(0, "foo.spec")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "")],
+             [val(0, "used")]),
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "This is my Specification ="),
+              val(6, "= foo"),
+              val(6, "= foo.spec"),
+              val(6, "= used"),
+              val(6, "= at this time")
+             ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification")],
+             [val(6, "= foo"),
+              val(6, "= foo.spec"),
+              val(6, "= used"),
+              val(6, "= at this time")
+             ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"), key(6, "")],
+             [val(0, "at this time")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"), key(6, "")],
+             [val(0, "there")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec")],
+             [val(0, "here"),
+              val(6, "= there")]),
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "Another spec = here"),
+              val(6, "= there")]),
+        eqil([key(0, "system")],
+             [val(2, "spec"),
+              val(4, "This is my Specification ="),
+              val(6, "= foo"),
+              val(6, "= foo.spec"),
+              val(6, "= used"),
+              val(6, "= at this time"),
                       val(2, "spec"),
                       val(4, "Another spec = here"),
                       val(6, "= there")])
-              ]),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"),
-                      key(6, "This is my Specification1")],
-                     [val(0, "foo")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"),
-                      key(6, "This is my Specification2")],
-                     [val(0, "foo.spec")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"),
-                      key(6, "This is my Specification3")],
-                     [val(0, "used")]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "This is my Specification"),
-                      key(6, "This is my Specification4")],
-                     [val(0, "at this time")]),
-                %% eqil([key(0, "system"), key(2, "spec")],
-                %%      [val(4, "This is my Specification ="),
-                %%       val(6, "= foo"),
-                %%       val(6, "= foo.spec"),
+    ],
+    Normalized = [
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification1")],
+             [val(0, "foo")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification2")],
+             [val(0, "foo.spec")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification3")],
+             [val(0, "used")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification4")],
+             [val(0, "at this time")]),
+        %% eqil([key(0, "system"), key(2, "spec")],
+        %%      [val(4, "This is my Specification ="),
+        %%       val(6, "= foo"),
+        %%       val(6, "= foo.spec"),
+        %%       val(6, "= used"),
+        %%       val(6, "= at this time"),
+        %%       val(4, "Another spec = here"),
+        %%       val(6, "= there")
+        %%      ]),
+        %% eqil([key(0, "system"), key(2, "spec"),
+        %%       key(4, "This is my Specification")],
+        %%      [val(6, "= foo"),
+        %%       val(6, "= foo.spec"),
+        %%       val(6, "= used"),
+        %%       val(6, "= at this time")
+        %%      ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"),
+              key(6, "Another spec5")],
+             [val(0, "there")])
+        %% eqil([key(0, "system"), key(2, "spec"),
+        %%       key(4, "Another spec")],
+        %%      [val(0, "here"),
+        %%       val(6, "= there")]),
+        %% eqil([key(0, "system")],
+        %%      [val(2, "spec"),
+        %%       val(4, "This is my Specification ="),
+        %%       val(6, "= foo"),
+        %%       val(6, "= foo.spec"),
                 %%       val(6, "= used"),
-                %%       val(6, "= at this time"),
-                %%       val(4, "Another spec = here"),
-                %%       val(6, "= there")
-                %%      ]),
-                %% eqil([key(0, "system"), key(2, "spec"),
-                %%       key(4, "This is my Specification")],
-                %%      [val(6, "= foo"),
-                %%       val(6, "= foo.spec"),
-                %%       val(6, "= used"),
-                %%       val(6, "= at this time")
-                %%      ]),
-                eqil([key(0, "system"), key(2, "spec"),
-                      key(4, "Another spec"),
-                      key(6, "Another spec5")],
-                     [val(0, "there")])
-                %% eqil([key(0, "system"), key(2, "spec"),
-                %%       key(4, "Another spec")],
-                %%      [val(0, "here"),
-                %%       val(6, "= there")]),
-                %% eqil([key(0, "system")],
-                %%      [val(2, "spec"),
-                %%       val(4, "This is my Specification ="),
-                %%       val(6, "= foo"),
-                %%       val(6, "= foo.spec"),
-                %%       val(6, "= used"),
-                %%       val(6, "= at this time"),
-                %%       val(2, "spec"),
-                %%       val(4, "Another spec = here"),
-                %%       val(6, "= there")])
-              ]).
+        %%       val(6, "= at this time"),
+        %%       val(2, "spec"),
+        %%       val(4, "Another spec = here"),
+        %%       val(6, "= there")])
+    ],
+    ReParsed = [
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification1")],
+             [val(0, "foo")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification2")],
+             [val(0, "foo.spec")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification3")],
+             [val(0, "used")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification")],
+             [val(6, "This is my Specification1 = foo"),
+              val(6, "This is my Specification2 = foo.spec"),
+              val(6, "This is my Specification3 = used"),
+              val(6, "This is my Specification4 = at this time")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification"),
+              key(6, "This is my Specification4")],
+             [val(0, "at this time")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec"),
+              key(6, "Another spec5")],
+             [val(0, "there")]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "Another spec")],
+             [val(6, "Another spec5 = there")]),
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "This is my Specification ="),
+              val(6, "This is my Specification1 = foo"),
+              val(6, "This is my Specification2 = foo.spec"),
+              val(6, "This is my Specification3 = used"),
+              val(6, "This is my Specification4 = at this time"),
+              val(4, "Another spec ="),
+              val(6, "Another spec5 = there")
+             ]),
+        eqil([key(0, "system")],
+             [val(2, "spec ="),
+              val(4, "This is my Specification ="),
+              val(6, "This is my Specification1 = foo"),
+              val(6, "This is my Specification2 = foo.spec"),
+              val(6, "This is my Specification3 = used"),
+              val(6, "This is my Specification4 = at this time"),
+              val(4, "Another spec ="),
+              val(6, "Another spec5 = there")
+             ])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
 
 test(adjacent_keys, [nondet]) :-
     Inp = {|string||
@@ -1198,29 +1666,130 @@ test(adjacent_keys, [nondet]) :-
 | key1
 |   key3 = value3
 |},
+    Parsed = [
+        eqil([key(0, "key1")],
+             [val(2, "key2 = value2")]),
+        eqil([key(0, "key1"), key(2, "key2")],
+             [val(0, "value2")]),
+        eqil([key(0, "key1"), key(2, "key3")],
+             [val(0, "value3")]),
+        eqil([key(0, "key1")],
+             [val(2, "key3 = value3")])
+    ],
+    % Similar keys joined, all keys have =
+    Normalized = [
+        eqil([key(0, "key1")],
+             [val(2, "key2 = value2"),
+              val(2, "key3 = value3")]),
+        eqil([key(0, "key1"), key(2, "key2")],
+             [val(0, "value2")]),
+        eqil([key(0, "key1"), key(2, "key3")],
+             [val(0, "value3")])
+    ],
+    NormText = {|string||
+| key1 =
+|   key2 = value2
+|   key3 = value3
+|},
+    ReParsed = [
+        eqil([key(0, "key1"), key(2, "key2")],
+             [val(0, "value2")]),
+        eqil([key(0, "key1"), key(2, "key3")],
+             [val(0, "value3")]),
+        eqil([key(0, "key1")],
+             [val(2, "key2 = value2"),
+              val(2, "key3 = value3")])
+    ],
+    check(Inp, Parsed, NormText, Normalized, ReParsed, _Result).
+
+
+% ----------------------------------------------------------------------
+
+check(Inp, Parsed, EmittedResult) :-
+    check(Inp, Parsed, Parsed, EmittedResult).
+
+check(Inp, Parsed, ReParsed, EmittedResult) :-
+    check(Inp, Parsed, Inp, ReParsed, EmittedResult).
+
+check(Inp, Parsed, Out, ReParsed, EmittedResult) :-
     parse_eng_eqil(testinp, Inp, Result),
     writeln(Result),
-    assertall(Result,
-              [ eqil([key(0, "key1")],
-                     [val(2, "key2 = value2")]),
-                eqil([key(0, "key1"), key(2, "key2")],
-                     [val(0, "value2")]),
-                eqil([key(0, "key1"), key(2, "key3")],
-                     [val(0, "value3")]),
-                eqil([key(0, "key1")],
-                     [val(2, "key3 = value3")])
-              ]),
-    normalize_eqil(Result, Normalized),
-    assertall(Normalized,
-              [ eqil([key(0, "key1")],
-                     [val(2, "key2 = value2"),
-                      val(2, "key3 = value3")]),
-                eqil([key(0, "key1"), key(2, "key2")],
-                     [val(0, "value2")]),
-                eqil([key(0, "key1"), key(2, "key3")],
-                     [val(0, "value3")])
-              ]).
+    assertall(Result, Parsed),
 
+    writeln(not_normalizing_check), !,
+    \+ normalize_eqil(Result, _),
+    writeln(confirmed_not_normalizable), !,
+
+    emit_eqil(Result, GenOut),
+    writeln(emitted), !,
+    writeln(GenOut),
+    writeln(eeeee),
+    (Out == GenOut, !
+    ; compare_ignore_leading_trailing_blanks(GenOut, Out)
+    ),
+    writeln(parsing_emitted), !,
+    parse_eng_eqil(emitted_out, Out, EmittedResult),
+    writeln(parsed_emitted), !,
+    writeln(EmittedResult),
+    assertall(EmittedResult, ReParsed).
+
+check(Inp, Parsed, Out, already_normalized, ReParsed, EmittedResult) :-
+    parse_eng_eqil(testinp, Inp, Result),
+    writeln(Result),
+    assertall(Result, Parsed),
+
+    writeln(not_normalizing_check),
+    \+ normalize_eqil(Result, _),
+    writeln(confirmed_not_normalizable),
+
+    emit_eqil(Result, GenOut),
+    writeln(emitted),
+    writeln(GenOut),
+    writeln(eeeee),
+    (Out == GenOut, !
+    ; compare_ignore_leading_trailing_blanks(GenOut, Out)
+    ),
+    writeln(parsing_emitted),
+    parse_eng_eqil(emitted_out, Out, EmittedResult),
+    writeln(parsed_emitted),
+    writeln(EmittedResult),
+    assertall(EmittedResult, ReParsed).
+
+check(Inp, Parsed, Out, Normalized, ReParsed, EmittedResult) :-
+    parse_eng_eqil(testinp, Inp, Result),
+    writeln(Result),
+    assertall(Result, Parsed),
+
+    writeln(normalizing_check),
+    normalize_eqil(Result, Norm),
+    writeln(confirmed_normalizable),
+    assertall(Norm, Normalized),
+
+    emit_eqil(Norm, GenOut),
+    writeln(emitted),
+    writeln(GenOut),
+    writeln(eeeee),
+    (Out == GenOut, !
+    ; compare_ignore_leading_trailing_blanks(GenOut, Out)
+    ),
+    writeln(parsing_emitted),
+    parse_eng_eqil(emitted_out, Out, EmittedResult),
+    writeln(parsed_emitted),
+    writeln(EmittedResult),
+    assertall(EmittedResult, ReParsed).
+
+compare_ignore_leading_trailing_blanks(Inp1, Inp2) :-
+    string_trim(Inp1, TI1),
+    string_trim(Inp2, TI2),
+    assertion(TI1 == TI2).
+
+remove_blank_lines(Inp, Out) :-
+    split_string(Inp, "\n", "", Lines),
+    rmv_blanks(Lines, NonBlankLines),
+    intercalate(NonBlankLines, "\n", Out).
+rmv_blanks([], []).
+rmv_blanks([""|LS], OLS) :- !, rmv_blanks(LS, OLS).
+rmv_blanks([L|LS], [L|OLS]) :- rmv_blanks(LS, OLS).
 
 assertall(Got, Exp) :- assert_each_(0, Got, Exp).
 assert_each_(_, [], []).

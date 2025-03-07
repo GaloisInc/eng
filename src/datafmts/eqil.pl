@@ -1,6 +1,7 @@
 :- module(eqil, [ parse_eng_eqil/3,
                   normalize_eqil/2,
-                  assert_eqil/1
+                  assert_eqil/1,
+                  emit_eqil/2
                 ]).
 
 :- use_module(library(apply)).
@@ -24,6 +25,11 @@
 %%
 %% Although a value may be its own EQIL at the sub-level, that information will
 %% also appear simply as a multi-line value for the higher level key.
+%%
+%% The one edge case is that a key cannot have both a value and sub-keys. If
+%% there is an input specification like this, the higher level key will contain
+%% all subkeys/subvalues as part of the value, and emitting the EQIL will drop
+%% the key portion.
 
 parse_eng_eqil(FName, FContents, Result) :-
     string_codes(FContents, Chars),
@@ -369,7 +375,17 @@ raw_val(val(_, V), V).
 %%     a rewrite of the EQIL file would contain changes, including re-ordering
 %%     and consolidation at that level, which is often a beneficial "clean up"
 %%     of the file.
+%%
+%%     Note that this will also combine values that have the same key:
+%%        key = value1
+%%        key = value2
+%%        key = value3
+%%     will become:
+%%        key = value1
+%%              value2
+%%              value3
 
+% KWQ TODO uniqueness against FULL EQIL from ALL files?
 normalize_eqil([], _) :- !, fail.
 normalize_eqil(InpEqil, OutEqil) :-
     ( assign_blank_keys(InpEqil, UpdEqil), !,
@@ -438,8 +454,164 @@ consolidate_keys([eqil(Key,Val)|InpEqil], [eqil(Key, JoinedVal)|REqil], Changed)
 consolidate_keys([],[], false).
 
 join_keys(_, Val, [], Val, []).
+join_keys(Key, [val(0,V1)|Val], [eqil(Key, [val(0,V2)|Val2])|InpEqil],
+          OtherVals, RemainingEqil) :-
+    val_indent(Key, N),
+    append([val(0,V1)|Val], [val(N, V2)|Val2], ValJ),
+    join_keys(Key, ValJ, InpEqil, OtherVals, RemainingEqil).
+join_keys(Key, [val(N,V1)|Val], [eqil(Key, [val(0,V2)|Val2])|InpEqil],
+          OtherVals, RemainingEqil) :-
+    append([val(0,V1)|Val], [val(N, V2)|Val2], ValJ),
+    join_keys(Key, ValJ, InpEqil, OtherVals, RemainingEqil).
 join_keys(Key, Val, [eqil(Key, Val2)|InpEqil], OtherVals, RemainingEqil) :-
     append(Val, Val2, ValJ),
     join_keys(Key, ValJ, InpEqil, OtherVals, RemainingEqil).
 join_keys(Key, Val, [E|InpEqil], OtherVals, [E|RemainingEqil]) :-
     join_keys(Key, Val, InpEqil, OtherVals, RemainingEqil).
+
+val_indent([], 8).  % unlikely situation
+val_indent(Keys, I) :-
+    reverse(Keys, [key(N, K)|_]),
+    string_length(K, KL),
+    sum_list([N, KL, 3], I).
+
+%% ----------------------------------------------------------------------
+
+emit_eqil(EQIL, String) :-
+    gen_eqil_string(EQIL, [], _, StringRep),
+    stringrep_to_string(StringRep, String).
+
+stringrep_to_string(emptystr, "").
+stringrep_to_string(emptyline, "").
+stringrep_to_string(single(S), S).
+stringrep_to_string(multi(S), S).
+%% adj
+%% adj_multi
+
+% gen_eqil_string is top level. It should walk through the keys, extending the
+% CurKeyPfx, to generate the results.
+gen_eqil_string([eqil(K,V)|EQIL], CurKeyPfx, RemEqil, String) :-
+    append(CurKeyPfx, [M|_], K), !, % K matches CurKeyPfx
+    append(CurKeyPfx, [M], NxtKeyPfx),
+    gen_eqil_match([eqil(K,V)|EQIL], NxtKeyPfx, MEqil, MString),
+    gen_eqil_string(MEqil, CurKeyPfx, RemEqil, OString),
+    gen_key([M], MS),
+    gen_eqil_combine(MS, MString, OString, String).
+gen_eqil_string([E|EQIL], CurKeyPfx, [E|RemEqil], String) :-
+    gen_eqil_string(EQIL, CurKeyPfx, RemEqil, String).
+gen_eqil_string([], _, [], emptystr).
+
+gen_eqil_combine(K, emptystr, emptystr, single(String)) :-
+    format(atom(StringA), "~w =", [ K ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj(V), emptystr, single(String)) :-
+    format(atom(StringA), "~w = ~w", [ K, V ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj(V), Sub, single(String)) :-
+    stringrep_to_string(Sub, SubStr),
+    format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj_multi(V,emptyline), Sub, multi(String)) :-
+    stringrep_to_string(Sub, SubStr),
+    format(atom(StringA), "~w = ~w~n~n~w", [ K, V, SubStr ]), %3
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj_multi("",ContV), emptystr, multi(String)) :-
+    !, stringrep_to_string(ContV, VS),
+    format(atom(StringA), "~w =~n~w", [ K, VS ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj_multi(V,ContV), emptystr, multi(String)) :-
+    stringrep_to_string(ContV, VS),
+    format(atom(StringA), "~w = ~w~n~w", [ K, V, VS ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj_multi(V,adj_multi(V1, V2)), Sub, multi(String)) :-
+    !,
+    gen_eqil_combine(K, adj_multi(V1, V2), Sub, SubRep),
+    stringrep_to_string(SubRep, SubStr),
+    format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj_multi(V,adj(V1)), Sub, multi(String)) :-
+    !,
+    gen_eqil_combine(K, adj(V1), Sub, SubRep),
+    stringrep_to_string(SubRep, SubStr),
+    format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj_multi(V,ContV), Sub, multi(String)) :-
+    stringrep_to_string(ContV, VS),
+    stringrep_to_string(Sub, SubStr),
+    format(atom(StringA), "~w = ~w~n~w~n~w", [ K, V, VS, SubStr ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, single(VS), emptystr, single(String)) :-
+    format(atom(StringA), "~w =~n~w", [ K, VS ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, single(VS), single(OString), multi(String)) :-
+    format(atom(StringA), "~w =~n~w~n~w", [ K, VS, OString ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, single(VS), multi(OString), multi(String)) :-
+    format(atom(StringA), "~w =~n~w~n~w", [ K, VS, OString ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, multi(VS), emptystr, multi(String)) :-
+    format(atom(StringA), "~w =~n~w", [ K, VS ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, multi(VS), Sub, multi(String)) :-
+    stringrep_to_string(Sub, SubStr),
+    format(atom(StringA), "~w =~n~w~n~w", [ K, VS, SubStr ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, emptyline, multi(Sub), multi(String)) :-
+    format(atom(StringA), "~w =~n~n~w", [ K, Sub ]),
+    atom_string(StringA, String).
+
+% gen_eqil_match is called to get all sub-elements that match the locked-in
+% CurKeyPfx and return those in StringRep and the non-matches in RemEqil.
+gen_eqil_match([eqil(CurKeyPfx,V)|EQIL], CurKeyPfx, RemEqil, StringRep) :-
+    !, gen_eqil_string(EQIL, CurKeyPfx, RemEqil, RStr),
+    gen_eqil_check(V, RStr, StringRep).
+gen_eqil_match([eqil(K,V)|EQIL], CurKeyPfx, RemEqil, StringRep) :-
+    append(CurKeyPfx, _, K), !,
+    % This is not a terminal key, so filter out any EQIL elements that terminate
+    % on this key
+    remove_keymatch(CurKeyPfx, EQIL, FilteredEQIL),
+    % expecting CurKeyPfx to advance!
+    gen_eqil_string([eqil(K,V)|FilteredEQIL], CurKeyPfx, RemEqil, StringRep).
+
+gen_eqil_check(V, emptystr, StringRep) :-
+    % current eqil was the only thing that matched CurKeyPfx
+    !, gen_val(V, StringRep).
+gen_eqil_check(_, RStr, RStr).
+
+remove_keymatch(_, [], []).
+remove_keymatch(K, [eqil(K,_)|ES], EQIL) :- !, remove_keymatch(K, ES, EQIL).
+remove_keymatch(K, [E|ES], [E|EQIL]) :- remove_keymatch(K, ES, EQIL).
+
+gen_key([], "").
+gen_key([key(N,K)|KS], String) :-
+    gen_key(KS, ""), !,
+    gen_spaces(N, S),
+    format(atom(KA), "~w~w", [S,K]),
+    atom_string(KA, String).
+gen_key([key(N,K)|KS], String) :-
+    gen_key(KS, SS),
+    gen_spaces(N, S),
+    format(atom(KA), "~w~w~n~w", [S,K,SS]),
+    atom_string(KA, String).
+
+gen_val([], emptystr) :- !.
+gen_val([val(0,"")], emptyline) :- !.
+gen_val([val(0,V)], adj(V)) :- !.
+gen_val([val(0,V)|VS], adj_multi(V,SubString)) :- !, gen_val(VS, SubString).
+gen_val([val(N,V)|VS], StringRep) :-
+    gen_spaces(N, S), !,
+    gen_val(VS, SubString),
+    ret_val(SubString, S, V, StringRep).
+
+gen_spaces(0, "").
+gen_spaces(N, S) :- succ(P, N), gen_spaces(P, Q), string_concat(" ", Q, S).
+
+ret_val(emptystr, S, V, single(R)) :- format(atom(R), "~w~w", [S, V]).
+ret_val(emptyline, S, V, multi(R)) :- format(atom(R), "~w~w~n", [S, V]).
+ret_val(single(SubString), S, V, multi(R)) :-
+    format(atom(R), "~w~w~n~w", [ S, V, SubString ]).
+ret_val(multi(SubString), S, V, multi(R)) :-
+    format(atom(R), "~w~w~n~w", [ S, V, SubString ]).
+ret_val(adj_multi(SubString,multi(MoreSub)), S, V, multi(R)) :-
+    format(atom(R), "~w~w~n~w~n~w", [ S, V, SubString, MoreSub ]).
+%% ret_val(X, S, V, _) :- writeln(ret_val_fail), writeln(X), fail.
