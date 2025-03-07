@@ -2,8 +2,7 @@ dev =
   subcmd =
     build =
       Builds the project from source =
-        exec =
-          swipl --goal=main -o eng -c src/top.pl
+        exec = swipl --goal=main -o eng -c src/top.pl
         #= Can use --emulator=swipl, but that has immediate effect. =#
 
     mkdist =

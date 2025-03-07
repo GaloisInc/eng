@@ -1,13 +1,11 @@
-system
-  spec
+system =
+  spec =
     Specification for the Lando tool =
       name = Lando
       file = spec/lando.lando
       format = lando
       generate =
-        spec/lando.json
+        spec/lando.json =
           format = json
-      generate =
-        spec/lando.md
+        spec/lando.md =
           format = markdown
-
