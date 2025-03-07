@@ -1,5 +1,6 @@
 :- module(lando_fret, [ lando_to_fret/2,
-                        parse_fret/3
+                        parse_fret/3,
+                        transform_to_AST/2  % for testing
                       ]).
 
 :- use_module(library(http/json)).
@@ -511,10 +512,214 @@ special_char_subst(I, I).  % TODO: translate special chars, see fret-electron/su
 
 last_is_FALSE(I, O) :- subst(' LAST ', 'FALSE', I, O).
 
-salt_to_smv(I, I).  % TODO
-transform_to_AST(I, I).  % TODO
+% --------------------
+
+salt_to_smv(I, SMV) :-   % XXX: test this
+    string_chars(I, CS),
+    phrase(salt2smv(O), CS, R),
+    ( R == []
+    -> string_chars(SMV, O)
+    ; format('  SMV: ~w~n  REMAINDER: ~w~n', [ SMV, R ]),
+      string_chars(SMV, O)
+    ).
+
+salt2smv(SMV) --> [ '[', '<', '=' ], number(N), lxm(endSquarePlusOne),
+                  salt2smv(Rest),
+                  succ(N, M),
+                  format(atom(X), '[0,~w]~w~n', [M, Rest]), atom_chars(X, SMV).
+salt2smv(SMV) --> [ '[', '<', '=' ], number(N), lxm(endSquare),
+                  salt2smv(Rest),
+                  format(atom(X), '[0,~w]~w~n', [N, Rest]), atom_chars(X, SMV).
+salt2smv(SMV) --> [ '[', '<' ], number(N), lxm(endSquarePlusOne),
+                  salt2smv(Rest),
+                  format(atom(X), '[0,~w]~w~n', [N, Rest]), atom_chars(X, SMV).
+salt2smv(SMV) --> [ '[', '<' ], number(N), lxm(endSquare),
+                  salt2smv(Rest),
+                  succ(P, N),
+                  format(atom(X), '[0,~w]~w~n', [P, Rest]), atom_chars(X, SMV).
+salt2smv(SMV) --> [ '[', '=' ], number(N), lxm(endSquarePlusOne),
+                  salt2smv(Rest),
+                  succ(N, M),
+                  format(atom(X), '[~w,~w]~w~n', [M, M, Rest]), atom_chars(X, SMV).
+salt2smv(SMV) --> [ '[', '=' ], number(N), lxm(endSquare),
+                  salt2smv(Rest),
+                  format(atom(X), '[~w,~w]~w~n', [N, N, Rest]), atom_chars(X, SMV).
+salt2smv([S|MV]) --> [ S ], salt2smv(MV).
+salt2smv([]) --> [].
+
+endSquarePlusOne() --> [ '+', '1', ']' ].
+endSquare() --> [ ']' ].
+
+
+% --------------------
+
+transform_to_AST(I, AST) :-
+    writeln(t0),
+    subst('=>', '->', I, I1),
+    string_chars(I1, CS),
+    writeln(t1), writeln(I1), writeln(CS), !,
+    phrase(ltl(AST), CS, R), !,
+    writeln(t2),
+    ( R == []
+    -> (% string_chars(AST, O),
+        format('  AST: ~w~n', [ AST ]))
+    ; format('  AST: ~w~n  REMAINDER: ~w~n', [ AST, R ])
+      %, string_chars(AST, O)
+    ).
+
+ltl(E) --> lxm(lp), lxm(ltl, E), lxm(rp).
+%% ltl(expo(E, E)) --> lxm(ltl, E), lxm(expt), lxm(ltl, E).
+ltl(neg(E)) --> minus(_), lxm(ltl, E).
+%% ltl(mul(E, E)) --> lxm(ltl, E), lxm(mult), lxm(ltl, E).
+%% ltl(div(E, E)) --> lxm(ltl, E), lxm(div), lxm(ltl, E).
+%% ltl(mod(E, E)) --> lxm(ltl, E), lxm(mod), lxm(ltl, E).
+%% ltl(add(E, E)) --> lxm(ltl, E), lxm(plus), lxm(ltl, E).
+%% ltl(sub(E, E)) --> lxm(ltl, E), lxm(minus), lxm(ltl, E).
+%% ltl(negfloatnum(M,E)) --> lxm(minus), number(M), ['.'], number(E).
+%% ltl(floatnum(M,E)) --> lxm(number, M), ['.'], number(E).
+%% ltl(negnum(N)) --> lxm(minus), number(N).
+%% ltl(num(N)) --> lxm(number, N).
+%% ltl(call(I, Args)) --> lxm(ident, I), args(Args).
+ltl(id(I)) --> lxm(ident, I).
+ltl(E) --> boolExpr(E).
+
+args([A|MA]) --> lxm(lp), ltl(A), moreArgs(MA), lxm(rp).
+args([A|MA]) --> lxm(lp), boolExpr(A), moreArgs(MA), lxm(rp).
+args([A]) --> lxm(lp), ltl(A), lxm(rp).
+args([A]) --> lxm(lp), boolExpr(A), lxm(rp).
+
+moreArgs([A|MA]) --> [','], ltl(A), moreArgs(MA).
+moreArgs([A|MA]) --> [','], boolExpr(A), moreArgs(MA).
+moreArgs([A]) --> [','], ltl(A).
+moreArgs([A]) --> [','], boolExpr(A).
+
+boolExpr(E, [_|Ls0], Ls) --> lxm(lp), lxm(boolExpr, E, Ls0, Ls), lxm(rp).
+%% boolExpr(eq(E1,E2)) --> lxm(ltl, E1), lxm(eq), lxm(ltl, E2).
+%% boolExpr(le(E1,E2)) --> lxm(ltl, E1), lxm(le), lxm(ltl, E2).
+%% boolExpr(ge(E1,E2)) --> lxm(ltl, E1), lxm(ge), lxm(ltl, E2).
+%% boolExpr(lt(E1,E2)) --> lxm(ltl, E1), lxm(lt), lxm(ltl, E2).
+%% boolExpr(gt(E1,E2)) --> lxm(ltl, E1), lxm(gt), lxm(ltl, E2).
+%% boolExpr(neq(E1,E2)) --> lxm(ltl, E1), lxm(neq), lxm(ltl, E2).
+boolExpr(not(E)) --> lxm(not), boolExpr(E).
+%% boolExpr(and(E1,E2)) --> lxm(boolExpr, E1), lxm(and), lxm(boolExpr, E2).
+boolExpr(or(E1,E2)) --> boolExpr(E1), {writeln(ore1)}, lxm(or), {writeln(orop)}, boolExpr(E2), {writeln(ore2)}.
+%% boolExpr(xor(E1,E2)) --> lxm(boolExpr, E1), lxm(xor), lxm(boolExpr, E2).
+%% boolExpr(implies(E1,E2)) --> lxm(boolExpr, E1), lxm(imples), lxm(boolExpr, E2).
+%% boolExpr(equiv(E1,E2)) --> lxm(boolExpr, E1), lxm(equiv), lxm(boolExpr, E2).
+%% boolExpr(next(E1,E2)) --> next, lxm(boolExpr, E1), lxm(comma), lxm(boolExpr, E2).
+%% boolExpr(prev(E1,E2)) --> prev, lxm(boolExpr, E1), lxm(comma), lxm(boolExpr, E2).
+%% boolExpr(boolcall(I,Args)) --> lxm(ident, I), args(Args).
+boolExpr(boolid(I), Ls, Ls) --> lxm(ident, I).
+%% boolExpr(true) --> lxm(word, "TRUE").
+%% boolExpr(false) --> lxm(word, "FALSE").
+%% boolExpr(ltlY(E)) --> lxm(ltlY), lxm(boolExpr, E).
+%% boolExpr(ltlX(E)) --> lxm(ltlX), lxm(boolExpr, E).
+boolExpr(ltlZ(E), Ls, Ls) --> lxm(ltlZ), lxm(boolExpr, E).
+%% boolExpr(ltlH(E)) --> lxm(ltlH), lxm(boolExpr, E).
+%% boolExpr(ltlO(E)) --> lxm(ltlO), lxm(boolExpr, E).
+%% boolExpr(ltlG(E)) --> lxm(ltlG), lxm(boolExpr, E).
+%% boolExpr(ltlF(E)) --> lxm(ltlF), lxm(boolExpr, E).
+%% boolExpr(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolExpr, E).
+%% boolExpr(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolExpr, E).
+%% boolExpr(bound_ltlH(B,E)) --> lxm(ltlH), lxm(bound, B), lxm(boolExpr, E).
+%% boolExpr(binSI_bound(B,E1,E2)) --> lxm(boolExpr, E1), lxm(ltlSI),
+%%                                    lxm(bound, B),
+%%                                    lxm(boolExpr, E2).
+%% boolExpr(binS_bound(B,E1,E2)) --> lxm(boolExpr, E1), lxm(ltlS),
+%%                                   lxm(bound, B),
+%%                                   lxm(boolExpr, E2).
+%% boolExpr(binT_bound(B,E1,E2)) --> lxm(boolExpr, E1), lxm(ltlT),
+%%                                   lxm(bound, B),
+%%                                   lxm(boolExpr, E2).
+%% boolExpr(binUI_bound(B,E1,E2)) --> lxm(boolExpr, E1), lxm(ltlUI),
+%%                                    lxm(bound, B),
+%%                                    lxm(boolExpr, E2).
+%% boolExpr(binU_bound(B,E1,E2)) --> lxm(boolExpr, E1), lxm(ltlU),
+%%                                   lxm(bound, B),
+%%                                   lxm(boolExpr, E2).
+%% boolExpr(binV_bound(B,E1,E2)) --> lxm(boolExpr, E1), lxm(ltlV),
+%%                                   lxm(bound, B),
+%%                                   lxm(boolExpr, E2).
+
+bound(range2(B,E)) --> ['['], ltl(B), [','], ltl(E), [']'].
+bound(range1(B)) --> ['['], ltl(B), [']'].
+bound(salt_eq(E)) --> lxm(eq), lxm(ltl, E).
+bound(salt_le(E)) --> lxm(le), lxm(ltl, E).
+bound(salt_ge(E)) --> lxm(ge), lxm(ltl, E).
+bound(salt_lt(E)) --> lxm(lt), lxm(ltl, E).
+bound(salt_gt(E)) --> lxm(gt), lxm(ltl, E).
+bound(salt_neq(E)) --> lxm(eq), lxm(ltl, E).
+
+lp() --> [ '(' ].
+rp() --> [ ')' ].
+expt() --> [ '^' ].
+mult() --> [ '*' ].
+div() --> [ '/' ].
+plus() --> [ '+' ].
+minus(m) --> [ '-' ].
+not() --> [ '!' ].
+and() --> [ '&' ].
+or() --> [ '|' ].
+xor() --> [ 'x', 'o', 'r' ].
+xor() --> [ 'X', 'o', 'r' ].
+xor() --> [ 'x', 'O', 'R' ].
+xor() --> [ 'x', 'O', 'r' ].
+xor() --> [ 'X', 'O', 'R' ].
+mod() --> [ 'm', 'o', 'd' ].
+mod() --> [ 'M', 'o', 'd' ].
+mod() --> [ 'M', 'O', 'D' ].
+eq() --> [ '=' ].
+lt() --> [ '<' ].
+gt() --> [ '>' ].
+neq() --> [ '!', '=' ].
+le() --> [ '<', '=' ].
+ge() --> [ '>', '=' ].
+implies() --> [ '-', '>' ].
+equiv() --> [ '<', '-', '>' ].
+next() --> lxm(word, "at"), lxm(word, "the"), lxm(word, "next"),
+           lxm(word, "occurrence"), lxm(word, "of").
+prev() --> lxm(word, "at"), lxm(word, "the"), lxm(word, "previous"),
+           lxm(word, "occurrence"), lxm(word, "of").
+ltlH() --> [ 'H' ].
+ltlO() --> [ 'O' ].
+ltlG() --> [ 'G' ].
+ltlF() --> [ 'F' ].
+ltlSI() --> [ 'S', 'I' ].
+ltlS() --> [ 'S' ].
+ltlT() --> [ 'T' ].
+ltlUI() --> [ 'U', 'I' ].
+ltlU() --> [ 'U' ].
+ltlV() --> [ 'V' ].
+ltlY() --> [ 'Y' ].
+ltlX() --> [ 'X' ].
+ltlZ() --> [ 'Z' ].
+ltlBefore() --> [ '<', '|' ].
+ltlAfter() --> [ '|', '>' ].
+
+
+ident(I) --> w(I).  % Ident should allow $ and should not start with a numeric
+
+lxm(R) --> ws_, { ! }, lxm(R).
+lxm(R) --> call(R).
+
+lxm(R, P) --> ws_, { ! }, lxm(R, P).
+lxm(R, P) --> call(R, P).
+
+lxm(R, O, P) --> ws_, { ! }, lxm(R, O, P).
+lxm(R, O, P) --> call(R, O, P).
+
+lxm(R, O, U, P) --> ws_, { ! }, lxm(R, O, U, P).
+lxm(R, O, U, P) --> call(R, O, U, P).
+
+%% wsp(P) --> ws(A), ws(B), { pos(A,B,P) }.
+%% wsp(P) --> ws(P).
+
+ws_() --> [C], { char_type(C, space) }.
+
+% --------------------
+
 ast_to_LTL(I, I).  % TODO
-ast_to_CoCo(I, I). % TODO
+ast_to_CoCo(I, O) :- string_concat("CoCoNo! ", I, O). % TODO
 xform_past_temporal_unbounded(I, I).  % TODO
 xform_future_temporal_unbounded(I, I). % TODO
 xform_past_temporal(I, I).  % TODO
@@ -758,6 +963,13 @@ word_char(C) :- \+ char_type(C, space),
                               %% '{', '}', '^', '[', ']', %% XXX?
                               '$',
                               '/']).
+
+number([N|NS]) --> digit(N), number(NS).
+number(N) --> digit(N).
+digit(D) --> [ D ], { member(D, "0123456789") }.
+
+lexeme(R) --> ws(_), { !, writeln(l0) }, lexeme(R).
+lexeme(R) --> call(R), { writeln(l1), writeln(R) }.
 
 lexeme(R, P) --> ws(_), { ! }, lexeme(R, P).
 lexeme(R, P) --> call(R, P).
