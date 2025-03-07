@@ -504,6 +504,13 @@ gen_eqil_string([], _, [], emptystr).
 gen_eqil_combine(K, emptystr, emptystr, single(String)) :-
     format(atom(StringA), "~w =", [ K ]),
     atom_string(StringA, String).
+gen_eqil_combine(K, emptystr, Sub, multi(String)) :-
+    stringrep_to_string(Sub, SubStr),
+    format(atom(StringA), "~w =~n~w", [ K, SubStr ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, emptyline, emptystr, single(String)) :-
+    format(atom(StringA), "~w =~n", [ K ]),
+    atom_string(StringA, String).
 gen_eqil_combine(K, adj(V), emptystr, single(String)) :-
     format(atom(StringA), "~w = ~w", [ K, V ]),
     atom_string(StringA, String).
