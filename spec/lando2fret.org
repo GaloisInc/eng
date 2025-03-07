@@ -1,0 +1,45 @@
+Conversion from Lando to FRET:
+
+* Purpose
+
+  * Converts a Lando specification into FRET JSON for import into the FRET tool.
+
+    FRET operates from a set of internal databases, so any shared or VCS
+    operations need to be based on external files that are imported when shares
+    update.  FRET importing completely replaces any previous existence of Project
+    with the new, imported version.  The external files should be amenable to
+    concurrent development and VCS changes (e.g. not native JSON).
+
+    Lando provides a good basis for providing these specifications; this document
+    provides the details and controls for extracting explicit FRET from the more
+    permissive Lando.
+
+* Syntax
+
+  * The top-level system or subsystem will be the FRET Project
+  * A Lando ~requirement~ with an ~index~ of FRET specifies a FRET Requirement in
+    FRETish that will be extracted.
+  * The abbrevName or first word of the ~requirement~ name will be used as the
+    FRET requirement ID.
+  * The current subsystem will be the parent for a FRET Requirement
+  * The explanation of the ~requirement~ will be used as the FRET justification
+    text.
+  * Fret variables are indicated by a ~component~, where the variable name is
+    the abbrevName or first word of the name.
+    * Usage :: The use of variable is specified by a constraint ~FRET <USAGE>
+      var.~ where ~USAGE~ is one of: ~Input~, ~Output~, ~Mode~, ~Function~,
+      ~Internal~.
+    * Type :: The type of the variable is specified by a constraint ~FRET :
+      <TYPE>.~ where supported FRET data types are: ~boolean~, ~integer~,
+      ~unsigned integer~, ~single~, ~double~.
+    * Mode :: A mode variable is specified by providing one or more constraints.
+      The constraints will become the mode requirement if the ~USAGE~ is ~Mode~.
+      Otherwise all other constraints are ignored.
+
+  * A ~scenarios~ whose name is the same as a ~component~ followed by " Values"
+    will create an automatic FRET Requirement constraining the types for that
+    variable, where the type must accomodate the number of scenarios and the
+    scenario numbering is in ordinal order starting from 0/false.
+
+    KWQ: events? input boolean vars (if referenced)?  could be an output?
+    

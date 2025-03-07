@@ -9,3 +9,13 @@ system =
           format = json
         spec/lando.md =
           format = markdown
+
+doc =
+ lando2fret =
+   type = rough design
+   title = Lando to Fret conversion
+   location = spec/lando2fret.org
+   abstract =
+
+     Describes the Lando markup syntax needed for embedding FRET specifications
+     in Lando and the process rules for extraction and conversion to FRET.
