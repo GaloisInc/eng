@@ -125,16 +125,14 @@ do_exec(Context, Ref, ArgMap, capture(C), EnvVars, InDir, Sts) :-
 
 do_exec_single(Context, Ref, ArgMap, capture([Cmd|Args]), EnvVars, InDir, StdOut) :- !,
     set_env_vars(Context, EnvVars),
-    (eng:eng('exec bin', Cmd, E), !; E = Cmd),
+    subst_exec(Cmd, E),
     maplist(prep_args(ArgMap), Args, EArgs),
-    %% writeln(FullExec),
     dir_runproc(Context, Ref, E, EArgs, InDir, StdOut).
 do_exec_single(Context, Ref, ArgMap, ShellCmd, EnvVars, InDir, Sts) :-
     set_env_vars(Context, EnvVars),
     subst_exec(ShellCmd, ExecCmd),
     prep_args(ArgMap, ExecCmd, FullExec),
     print_message(informational, running_exec(FullExec)),
-    %% writeln(FullExec),
     dir_shell(Context, Ref, FullExec, InDir, ThisSts),
     ( ThisSts = 0, !, Sts = ThisSts
     ; Sts = ThisSts,
@@ -144,6 +142,10 @@ do_exec_single(Context, Ref, ArgMap, ShellCmd, EnvVars, InDir, Sts) :-
 
 %% ----------------------------------------------------------------------
 
+subst_exec(Cmd, Actual) :-
+    split_string(Cmd, "\n", "", Cmds), length(Cmds, NCmds), NCmds > 1, !,
+    maplist(subst_exec, Cmds, SCmds),
+    intercalate(SCmds, "\n", Actual).
 subst_exec(Cmd, Actual) :-
     atom_string(Cmd,CmdS),
     string_codes(CmdS, Chars),
