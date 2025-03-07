@@ -148,7 +148,7 @@ show_system_spec(Spec, Name) :-
     show_system_spec(Spec, Name, "?fmt?").
 
 show_system_spec(Spec, Name, Format) :-
-    format('  [~w] ~w: ~w~n', [ Format, Name, Spec ]),
+    format('  [~w] ~w: ~w~n', [ Format, Spec, Name ]),
     fail. % backtrack and try the next one
 
 % ----------------------------------------------------------------------
