@@ -23,70 +23,9 @@ doc =
                        to inform the former requires conversion via the
                        ~atom_string(A,S)~ predicate.
 
-    sections =
-
-      implicit keys =
-
-        One design point to consider is whether implicit keys should be allowed.
-        In other words, is this:
-
-            foo
-              bar
-                cow = moo
-
-        the same as this:
-
-            foo =
-              bar =
-                cow = moo
-
-        While that may seem like an obvious example, what about:
-
-            baz =
-               This is the first line of the foo value, and
-                 this is the second line, but is the line above an implict key?
-               This is the point being considered by this design topic.
-
-        There are two routes: (1) disallow implicit keys, or (2) comprehensively
-        implement implicit keys, which means the answer to the baz question above
-        is "yes".
-
-        By disallowing implicit keys, the syntax becomes much more regular, and
-        the reader is not left wondering, "if I only need indentation, then why
-        do I need = characters?"
-
-        By comprehensively supporting implicit keys, eqil parsing more fully
-        supports the "DWIM" aspect of the specification, with the cost being the
-        presence of additional--perhaps unintended--keys and values.  However,
-        the latter is already the case with parsing even without implicit keys,
-        and the goal of this parser (unlike other parsers) is to express a
-        superset of the possible set of information that the application itself
-        will be interested in.  The additional keys are not visible to the user
-        as long as the application is careful about what it looks for, and may
-        require a bit of care in the application design of that key structure.
-        For example:
-
-           foo
-             bar
-               user-specified-key
-                 help = Some help information
-               The foo.bar can be used to process foo information
-                 in the context of bar.
-             moo = cow
-
-        Here, if the application is looking for foo.bar.X keys to process, it may
-        inadvertently pick up the first sentence of the descriptive paragraph as
-        a key.  It may also be surprised that the above also defines:
-
-            eqil([key(0, "foo"), key(2, "bar"),
-                  key(4, "The foo.bar can be used to process foo information"),
-                  key(6, "in the context of bar.")
-                 ], [])
-
-        In fact, in this mode, the only lines from the input file that do *not*
-        get expressed as keys are value lines that are exactly aligned with the
-        value line preceeding them.
-
+    location = spec/eqil.org
+  
+    
 bug =
   description =
     EQIL parsing requires a newline at EOF

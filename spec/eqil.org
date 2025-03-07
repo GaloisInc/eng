@@ -61,3 +61,254 @@
         In fact, in this mode, the only lines from the input file that do *not*
         get expressed as keys are value lines that are exactly aligned with the
         value line preceeding them.
+
+* Block values
+
+  Normal syntax is "key = value", and value may be on multiple lines.  The other
+  way of looking at this is that any line with an = sign has a key to the left
+  and value to the right.  This does require stating a couple of rules around the
+  presence of an = sign:
+
+  1. Only the first = sign on a line is significant; remaining = signs on a line
+     are simply part of the value.
+
+  2. Subsequent value lines containing an = sign are *also* candidates as
+     sub-key/value entries; EQIL does not decide that one or the other must be
+     valid, but instead supports querying either the upper-level key where the
+     value block includes the lines that would be considered as sub-keys, or
+     querying the sub-key and only getting the sub-value.  "Beauty is in the eye
+     of the beholder" in this case.
+
+  3. Subsequent value lines that are followed by lines with more indentation are
+     implicit keys.  Again, the client application can retrieve the entire block
+     via a higher level key, or the indented value from the implicit key.
+
+  For example, given the input:
+
+  #+begin_example
+  foo
+    farm =
+      cow = moo=says hello
+      pig
+        = grunt
+        = oink
+  foo =
+    farm =
+      chicken = cluck
+      info =
+        A chicken is an animal (chicken=animal) but not all
+        animals are chickens, so we cannot say = for animal
+        and chicken.
+  #+end_example
+
+  The client code can retrieve any or all of the following:
+
+    | key                                    | value                                                    |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo                                    | .farm =                                                  |
+    |                                        | .  cow = moo=says hello                                  |
+    |                                        | .  pig                                                   |
+    |                                        | .    = grunt                                             |
+    |                                        | .    = oink                                              |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm                             | .cow = moo=says hello                                    |
+    |                                        | .pig                                                     |
+    |                                        | .  = grunt                                               |
+    |                                        | .  = oink                                                |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > cow                       | moo=says hello                                           |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > pig                       | .= grunt                                                 |
+    |                                        | .= oink                                                  |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > pig >                     | grunt                                                    |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > pig >                     | oink                                                     |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo                                    | .farm =                                                  |
+    |                                        | .  chicken = cluck                                       |
+    |                                        | .  info =                                                |
+    |                                        | .    A chicken is an animal (chicken=animal) but not all |
+    |                                        | .    animals are chickens, so we cannot say = for animal |
+    |                                        | .    and chicken.                                        |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm                             | .chicken = cluck                                         |
+    |                                        | .info =                                                  |
+    |                                        | .  A chicken is an animal (chicken=animal) but not all   |
+    |                                        | .  animals are chickens, so we cannot say = for animal   |
+    |                                        | .  and chicken.                                          |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > chicken                   | cluck                                                    |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > info                      | A chicken is an animal (chicken=animal) but not all      |
+    |                                        | animals are chickens, so we cannot say = for animal      |
+    |                                        | and chicken.                                             |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > info >                    | animal) but not all                                      |
+    | A chicken is an animal (chicken        |                                                          |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > info >                    | for animal                                               |
+    | animals are chickens, so we cannot say |                                                          |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > info > and chicken.       |                                                          |
+    |----------------------------------------+----------------------------------------------------------|
+
+    * Note: in the table above, (leading periods are for indentation purposes and
+      are not actually part of the value.  The '>' is used to show the separation
+      of the keys provided for the lookup and are not part of the syntax.
+
+    No doubt the last three entries in the table are probably surprising.
+
+** Normalizing
+
+  EQIL can be normalized, which has two effects and a side-effect:
+
+   * Effect 1 :: blank keys are assigned values,
+   * Effect 2 :: identically-keyed values are concatenated.
+
+   * Side-effect :: If either of the above two effects is performed, then any
+     higher-level key/values are *removed* because it cannot reliable change the
+     value portion of those keys to match the changes caused by the two main
+     effects.
+
+  If the input EQIL is not expected to change, and the client knows that it will
+  not attempt to access any of the higher-level removed keys, then the normalized
+  form can be consumed directly.
+
+  To demonstrate, if the above example were normalized, the possible key/value
+  lookups would be as shown here (note that the higher-level keys are gone and
+  only the leaf elements are present):
+
+    | changed | key                                    | value                                               |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    | no      | foo > farm > cow                       | moo=says hello                                      |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    | yes     | foo > farm > pig > pig1                | grunt                                               |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    | yes     | foo > farm > pig > pig2                | oink                                                |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    | no      | foo > farm > chicken                   | cluck                                               |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    |         | foo > farm > info                      | A chicken is an animal (chicken=animal) but not all |
+    | no      |                                        | animals are chickens, so we cannot say = for animal |
+    |         |                                        | and chicken.                                        |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    |         | foo > farm > info >                    | animal) but not all                                 |
+    | no      | A chicken is an animal (chicken        |                                                     |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    | no      | foo > farm > info >                    | for animal                                          |
+    |         | animals are chickens, so we cannot say |                                                     |
+    |---------+----------------------------------------+-----------------------------------------------------|
+    | no      | foo > farm > info > and chicken.       |                                                     |
+    |---------+----------------------------------------+-----------------------------------------------------|
+
+  [It's also possible for the client application to skip normalization: again,
+  this is based on the needs of the client, not any form of strictness in the
+  EQIL parser.]
+
+  However, if the above post-normalization conditions are not true: EQIL files
+  are expected to change over time, or higher-level keys might be used
+  post-normalization, then it is recommended that the client rewrite (via
+  eqil_emit) the configuration file into the normalized form and then re-parse
+  it.  This will ensure that the file matches the client's processing, and
+  re-generate the higher-level key values.
+
+** Emitting EQIL
+
+  Emitting EQIL is the process of converting parsed EQIL back into string form,
+  usually for writing back out to a file.
+
+  It is *strongly* recommended that the EQIL be normalized prior to emission.
+
+  When EQIL files are emitted, the concern about the = sign as part of values and
+  the interpretation of "sub-keys" becomes more significant:
+
+  1. The keys and values are emitted with a space on either side of the = sign
+     for readability.  This means that the *first* equals sign on *any* line will
+     have spaces around it when emitted.
+
+  2. Keys cannot have values and sub-keys.  While this can be parsed, on
+     emitting, the "value" portion is dropped if a key also has sub-keys.
+
+  3. Keys are *always* followed by an = sign when emitted.  This means that
+     implicit sub-keys will have = signs added to the end of the line.
+
+  To mitigate against any unintended effects from issue #1 and #3, there is a
+  special value representation called a "valblock".  A valblock is indicated by
+  supplying a vertical bar ('|') (only) on the key line.  Everything following
+  that line that is indented more than the key will be treated as a value only,
+  and never as a sub-key (i.e. a "value block" or "block value").  If the key
+  line's value is not a single vertical bar, or if the vertical bar appears in
+  any other location, it is simply treated as a character and does not indicate a
+  valblock.
+    
+  For example, given the previous input with a single change to add the vertical
+  bar for the info key:
+  
+  #+begin_example
+  foo
+    farm =
+      cow = moo=says hello
+      pig
+        = grunt
+        = oink
+  foo =
+    farm =
+      chicken = cluck
+      info = |
+        A chicken is an animal (chicken=animal) but not all
+        animals are chickens, so we cannot say = for animal
+        and chicken.
+  #+end_example
+
+  The client code can retrieve the same results as the table shown above except
+  the (surprising) last three lines are no longer available: info has no
+  sub-keys.
+
+    | key                                    | value                                                    |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo                                    | .farm =                                                  |
+    |                                        | .  cow = moo=says hello                                  |
+    |                                        | .  pig                                                   |
+    |                                        | .    = grunt                                             |
+    |                                        | .    = oink                                              |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm                             | .cow = moo=says hello                                    |
+    |                                        | .pig                                                     |
+    |                                        | .  = grunt                                               |
+    |                                        | .  = oink                                                |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > cow                       | moo=says hello                                           |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > pig                       | .= grunt                                                 |
+    |                                        | .= oink                                                  |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > pig >                     | grunt                                                    |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > pig >                     | oink                                                     |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo                                    | .farm =                                                  |
+    |                                        | .  chicken = cluck                                       |
+    |                                        | .  info =                                                |
+    |                                        | .    A chicken is an animal (chicken=animal) but not all |
+    |                                        | .    animals are chickens, so we cannot say = for animal |
+    |                                        | .    and chicken.                                        |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm                             | .chicken = cluck                                         |
+    |                                        | .info =                                                  |
+    |                                        | .  A chicken is an animal (chicken=animal) but not all   |
+    |                                        | .  animals are chickens, so we cannot say = for animal   |
+    |                                        | .  and chicken.                                          |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > chicken                   | cluck                                                    |
+    |----------------------------------------+----------------------------------------------------------|
+    | foo > farm > info                      | A chicken is an animal (chicken=animal) but not all      |
+    |                                        | animals are chickens, so we cannot say = for animal      |
+    |                                        | and chicken.                                             |
+    |----------------------------------------+----------------------------------------------------------|
+
+  If the original example (without the valblock indicator for the info key) is
+  written out, the result will convert "... (chicken=animal) ..." to
+  "... (chicken = animal) ...", and also convert the last info line from "and
+  chicken." to "and chicken. =", which is clearly different that the original.
+  The valblock indication prevents these modifications to pure value sections.

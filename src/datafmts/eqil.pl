@@ -73,17 +73,27 @@ eqil(KeyVals) --> sequence(empty_line, _),
 eqil([]) --> blanks.
 
 
-eqil_keyvals(Mode, Active, FKVs, Rem) -->   % key =
+eqil_keyvals(norm, Active, FKVs, Rem) -->   % key =
     indented(N), parse_key(N, K), parse_val(0, val_(0, "", _)),
     !,
     { update_active_new_kv([], Active, N, K, no(val), NextActive, AKVs) },
-    eqil_keyvals(Mode, NextActive, KVs, Rem),
+    eqil_keyvals(norm, NextActive, KVs, Rem),
+    { append(AKVs, KVs, FKVs) }.
+eqil_keyvals(valblock(VN), Active, FKVs, Rem) -->   % key =
+    indented(N), parse_key(N, K), { N =< VN }, parse_val(0, val_(0, "", _)),
+    !,
+    { update_active_new_kv([], Active, N, K, no(val), NextActive, AKVs) },
+    eqil_keyvals(norm, NextActive, KVs, Rem),
     { append(AKVs, KVs, FKVs) }.
 
-eqil_keyvals(Mode, Active, FKVs, Rem) -->   % key = value
+eqil_keyvals(norm, Active, FKVs, Rem) -->   % key = value
     indented(N), parse_key(N, K), parse_val(0, V),
     !,
-    inline_key_value(Mode, Active, N, K, V, FKVs, Rem).
+    inline_key_value(norm, Active, N, K, V, FKVs, Rem).
+eqil_keyvals(valblock(VN), Active, FKVs, Rem) -->   % key = value
+    indented(N), parse_key(N, K), {N =< VN}, parse_val(0, V),
+    !,
+    inline_key_value(norm, Active, N, K, V, FKVs, Rem).
 
 eqil_keyvals(Mode, Actives, KVs, Rem) -->   % value
     indented(N), parse_val(N, V),
@@ -98,12 +108,12 @@ eqil_keyvals(Mode, Active, KVs, Rem) -->   % blank line
     { update_active_val(Active, N, val_(N, "", C), NextActive) },
     eqil_keyvals(Mode, NextActive, KVs, Rem).
 
-eqil_keyvals(Mode, Actives, KVs, Rem) -->   % implicit key (equidented or dedented)
+eqil_keyvals(_Mode, Actives, KVs, Rem) -->   % implicit key (equidented or dedented)
     indented(N), parse_val(N, val_(N, V, C)),
     { \+ active_alignment(Actives, N, indented) },
     !,
     { update_active_new_kv([], Actives, N, key_(N, V, C), no(val), NextActive, AKVs) },
-    eqil_keyvals(Mode, NextActive, SKVs, Rem),
+    eqil_keyvals(norm, NextActive, SKVs, Rem),
     { append(AKVs, SKVs, KVs) }.
 
 eqil_keyvals(_Mode, Active, KVs, "") -->   % end
@@ -117,9 +127,15 @@ finish_eqil([A0|AS], KVs) :-
     add_eqil(AS, [key(AN, AK)], AVTrimmed, NextKVs, KVs).
 finish_eqil([], []).
 
-inline_key_value(Mode, Active, N, K, V, FKVs, Rem) -->
+inline_key_value(_Mode, Active, N, K, val_(_, "|", _), FKVs, Rem) -->
+    { !,
+      update_active_new_kv([], Active, N, K, no(val), NextActive, AKVs)
+    },
+    eqil_keyvals(valblock(N), NextActive, KVs, Rem),
+    { append(AKVs, KVs, FKVs) }.
+inline_key_value(_Mode, Active, N, K, V, FKVs, Rem) -->
     { update_active_new_kv([], Active, N, K, V, NextActive, AKVs) },
-    eqil_keyvals(Mode, NextActive, KVs, Rem),
+    eqil_keyvals(norm, NextActive, KVs, Rem),
     { append(AKVs, KVs, FKVs) }.
 
 trim_trailing_blanks([val_(_,"",_)|Vals], TrimmedVals) :-
@@ -507,6 +523,11 @@ gen_eqil_string([E|EQIL], CurKeyPfx, [E|RemEqil], String) :-
     gen_eqil_string(EQIL, CurKeyPfx, RemEqil, String).
 gen_eqil_string([], _, [], emptystr).
 
+% Determines how to emit this key and value, combined with the remainder of the
+% eqil output:
+%
+%    gen_eqil_combine(Key, ValStringRep, FollowingStringRep, OutStringRep)
+%
 gen_eqil_combine(K, emptystr, emptystr, single(String)) :-
     format(atom(StringA), "~w =", [ K ]),
     atom_string(StringA, String).
@@ -617,7 +638,11 @@ gen_val([], emptystr) :- !.
 gen_val([val(0,"")], emptyline) :- !.
 gen_val([val(0,V)], adj(V)) :- !.
 gen_val([val(0,V)|VS], adj_multi(V,SubString)) :- !, gen_val_(VS, SubString).
-gen_val(V, StringRep) :- gen_val_(V, StringRep).
+gen_val(V, StringRep) :-
+    gen_val_(V, ValRep),
+    ( as_valblock(ValRep), !, StringRep = adj_multi("|", ValRep)
+    ; StringRep = ValRep
+    ).
 
 gen_val_([], emptystr) :- !.
 gen_val_([val(N,V)|VS], StringRep) :-
@@ -637,3 +662,7 @@ ret_val(multi(SubString), S, V, multi(R)) :-
 ret_val(adj_multi(SubString,multi(MoreSub)), S, V, multi(R)) :-
     format(atom(R), "~w~w~n~w~n~w", [ S, V, SubString, MoreSub ]).
 %% ret_val(X, S, V, _) :- writeln(ret_val_fail), writeln(X), fail.
+
+as_valblock(single(String)) :- !, string_chars(String, Codes), member('=', Codes).
+as_valblock(multi(String)) :- !, string_chars(String, Codes), member('=', Codes).
+as_valblock(String) :- string_chars(String, Codes), member('=', Codes).

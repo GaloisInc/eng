@@ -1177,6 +1177,216 @@ test(valueless_cascade, [nondet]) :-
     revert_assert_eng.
 
 
+test(block_values, [nondet]) :-
+    Inp = {|string||
+| key =
+|   op =
+|     build =
+|       help = build operation for op
+|       exec = |
+|         command --debug=true --inline=yes inpfile
+|
+|         command2 --out=free | cat -n
+|       #= This is=my comment style =#
+|
+|     run =
+|       help = run me
+|       exec = | run it
+|       one = |
+|       two = |
+|         second=#2
+|       three
+|         third=#3
+|},
+    % spaces around =, adds an extra blank line for %3 gen_eqil_combine
+    Out = {|string||
+| key =
+|   op =
+|     build =
+|       help = build operation for op
+|       exec = |
+|         command --debug=true --inline=yes inpfile
+|
+|         command2 --out=free | cat -n
+|       # = This is=my comment style =#
+|
+|     run =
+|       help = run me
+|       exec = | run it
+|       one =
+|       two = |
+|         second=#2
+|       three =
+|         third = #3
+|},
+    E0 = eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "help")],
+              [val(0, "build operation for op")]),
+    E1 = eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "exec")],
+              [val(8, "command --debug=true --inline=yes inpfile"),
+               val(0, ""),
+               val(8, "command2 --out=free | cat -n")
+              ]),
+    E2 = eqil([key(0, "key"), key(2,"op"), key(4, "build")],
+              [val(6, "help = build operation for op"),
+               val(6, "exec ="),
+               val(8, "command --debug=true --inline=yes inpfile"),
+               val(0, ""),
+               val(8, "command2 --out=free | cat -n"),
+               val(6, "#= This is=my comment style =#"),
+               val(0, "")
+              ]),
+    E3 = eqil([key(0, "key"), key(2,"op"), key(4, "build"), key(6, "#")],
+              [val(0, "This is=my comment style =#"),
+               val(0, "")
+              ]),
+    E4 = eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "help")],
+              [val(0, "run me")]),
+    E5 = eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "exec")],
+              [val(0, "| run it")]),
+    E6 = eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "one")], []),
+    E7 = eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "two")],
+              [val(8, "second=#2")]),
+    E8 = eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "three"),
+               key(8, "third")],
+              [val(0, "#3")]),
+    E9 = eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "three")],
+              [val(8, "third=#3")]),
+    E10 = eqil([key(0, "key"), key(2,"op"), key(4, "run")],
+               [val(6, "help = run me"),
+                val(6, "exec = | run it"),
+                val(6, "one ="),
+                val(6, "two ="),
+                val(8, "second=#2"),
+                val(6, "three"),
+                val(8, "third=#3")
+               ]),
+    E11 = eqil([key(0, "key"), key(2,"op")],
+               [val(4, "build ="),
+                val(6, "help = build operation for op"),
+                val(6, "exec ="),
+                val(8, "command --debug=true --inline=yes inpfile"),
+                val(0, ""),
+                val(8, "command2 --out=free | cat -n"),
+                val(6, "#= This is=my comment style =#"),
+                val(0, ""),
+                val(4, "run ="),
+                val(6, "help = run me"),
+                val(6, "exec = | run it"),
+                val(6, "one ="),
+                val(6, "two ="),
+                val(8, "second=#2"),
+                val(6, "three"),
+                val(8, "third=#3")
+               ]),
+    E12 = eqil([key(0, "key")],
+               [val(2, "op ="),
+                val(4, "build ="),
+                val(6, "help = build operation for op"),
+                val(6, "exec ="),
+                val(8, "command --debug=true --inline=yes inpfile"),
+                val(0, ""),
+                val(8, "command2 --out=free | cat -n"),
+                val(6, "#= This is=my comment style =#"),
+                val(0, ""),
+                val(4, "run ="),
+                val(6, "help = run me"),
+                val(6, "exec = | run it"),
+                val(6, "one ="),
+                val(6, "two ="),
+                val(8, "second=#2"),
+                val(6, "three"),
+                val(8, "third=#3")
+               ]),
+    Parsed = [ E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12 ],
+    ReParsed = [
+        E0, E1,
+        eqil([key(0, "key"), key(2,"op"), key(4, "build")],
+             [val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug=true --inline=yes inpfile"),
+              val(0, ""),
+              val(8, "command2 --out=free | cat -n"),
+              val(6, "# = This is=my comment style =#"),
+              val(0, "")
+             ]),
+        E3, E4, E5, E6, E7, E8,
+        eqil([key(0, "key"), key(2,"op"), key(4, "run"), key(6, "three")],
+             [val(8, "third = #3")]),
+        eqil([key(0, "key"), key(2,"op"), key(4, "run")],
+               [val(6, "help = run me"),
+                val(6, "exec = | run it"),
+                val(6, "one ="),
+                val(6, "two ="),
+                val(8, "second=#2"),
+                val(6, "three ="),
+                val(8, "third = #3")
+               ]),
+        eqil([key(0, "key"), key(2,"op")],
+             [val(4, "build ="),
+              val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug=true --inline=yes inpfile"),
+              val(0, ""),
+              val(8, "command2 --out=free | cat -n") ,
+              val(6, "# = This is=my comment style =#"),
+              val(0, ""),
+              val(4, "run ="),
+              val(6, "help = run me"),
+              val(6, "exec = | run it"),
+              val(6, "one ="),
+              val(6, "two ="),
+              val(8, "second=#2"),
+              val(6, "three ="),
+              val(8, "third = #3")
+             ]),
+        eqil([key(0, "key")],
+             [val(2, "op ="),
+              val(4, "build ="),
+              val(6, "help = build operation for op"),
+              val(6, "exec ="),
+              val(8, "command --debug=true --inline=yes inpfile"),
+              val(0, ""),
+              val(8, "command2 --out=free | cat -n"),
+              val(6, "# = This is=my comment style =#"),
+              val(0, ""),
+              val(4, "run ="),
+              val(6, "help = run me"),
+              val(6, "exec = | run it"),
+              val(6, "one ="),
+              val(6, "two ="),
+              val(8, "second=#2"),
+              val(6, "three ="),
+              val(8, "third = #3")
+             ])
+    ],
+    check(Inp, Parsed, Out, already_normalized, ReParsed, Result),
+    revert_assert_eng,
+    assert_eqil(Result),
+    assertion(eng:key(key)),
+    assertion(eng:key(key, op)),
+    assertion(eng:key(key, op, build)),
+    assertion(eng:key(key, op, build, help)),
+    assertion(eng:key(key, op, build, exec)),
+    assertion(eng:key(key, op, build, '#')),
+    assertion(eng:eng(key, op, build, help, "build operation for op")),
+    assertion(eng:eng(key, op, build, exec, "command --debug=true --inline=yes inpfile\n\ncommand2 --out=free | cat -n")),
+    assertion(eng:eng(key, op, build, '#', "This is=my comment style =#")),
+    assertion(eng:key(key, op, run)),
+    assertion(eng:key(key, op, run, help)),
+    assertion(eng:key(key, op, run, exec)),
+    assertion(eng:eng(key, op, run, help, "run me")),
+    assertion(eng:eng(key, op, run, exec, "| run it")),
+    findall(K, eng:key(K), KS),
+    assertion(KS == [ key ]),
+    findall((K1,K2), eng:key(K1,K2), K2S),
+    assertion(K2S == [ (key,op) ]),
+    findall((K1,K2,K3), eng:key(K1,K2,K3), K3S),
+    assertion(K3S == [ (key,op,build), (key,op,run) ]),
+    %% findall((K,V), eng:eng(K,,V), KVS),
+    %% writeln(KVS)
+    revert_assert_eng.
+
+
 test(duplicate_keys, [nondet]) :-
     Inp = {|string||
 | key =
@@ -2001,6 +2211,290 @@ test(mixed_keys, [nondet]) :-
     ],
     check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
 
+
+% ----------------------------------------------------------------------
+% Samples from spec
+
+test(sample1, [nondet]) :-
+    Inp = {|string||
+|  foo
+|    farm =
+|      cow = moo=says hello
+|      pig
+|        = grunt
+|        = oink
+|  foo =
+|    farm =
+|      chicken = cluck
+|      info =
+|        A chicken is an animal (chicken=animal) but not all
+|        animals are chickens, so we cannot say = for animal
+|        and chicken.
+|},
+    % spaces around =, adds an extra blank line for %3 gen_eqil_combine.  Some
+    % unexpected effects in the info value.
+    Out = {|string||
+|  foo =
+|    farm =
+|      cow = moo=says hello
+|      pig =
+|        pig1 = grunt
+|        pig2 = oink
+|      chicken = cluck
+|      info =
+|        A chicken is an animal (chicken = animal) but not all
+|        animals are chickens, so we cannot say = for animal
+|        and chicken. =
+|},
+    E1 = eqil([key(0, "foo"), key(2,"farm"), key(4, "cow")],
+              [val(0, "moo=says hello")
+              ]),
+    E2 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "")],
+              [val(0, "grunt")
+              ]),
+    E3 = eqil([key(0, "foo")],
+              [val(2, "farm ="),
+               val(4, "cow = moo=says hello"),
+               val(4, "pig"),
+               val(6, "= grunt"),
+               val(6, "= oink")
+              ]),
+    E4 = eqil([key(0, "foo"), key(2,"farm")],
+              [val(4, "cow = moo=says hello"),
+               val(4, "pig"),
+               val(6, "= grunt"),
+               val(6, "= oink")
+              ]),
+    E5 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig")],
+              [val(6, "= grunt"),
+               val(6, "= oink")
+              ]),
+    E6 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "")],
+              [val(0, "oink")
+              ]),
+    E7 = eqil([key(0, "foo"), key(2,"farm"), key(4, "chicken")],
+              [val(0, "cluck")
+              ]),
+    E8 = eqil([key(0, "foo"), key(2,"farm"), key(4, "info"),
+               key(6, "A chicken is an animal (chicken")],
+              [val(0, "animal) but not all")
+              ]),
+    E9 = eqil([key(0, "foo"), key(2,"farm"), key(4, "info"),
+               key(6, "animals are chickens, so we cannot say")],
+              [val(0, "for animal")
+              ]),
+    E10 = eqil([key(0, "foo"), key(2,"farm"), key(4, "info"),
+                key(6, "and chicken.")],
+               []),
+    E11 = eqil([key(0, "foo"), key(2,"farm"), key(4, "info")],
+               [val(6, "A chicken is an animal (chicken=animal) but not all"),
+                val(6, "animals are chickens, so we cannot say = for animal"),
+                val(6, "and chicken.")
+               ]),
+    E12 = eqil([key(0, "foo"), key(2,"farm")],
+               [val(4, "chicken = cluck"),
+                val(4, "info ="),
+                val(6, "A chicken is an animal (chicken=animal) but not all"),
+                val(6, "animals are chickens, so we cannot say = for animal"),
+                val(6, "and chicken.")
+               ]),
+    E13 = eqil([key(0, "foo")],
+               [val(2,"farm ="),
+                val(4, "chicken = cluck"),
+                val(4, "info ="),
+                val(6, "A chicken is an animal (chicken=animal) but not all"),
+                val(6, "animals are chickens, so we cannot say = for animal"),
+                val(6, "and chicken.")
+               ]),
+    Parsed = [
+        E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13
+    ],
+    Normalized = [
+        E1,
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+             [val(0, "grunt")
+             ]),
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+             [val(0, "oink")
+             ]),
+        E7, E8, E9, E10, E11
+    ],
+    ReParsed = [
+        E1,
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+             [val(0, "grunt")
+             ]),
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig")],
+             [val(6, "pig1 = grunt"),
+              val(6, "pig2 = oink")
+             ]),
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+             [val(0, "oink")
+             ]),
+        E7, E8, E9, E10,
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "info")],
+             [val(6, "A chicken is an animal (chicken = animal) but not all"),
+              val(6, "animals are chickens, so we cannot say = for animal"),
+              val(6, "and chicken. =")
+             ]),
+        eqil([key(0, "foo"), key(2,"farm")],
+             [val(4, "cow = moo=says hello"),
+              val(4, "pig ="),
+              val(6, "pig1 = grunt"),
+              val(6, "pig2 = oink"),
+              val(4, "chicken = cluck"),
+              val(4, "info ="),
+              val(6, "A chicken is an animal (chicken = animal) but not all"),
+              val(6, "animals are chickens, so we cannot say = for animal"),
+              val(6, "and chicken. =")
+             ]),
+        eqil([key(0, "foo")],
+             [val(2,"farm ="),
+              val(4, "cow = moo=says hello"),
+              val(4, "pig ="),
+              val(6, "pig1 = grunt"),
+              val(6, "pig2 = oink"),
+              val(4, "chicken = cluck"),
+              val(4, "info ="),
+              val(6, "A chicken is an animal (chicken = animal) but not all"),
+              val(6, "animals are chickens, so we cannot say = for animal"),
+              val(6, "and chicken. =")
+             ])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
+
+test(sample1_valblock, [nondet]) :-
+    Inp = {|string||
+|  foo
+|    farm =
+|      cow = moo=says hello
+|      pig
+|        = grunt
+|        = oink
+|  foo =
+|    farm =
+|      chicken = cluck
+|      info = |
+|        A chicken is an animal (chicken=animal) but not all
+|        animals are chickens, so we cannot say = for animal
+|        and chicken.
+|},
+    % spaces around =, adds an extra blank line for %3 gen_eqil_combine.  Some
+    % unexpected effects in the info value.
+    Out = {|string||
+|  foo =
+|    farm =
+|      cow = moo=says hello
+|      pig =
+|        pig1 = grunt
+|        pig2 = oink
+|      chicken = cluck
+|      info = |
+|        A chicken is an animal (chicken=animal) but not all
+|        animals are chickens, so we cannot say = for animal
+|        and chicken.
+|},
+    E1 = eqil([key(0, "foo"), key(2,"farm"), key(4, "cow")],
+              [val(0, "moo=says hello")
+              ]),
+    E2 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "")],
+              [val(0, "grunt")
+              ]),
+    E3 = eqil([key(0, "foo")],
+              [val(2, "farm ="),
+               val(4, "cow = moo=says hello"),
+               val(4, "pig"),
+               val(6, "= grunt"),
+               val(6, "= oink")
+              ]),
+    E4 = eqil([key(0, "foo"), key(2,"farm")],
+              [val(4, "cow = moo=says hello"),
+               val(4, "pig"),
+               val(6, "= grunt"),
+               val(6, "= oink")
+              ]),
+    E5 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig")],
+              [val(6, "= grunt"),
+               val(6, "= oink")
+              ]),
+    E6 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "")],
+              [val(0, "oink")
+              ]),
+    E7 = eqil([key(0, "foo"), key(2,"farm"), key(4, "chicken")],
+              [val(0, "cluck")
+              ]),
+    E11 = eqil([key(0, "foo"), key(2,"farm"), key(4, "info")],
+               [val(6, "A chicken is an animal (chicken=animal) but not all"),
+                val(6, "animals are chickens, so we cannot say = for animal"),
+                val(6, "and chicken.")
+               ]),
+    E12 = eqil([key(0, "foo"), key(2,"farm")],
+               [val(4, "chicken = cluck"),
+                val(4, "info ="),
+                val(6, "A chicken is an animal (chicken=animal) but not all"),
+                val(6, "animals are chickens, so we cannot say = for animal"),
+                val(6, "and chicken.")
+               ]),
+    E13 = eqil([key(0, "foo")],
+               [val(2,"farm ="),
+                val(4, "chicken = cluck"),
+                val(4, "info ="),
+                val(6, "A chicken is an animal (chicken=animal) but not all"),
+                val(6, "animals are chickens, so we cannot say = for animal"),
+                val(6, "and chicken.")
+               ]),
+    Parsed = [
+        E1, E2, E3, E4, E5, E6, E7, E11, E12, E13
+    ],
+    Normalized = [
+        E1,
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+             [val(0, "grunt")
+             ]),
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+             [val(0, "oink")
+             ]),
+        E7, E11
+    ],
+    ReParsed = [
+        E1,
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+             [val(0, "grunt")
+             ]),
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig")],
+             [val(6, "pig1 = grunt"),
+              val(6, "pig2 = oink")
+             ]),
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+             [val(0, "oink")
+             ]),
+        E7,
+        E11,
+        eqil([key(0, "foo"), key(2,"farm")],
+             [val(4, "cow = moo=says hello"),
+              val(4, "pig ="),
+              val(6, "pig1 = grunt"),
+              val(6, "pig2 = oink"),
+              val(4, "chicken = cluck"),
+              val(4, "info ="),
+              val(6, "A chicken is an animal (chicken=animal) but not all"),
+              val(6, "animals are chickens, so we cannot say = for animal"),
+              val(6, "and chicken.")
+             ]),
+        eqil([key(0, "foo")],
+             [val(2,"farm ="),
+              val(4, "cow = moo=says hello"),
+              val(4, "pig ="),
+              val(6, "pig1 = grunt"),
+              val(6, "pig2 = oink"),
+              val(4, "chicken = cluck"),
+              val(4, "info ="),
+              val(6, "A chicken is an animal (chicken=animal) but not all"),
+              val(6, "animals are chickens, so we cannot say = for animal"),
+              val(6, "and chicken.")
+             ])
+    ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
 
 % ----------------------------------------------------------------------
 
