@@ -44,13 +44,14 @@ parse_eng_eqil(FName, FContents, Result) :-
 %% internal blanks).
 
 assert_eqil([]).
+assert_eqil([eqil(Keys, [])|CCS]) :-
+    keyseq(Keys, Keychain), !, assert_eng(Keychain), assert_eqil(CCS).
+assert_eqil([eqil(Keys, [""])|CCS]) :-
+    keyseq(Keys, Keychain), !, assert_eng(Keychain), assert_eqil(CCS).
 assert_eqil([eqil(Keys, Val)|CCS]) :-
     keyseq(Keys, Keychain),
-    ( Val = [], !, (assert_eng(Keychain))
-    ; Val = [""], !, (assert_eng(Keychain))
-    ; vals_as_val(Val, V),
-      assert_eng(Keychain, V)
-    ),
+    vals_as_val(Val, V),
+    assert_eng(Keychain, V),
     assert_eqil(CCS).
 
 show_warnings(_, []).
