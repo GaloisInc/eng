@@ -631,7 +631,6 @@ endSquare() --> [ ']' ].
 % --------------------
 
 transform_to_AST(I, AST) :-
-    writeln(t0),
     subst('=>', '->', I, I1),
     parse_ltl(I1, AST).
 
