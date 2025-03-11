@@ -1,7 +1,4 @@
-:- module(lando_fret, [ lando_to_fret/2,
-                        transform_to_AST/2,  % for testing
-                        ast_to_CoCo/2        % for testing
-                      ]).
+:- module(lando_fret, [ lando_to_fret/2 ]).
 
 :- use_module(library(http/json)).
 :- use_module('datafmts/frettish').
