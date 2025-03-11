@@ -7,35 +7,35 @@ test(simple_expr, [nondet]) :-
     parse_ltl(Inp, AST),
     assertion(AST == boolid("shutdown_requested")),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "__shutdown_requested").
+    assertion(CoCo == "shutdown_requested").
 
 test(paren_expr, [nondet]) :-
     Inp = "(shutdown_requested)",
     parse_ltl(Inp, AST),
     assertion(AST == boolid("shutdown_requested")),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "__shutdown_requested").
+    assertion(CoCo == "shutdown_requested").
 
 test(negated_expr, [nondet]) :-
     Inp = "! (shutdown_requested)",
     parse_ltl(Inp, AST),
     assertion(AST == not(boolid("shutdown_requested"))),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "not (__shutdown_requested)").
+    assertion(CoCo == "not (shutdown_requested)").
 
 test(z_expr, [nondet]) :-
     Inp = "(Z (! startup))",
     parse_ltl(Inp, AST),
     assertion(AST == ltlZ(not(boolid("startup")))),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "ZtoPre(not (__startup))").
+    assertion(CoCo == "ZtoPre(not (startup))").
 
 test(bool_or_expr, [nondet]) :-
     Inp = "((shutdown_running) | startup)",
     parse_ltl(Inp, AST),
     assertion(AST == or(boolid("shutdown_running"), boolid("startup"))),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "(__shutdown_running or __startup)").
+    assertion(CoCo == "(shutdown_running or startup)").
 
 test(bool3_expr, [nondet]) :-
     Inp = "((shutdown_running) | (startup & (Z (! startup))))",
@@ -44,7 +44,7 @@ test(bool3_expr, [nondet]) :-
                         and(boolid("startup"),
                            ltlZ(not(boolid("startup")))))),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "(__shutdown_running or (__startup and ZtoPre(not (__startup))))").
+    assertion(CoCo == "(shutdown_running or (startup and ZtoPre(not (startup))))").
 
 test(bool3_expr_extra_parens, [nondet]) :-
     Inp = "(((((shutdown_running)) | (startup & (((Z (! ((((startup))))))))))))",
@@ -53,7 +53,7 @@ test(bool3_expr_extra_parens, [nondet]) :-
                         and(boolid("startup"),
                            ltlZ(not(boolid("startup")))))),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "(__shutdown_running or (__startup and ZtoPre(not (__startup))))").
+    assertion(CoCo == "(shutdown_running or (startup and ZtoPre(not (startup))))").
 
 test(bool_expr_mid_term, [nondet]) :-
     Inp = "((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))
@@ -67,13 +67,13 @@ test(bool_expr_mid_term, [nondet]) :-
                         and(boolid("startup"),
                            ltlZ(not(boolid("startup"))))))),
     emit_CoCoSpec(AST, CoCo),
-    assertion(CoCo == "(YtoPre((__shutdown_requested and (YtoPre(not (__shutdown_requested)) or (__startup and ZtoPre(not (__startup)))))) => (__shutdown_running or (__startup and ZtoPre(not (__startup)))))").
+    assertion(CoCo == "(YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup)))))").
 
-test(bool_expr_mid_term, [nondet]) :-
+test(upon_next_expr, [nondet]) :-
     %% Upon not_y and l the a shall at the next timepoint satisfy m & i >= 0.
     %% Inp is ptExpanded_fetched with var replacements
     Inp = "(H ((Y ((not_y & l) & (Z (! (not_y & l))))) -> ((m & (i >= 0)) | (! (Y TRUE)))))",
-    CoCoOut = "H((YtoPre(((__not_y and __l) and ZtoPre(not ((__not_y and __l))))) => ((__m and (__i >= 0)) or not (YtoPre(true)))))",
+    CoCoOut = "H((YtoPre(((not_y and l) and ZtoPre(not ((not_y and l))))) => ((m and (i >= 0)) or not (YtoPre(true)))))",
     parse_ltl(Inp, AST),
     assertion(AST == ltlH(implies(ltlY(and(and(boolid("not_y"), boolid("l")),
                                            ltlZ(not(and(boolid("not_y"),
