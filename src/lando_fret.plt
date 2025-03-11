@@ -2,7 +2,7 @@
 :- use_module("lando_fret").
 :- use_module(library(strings)).
 
-test(simple_expr, [nondet]) :-
+test(simple_expr, [nondet, blocked(true)]) :-
     Inp = "shutdown_requested",
     transform_to_AST(Inp, AST),
     assertion(AST == boolid("shutdown_requested")).

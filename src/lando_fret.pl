@@ -34,6 +34,9 @@ cross_reference(Reqs, [V|Vars], [O|OutVars]) :-
     put_dict(V, _{ reqs: RefIds }, O).
 
 var_ref_req_ids(_, [], []).
+var_ref_req_ids(VarName, [noreq|Reqs], RefIds) :-
+    !,
+    var_ref_req_ids(VarName, Reqs, RefIds).
 var_ref_req_ids(VarName, [R|Reqs], [RefID|RefIds]) :-
     get_dict(semantics, R, Semantics),
     get_dict(variables, Semantics, VNames),
@@ -98,12 +101,10 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
       get_dict(explanation, SpecElement, Expl),
       get_dict(uid, SpecElement, UID),
       get_dict(indexing, SpecElement, Indexing),
-      make_fret_reqs(Defs, ProjName, FretCompName, Name, Expl, UID, Indexing, ThisReqs, ThisVars)
+      make_fret_reqs(Defs, ProjName, FretCompName, Name, Expl, UID, 0, Indexing, ThisReqs)
     },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextVars, Modes),
-    { append(ThisReqs, NextReqs, Reqs),
-      append(ThisVars, NextVars, Vars)  % KWQ TODO normalize vars
-    }.
+    extract_fret(ProjName, FretCompName, Defs, NextReqs, Vars, Modes),
+    { prepend_valid_reqs(ThisReqs, NextReqs, Reqs) }.
 extract_fret(ProjName, FretCompName, Defs, Reqs, [Var|Vars], Modes) -->
     [ SpecElement ],
     { is_dict(SpecElement, component), %%%% <- selector
@@ -125,8 +126,16 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, [Mode|Modes]) -->
       Mode = (Var, VarModes)
     },
     extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
-extract_fret(_, _, _, [], [], []) --> [ _ ].
+extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
+    [ _ ],  % skip other elements
+    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
 extract_fret(_, _, _, [], [], []) --> [].
+
+prepend_valid_reqs([], Reqs, Reqs).
+prepend_valid_reqs([noreq|RS], Reqs, OutReqs) :-
+    prepend_valid_reqs(RS, Reqs, OutReqs).
+prepend_valid_reqs([R|RS], Reqs, [R|OutRS]) :-
+    prepend_valid_reqs(RS, Reqs, OutRS).
 
 mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var) :-
     format(atom(IDA), "~w~w~w", [ ProjName, FretCompName, VarName ]),
@@ -188,17 +197,30 @@ fret_var_type_(Feature, Type) :-
     string_concat("FRET : ", FT, T),
     string_concat(Type, ".", FT).
 
-make_fret_reqs(_Defs, _ProjName, _CompName, _ReqName, _Expl, _UID, [], [], []).
-make_fret_reqs(Defs, ProjName, _CompName, ReqName, Expl, UID, [Index|_IXS], [Req], Vars) :-
+make_fret_reqs(_, _, _, _, _, _, _, [], []).
+make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [Index|IXS], [Req|Reqs]) :-
     get_dict(key, Index, "FRET"),
     !,
+    parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num,
+                        Index, Req),
+    succ(Num, NextNum),
+    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, NextNum, IXS, Reqs).
+make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [_|IXS], Reqs) :-
+    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, IXS, Reqs).
+
+
+parse_fret_or_error(Defs, ProjName, _CompName, ReqName, Expl, UID, Num, Index, Req) :-
     get_dict(values, Index, Lines),
     intercalate(Lines, " ", English),
     parse_fret(Defs, English, FretReq),
-    format(atom(ReqID), '~w-req-~w', [ ProjName, UID ]),
-    %% KWQ: TODO: process _IXS for more FRET reqs (they need to be numbered as sub-reqs of the main requirement
-    Req = requirement{ reqid: ReqName,
-                       % parent_reqid:?
+    !,
+    ( Num == 0
+    -> format(atom(ReqID), '~w-req-~w', [ ProjName, UID ]), RName = ReqName
+    ; format(atom(ReqID), '~w-req-~w-~w', [ ProjName, UID, Num ]),
+      format(atom(RName), '~w-~w', [ ReqName, Num ])
+    ),
+    Req = requirement{ reqid: RName,
+                       % parent_reqid:?  % KWQ: TODO
                        project: ProjName,
                        rationale: Expl,
                        fulltext: English,
@@ -206,11 +228,15 @@ make_fret_reqs(Defs, ProjName, _CompName, ReqName, Expl, UID, [Index|_IXS], [Req
                        comments: "",
                        '_id': ReqID,
                        semantics: FretReq
-                     },
-    Vars = [].
-make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, [_|IXS], Reqs, Vars) :-
-    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, IXS, Reqs, Vars).
+                     }.
+parse_fret_or_error(_, ProjName, CompName, ReqName, _, _, _, Index, noreq) :-
+    get_dict(values, Index, Lines),
+    intercalate(Lines, " ", English),
+    print_message(error, bad_frettish(ProjName, CompName, ReqName, English)).
 
+prolog:message(bad_frettish(ProjName, CompName, ReqName, English)) -->
+    [ 'BAD Frettish statement for ~w.~w.~w: ~w~n'
+      - [ ProjName, CompName, ReqName, English ] ].
 
 % ----------------------------------------------------------------------
 
@@ -229,6 +255,10 @@ enumerate(I, O) :- enum_(0, I, O).
 enum_(_, [], []).
 enum_(N, [I|IS], [(N,I)|OS]) :- succ(N, M), enum_(M, IS, OS).
 
+prolog:message(bad_response_text(EW, EP)) -->
+    [ 'Invalid FRETTISH Response specification at character ~w: ~w~n'
+      - [ EP, EW ] ].
+
 % scope conditions component shall timing responses
 frettish(Defs, Semantics) -->
     scope(Scope, ScopeVars),
@@ -241,7 +271,11 @@ frettish(Defs, Semantics) -->
     !,
     timing(Timing),
     %% {format('....timing: ~w~n', [Timing])},
-    responses(Responses, RespVars),
+    lexeme(satisfy, SP),
+    !,
+    ( responses(SP, Responses, RespVars)
+    ; word(EW, EP), { print_message(error, bad_response_text(EW, EP)) }
+    ),
     %% {format('....responses: ~w with ~w~n', [Responses, RespVars])},
     make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
                   Responses, RespVars, Semantics).
@@ -257,7 +291,11 @@ frettish(Defs, Semantics) -->
     %% {format('....component: ~w~n', [Comp])},
     timing(Timing),
     %% {format('....timing: ~w~n', [Timing])},
-    responses(Responses, RespVars),
+    lexeme(satisfy, SP),
+    !,
+    ( responses(SP, Responses, RespVars)
+    ; word(EW, EP), { print_message(error, bad_response_text(EW, EP)) }
+    ),
     %% {format('....responses: ~w with ~w~n', [Responses, RespVars])},
     make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
                   Responses, RespVars, Semantics).
@@ -267,6 +305,9 @@ make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
     { append([ScopeVars, CondVars, RespVars], AllVars),
       list_to_set(AllVars, Vars),
       SemanticsBase = semantics{ type: "nasa",
+                                 % The set of variables referenced by this fret
+                                 % requirement; n.b. referenced by name and not
+                                 % by the _id.
                                  variables: Vars
                                },
       put_dict(SemanticsBase, Scope, Sem1),
@@ -902,19 +943,23 @@ component(_{ component: Comp,
 
 % --------------------------------------------------
 
+timing(_{ timing: "immediately", timingTextRange:Range}) -->
+    lexeme(immediately, P),
+    { range(P, Range) }.
 timing(_{ timing: "next", timingTextRange:Range}) -->
     lexeme(at, SP), lexeme(the, _), lexeme(next, _), lexeme(timepoint, TP),
     { pos(SP, TP, P), range(P, Range) }.
-timing(_{ timing: "always"}) --> [].
+timing(_{ timing: "always"}) --> [],
+                                 { writeln('warning, defaulting to always timing: may not have understood timing phrase') }.
 
 
 % --------------------------------------------------
 
-responses(_{response: "satisfaction",
-            post_condition: E,
-            responseTextRange: Range
-           }, Vars) -->
-    lexeme(satisfy, SP), !, postcond(EP, AllVars, CP),
+responses(SP, _{response: "satisfaction",
+                post_condition: E,
+                responseTextRange: Range
+               }, Vars) -->
+    postcond(EP, AllVars, CP),
     { format(atom(EA), '(~w)', [EP]), atom_string(EA, E),
       pos(SP, CP, P),
       list_to_set(AllVars, Vars),
@@ -927,7 +972,37 @@ postcond(E, V, P) --> bool_expr(E, V, P).
 
 %% bool_expr(E, V, P) --> [ (N,'!') ], bool_expr(E, PE, V), { pos(N, PE, P) }.
 %% bool_expr(E, Vars, P) --> [ (N,'~') ], bool_expr(E, PE, V), { pos(N, PE, P) }.
-bool_expr(V, [V], P) --> lexeme(word, V, P).
+bool_expr(V, Vars, P) --> bool_term(LT, LV, LP),
+                          bool_exprMore(LT, LV, LP, V, Vars, P).
+bool_term(V, [], P) --> lexeme(num, V, P).
+bool_term(V, [V], P) --> lexeme(word, V, P).
+bool_term(V, Vars, P) --> lexeme(lparen, LP),
+                          bool_expr(PV, Vars, _),
+                          { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
+                          lexeme(rparen, RP),
+                          { pos(LP, RP, P) }.
+bool_exprMore(LT, LV, LP, V, Vars, P) -->
+    bool_exprMoreBin(LT, LV, LP, and_, "&", V, Vars, P).
+bool_exprMore(LT, LV, LP, V, Vars, P) -->
+    bool_exprMoreBin(LT, LV, LP, gt_, ">", V, Vars, P).
+bool_exprMore(LT, LV, LP, V, Vars, P) -->
+    bool_exprMoreBin(LT, LV, LP, lt_, "<", V, Vars, P).
+bool_exprMore(LT, LV, LP, LT, LV, LP) --> [].
+
+bool_exprMoreBin(LT, LV, LP, Matcher, Op, V, Vars, P) -->
+    lexeme(Matcher, _), bool_term(RT, RV, RP),
+    { binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) },
+    bool_exprMore(XS, XV, XP, V, Vars, P).
+
+num([N|NS], P) --> dig(N, PD), num(NS, PN), { pos(PD, PN, P) }.
+num(N, P) --> dig(N, P).
+dig(D, span(P, P)) --> [ (P,D) ], { char_type(D, digit) }.
+
+binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) :-
+    format(atom(X), '~w ~w ~w', [ LT, Op, RT ]),
+    atom_string(X, XS),
+    pos(LP, RP, XP),
+    append(LV, RV, XV).
 
 conjunction([], "").
 conjunction([E|ES], C) :-
@@ -979,10 +1054,13 @@ at(P) --> token("at", P).
 during(P) --> token("during", P).
 false(P) --> token("false", P).
 if(P) --> token("if", P).
+immediately(P) --> token("immediately", P).
 in(P) --> token("in", P).
 is(P) --> token("is", P).
 mode(P) --> token("mode", P).
 next(P) --> token("next", P).
+occurrence(P) --> token("occurrence", P).
+of(P) --> token("of", P).
 or(P) --> token("or", P).
 satisfy(P) --> token("satisfy", P).
 shall(P) --> token("shall", P).
@@ -994,6 +1072,13 @@ upon(P) --> token("upon", P).
 whenever(P) --> token("whenever", P).
 when(P) --> token("when", P).
 where(P) --> token("where", P).
+
+lparen(span(P,P)) --> [(P,'(')].
+rparen(span(P,P)) --> [(P,')')].
+gt_(span(P,P)) --> [(P,'>')].
+lt_(span(P,P)) --> [(P,'<')].
+and_(span(P,P)) --> [(P,'&')].
+or_(span(P,P)) --> [(P,'|')].
 
 token(M,P) --> word(W,P), { any_case_match([M], W) }.
 
