@@ -151,6 +151,7 @@ mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var) :-
              modeRequirement: ModeReqs,
              assignment: "", % XXX
              copilotAssignment: "",
+             moduleName: "",
              modeldoc: false,
              modeldoc_id: "",
              modelComponent: "",
