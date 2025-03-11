@@ -156,7 +156,8 @@ ssl(Spec) --> lseq, body(0, Bodies, _), lseq, clseq(C), lseq, [ eof ],
               { put_dict(_{comments:C}, _{body: Bodies}, Spec) }.
 
 body(LastUID, [Body|Bodies], UID) -->
-    specElement(LastUID, Body, NextUID),
+    { succ(LastUID, ThisUID) },
+    specElement(ThisUID, Body, NextUID),
     body(NextUID, Bodies, UID).
 body(LastUID, [], LastUID) --> [].
 
@@ -179,15 +180,15 @@ sseq --> sequence(smatch, _).
 sseqPlus --> smatch(_), sequence(smatch, _).
 smatch(token_s) --> [token_s].
 
-specElement(OUID, S,  UID) --> { succ(OUID, TUID) }, system(TUID, S, UID).
-specElement(OUID, S,  UID) --> { succ(OUID, TUID) }, subsystem(TUID, S, UID).
-specElement(OUID, C,  UID) --> { succ(OUID, TUID) }, component(TUID, C, UID).
-specElement(OUID, R,  UID) --> { succ(OUID, TUID) }, requirement(TUID, R, UID).
-specElement(OUID, ES, UID) --> { succ(OUID, UID) }, events(UID, ES).
-specElement(OUID, SS, UID) --> { succ(OUID, UID) }, scenarios(UID, SS).
-specElement(OUID, RS, UID) --> { succ(OUID, UID) }, requirements(UID, RS).
-specElement(OUID, R,  UID) --> { succ(OUID, UID) }, relation(UID, R).
-specElement(OUID, CI, UID) --> { succ(OUID, UID) }, componentImport(UID, CI).
+specElement(TUID, S,  UID) --> system(TUID, S, UID).
+specElement(TUID, S,  UID) --> subsystem(TUID, S, UID).
+specElement(TUID, C,  UID) --> component(TUID, C, UID).
+specElement(TUID, R,  UID) --> requirement(TUID, R, UID).
+specElement(UID, ES, UID) --> events(UID, ES).
+specElement(UID, SS, UID) --> scenarios(UID, SS).
+specElement(UID, RS, UID) --> requirements(UID, RS).
+specElement(UID, R,  UID) --> relation(UID, R).
+specElement(UID, CI, UID) --> componentImport(UID, CI).
 
 system(UID, System, NextUID) -->
     lseq,
