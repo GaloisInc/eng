@@ -4,42 +4,175 @@ Conversion from Lando to FRET:
 
   * Converts a Lando specification into FRET JSON for import into the FRET tool.
 
-    FRET operates from a set of internal databases, so any shared or VCS
-    operations need to be based on external files that are imported when shares
-    update.  FRET importing completely replaces any previous existence of Project
-    with the new, imported version.  The external files should be amenable to
-    concurrent development and VCS changes (e.g. not native JSON).
+** Justification
 
-    Lando provides a good basis for providing these specifications; this document
-    provides the details and controls for extracting explicit FRET from the more
-    permissive Lando.
+*** FRET databases
 
-* Syntax
+    FRET operates from a set of internal databases (CouchDB).  These databases
+    are stored in the user's home directory area, and are locked by a running
+    instance of FRET.  This configuration and operation essentially precludes the
+    ability to share databases and coordinate between multiple people.  There
+    is also no "history" or easy ability to "try out" different approaches.
 
-  * The top-level system or subsystem will be the FRET Project
+    FRET does have the ability to export and import the information in the
+    database, but it's a multi-step process that is not especially easy to use,
+    and the import process does not merge remote and local changes, so again, it
+    does not support joint development activities.
+
+    What is desired is a methodology that supports joint development and the use
+    of a VCS (Version Control System, e.g. git) to track changes.
+
+*** Variable references
+
+    FRET viability analysis will group requirements into different connected
+    components (CC's) and provide Compositional analysis of each CC.  The CC
+    grouping is determined by the set of variables referenced in the FRETtish
+    "responses" portion.
+
+    Often times it is useful to use a symbolic reference to a state rather than a
+    numeric reference.  For example, the frettish statement ~In driving upon
+    brakes the Car shall immediately satisfy stopping.~ is much more easily read
+    than ~In car_state = 2 upon brakes the Car shall immediately satisfy
+    car_state = 7.~ because the latter requires remembering all the ~car_state~
+    values.  It is possible to use ~Mode~ variables or ~Internal~ variables to
+    provide the ~driving~ and ~stopping~ equations, but that will generate
+    invalid Lustre for viability analysis because there's no reference to
+    ~car_state~ in the Frettish itself and so it is "undefined" for Lustre.
+
+** Approach
+
+    Lando provides a good basis for providing the FRETtish specifications in a
+    manner that resolves the above concerns:
+      * Lando is a text document that can be maintained in a VCS;
+      * The history and merging of changes is easily understood and accomplished
+        via a human (or automated means).
+      * The natural elements in a Lando specification are very similar to the
+        elements that a FRETtish statement will reference.
+      * Lando allows for the specification of extra information associated with
+        the elements, providing the description and usage information for the
+        elements in the FRETtish specification (i.e. the domain model and data
+        dictionary).
+
+    Thus, this document describes the functionality of tooling that will
+    recognize specific Lando syntax and export that syntax to a FRET JSON file in
+    a format that can be directly imported into FRET and used for FRET
+    operations.  It may still be helpful to use FRET to develop the FRETtish
+    statements (as it provides much more online guidance to the process), but the
+    resulting should then be replicated in the Lando document as the original
+    source.
+
+* Syntax for FRET in Lando
+
+  * The top-level Lando ~system~ or ~subsystem~ will be the FRET Project
+
+  * The current Lando ~subsystem~ will be the parent for a FRET Requirement.
+
   * A Lando ~requirement~ with an ~index~ of FRET specifies a FRET Requirement in
     FRETish that will be extracted.
+
+    #+begin_example
+    requirement This is the first requirement (REQ-1)
+    This is the human-readable statement of the requirement.
+    It is a paragraph of one or more lines, ultimately ending with a blank line.
+    If the car is being driven applying the brakes will begin stopping the car.
+
+      indexing
+        FRET: In driving upon brakes the Car shall immediately satisfy stopping.
+        FRET: In stopping & brakes, the Car shall eventually satisfy stopped.
+
+    #+end_example
+
+    Note that the above specified two FRET requirement statements for the single
+    general requirement.  A Lando ~requirement~ may have multiple ~FRET:~
+    statements, and there may be multiple Lando ~requirements~.
+
   * The abbrevName or first word of the ~requirement~ name will be used as the
-    FRET requirement ID.
-  * The current subsystem will be the parent for a FRET Requirement
+    FRET requirement ID.  If there are multiple ~FRET:~ statements for a
+    requirement, subsequent ~FRET:~ statements will be numbered with ~-N~
+    suffixes to the ID.
+
   * The explanation of the ~requirement~ will be used as the FRET justification
     text.
-  * Fret variables are indicated by a ~component~, where the variable name is
-    the abbrevName or first word of the name.
-    * Usage :: The use of variable is specified by a constraint ~FRET <USAGE>
-      var.~ where ~USAGE~ is one of: ~Input~, ~Output~, ~Mode~, ~Function~,
-      ~Internal~.
-    * Type :: The type of the variable is specified by a constraint ~FRET :
-      <TYPE>.~ where supported FRET data types are: ~boolean~, ~integer~,
+
+  * Fret variables are indicated by a Lando ~component~, where the variable name
+    is the Lando ~abbrevName~ or first word of the name.
+
+    * Usage :: The FRET use of variable is specified by a component constraint
+      ~FRET <USAGE> var.~ where ~USAGE~ is one of: ~Input~, ~Output~, ~Mode~,
+      ~Function~, ~Internal~.
+
+    * Type :: The type of the variable is specified by a component constraint
+      ~FRET : <TYPE>.~ where supported FRET data types are: ~boolean~, ~integer~,
       ~unsigned integer~, ~single~, ~double~.
-    * Mode :: A mode variable is specified by providing one or more constraints.
-      The constraints will become the mode requirement if the ~USAGE~ is ~Mode~.
-      Otherwise all other constraints are ignored.
 
-  * A ~scenarios~ whose name is the same as a ~component~ followed by " Values"
-    will create an automatic FRET Requirement constraining the types for that
-    variable, where the type must accomodate the number of scenarios and the
-    scenario numbering is in ordinal order starting from 0/false.
+    #+begin_example
+    component The brakes for the car (brakes)
+    This is a variable that indicates when the brakes are being applied.
 
-    KWQ: events? input boolean vars (if referenced)?  could be an output?
+    FRET Input var.
+    FRET: boolean.
+    Stop the car!
     
+    #+end_example
+
+  * A FRET ~scenarios~ whose name is the same as a ~component~ followed by "
+    Values" will create an automatic FRET state variable, whose scenario names
+    can be reference in FRETtish statements.  The Lando extraction will generate
+    a ~Mode~ variable for each named scenario, and it will automatically add a
+    reference to the state variable in the exported FRETtish (if needed).
+
+    #+begin_example
+    component car_state
+
+    FRET Output var.
+    FRET: integer.
+
+    scenarios car_state Mode
+
+    stopped
+    The car is not moving.
+
+    driving
+    The car is currently moving and being driven.
+
+    accelerating
+    The car is currently moving and increasing speed.
+
+    stopping
+    The car is currently moving and decreasing speed.
+
+    #+end_example
+
+* Usage
+
+To use the ~eng~ tool to convert a Lando file into a FRET requirements JSON
+import file, it is first necessary to define the Lando spec for the ~eng~
+~system~ command and specify a ~fret~ format output file.  Example project
+~_eng_/specs.eng~ file:
+
+  #+begin_example
+  system =
+    spec =
+      car =
+        name = Requirements specification for a Car
+        file = specs/car.lando
+        format = lando
+        generate =
+          specs/car.md =
+            format = markdown
+          specs/car-fret.json =
+            format = fret
+  #+end_example
+
+Run ~$ eng help system~ for more information on creating the above.
+
+Once configured in this manner, the ~eng~ ~system~ commands can be used:
+
+  #+begin_example#
+  $ eng system list
+  Known system specifications:
+    [lando] car: Requirements specification for a Car
+  $ eng system gen car
+  % Wrote lando spec "car" to markdown file specs/car.md
+  % Wrote lando spec "car" to fret file car_fret.json
+  #+end_example#

@@ -12,7 +12,7 @@ system =
 
 doc =
  lando2fret =
-   type = rough design
+   type = user guide
    title = Lando to Fret conversion
    location = spec/lando2fret.org
    abstract =
