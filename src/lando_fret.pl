@@ -222,28 +222,33 @@ parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Re
            [ Line, ProjName, CompName, ReqName, Num ]),
     intercalate(Lines, " ", English),
     parse_fret(Context, English, FretMent),
-    fretment_semantics(Defs, FretMent, FretReq),
     !,
-    ( Num == 0
-    -> format(atom(ReqID), '~w-req-~w', [ ProjName, UID ]), RName = ReqName
-    ; format(atom(ReqID), '~w-req-~w-~w', [ ProjName, UID, Num ]),
-      format(atom(RName), '~w-~w', [ ReqName, Num ])
-    ),
-    Req = requirement{ reqid: RName,
-                       % parent_reqid:?  % KWQ: TODO
-                       project: ProjName,
-                       rationale: Expl,
-                       fulltext: English,
-                       status: "",
-                       comments: "",
-                       '_id': ReqID,
-                       semantics: FretReq
-                     }.
+    ( fretment_semantics(Defs, FretMent, FretReq)
+    -> (Num == 0
+       -> format(atom(ReqID), '~w-req-~w', [ ProjName, UID ]), RName = ReqName
+       ; format(atom(ReqID), '~w-req-~w-~w', [ ProjName, UID, Num ]),
+         format(atom(RName), '~w-~w', [ ReqName, Num ])
+       ),
+       Req = requirement{ reqid: RName,
+                          % parent_reqid:?  % KWQ: TODO
+                          project: ProjName,
+                          rationale: Expl,
+                          fulltext: English,
+                          status: "",
+                          comments: "",
+                          '_id': ReqID,
+                          semantics: FretReq
+                        }
+    ; print_message(error, no_semantics(Context, English, FretMent))
+    ).
 parse_fret_or_error(_, ProjName, CompName, ReqName, _, _, _, Index, noreq) :-
     get_dict(values, Index, Lines),
     intercalate(Lines, " ", English),
     print_message(error, bad_frettish(ProjName, CompName, ReqName, English)).
 
+prolog:message(no_semantics(Context, English, FretMent)) -->
+    [ 'Unable to determine semantics for ~w: ~w~n   :: ~w~n'
+      - [ Context, English, FretMent ] ].
 prolog:message(bad_frettish(ProjName, CompName, ReqName, English)) -->
     [ 'BAD Frettish statement for ~w.~w.~w: ~w~n'
       - [ ProjName, CompName, ReqName, English ] ].
