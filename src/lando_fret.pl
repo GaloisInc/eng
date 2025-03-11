@@ -6,25 +6,175 @@
 :- use_module('datafmts/ltl').
 :- use_module('englib').
 
-lando_to_fret(LandoSSL, fret{ requirements:FretRequirements,
-                              variables:FretVariables }) :-
+
+lando_to_fret(LandoSSL, FretMents) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
-    phrase(extract_fret("Default", "Default",
-                        SemanticDefs, FretRequirements, FretVars, FretModes),
-           Body, Remaining),
-    fret_results(Remaining, FretVars, FretModes, FretRequirements, FretVariables).
+    phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, _, _), Body, Remaining),
+    fret_results(SemanticDefs, Body, Remaining, Reqs, FretRequirements, FretVariables),
+    FretMents = fret{ requirements: FretRequirements,
+                      variables: FretVariables
+                    }.
 
-fret_results([], FretVars, FretModes, FretRequirements, FretVariables) :-
+fret_results(Defs, SSLBody, [], InpReqs, OutReqs, OutVars) :-
     !,
-    modes_to_vars(FretVars, FretModes, ModeVars),
-    append(FretVars, ModeVars, AllVars),
-    cross_reference(FretRequirements, AllVars, FretVariables).
-fret_results(Remaining, _, _, _, _) :-
+    collect_vars(Defs, SSLBody, InpReqs, [], OutReqs, OutVars).
+
+    %% modes_to_vars(FretVars, FretModes, ModeVars),
+    %% writeln(fretres2),
+    %% append(FretVars, ModeVars, AllVars),
+    %% writeln(fretres3),
+    %% cross_reference(FretRequirements, AllVars, FretVariables),
+    %% writeln(fretres4).
+fret_results(_, _, Remaining, _, _, _) :-
     format('Unexpected extra not converted to Fret: ~w~n', [Remaining]),
     fail.
 
 resource(fret_semantics, 'src/semantics.json').
+
+% --------------------
+
+collect_vars(_, _, [], [], [], []).
+collect_vars(Defs, SSLBody, [Req|InpReqs], Vars, OutReqs, OutVars) :-
+    collect_vars(Defs, SSLBody, InpReqs, Vars, SubReqs, SubVars),
+    get_dict(semantics, Req, Semantics),
+    get_dict(variables, Semantics, ReqVars),
+    collect_req_vars(Defs, Req, SSLBody, ReqVars, SubVars, OutReq, OutVars),
+    OutReqs = [OutReq|SubReqs].
+
+collect_req_vars(_, Req, _, [], VS, Req, VS).
+collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+    existing_var(RV, VS, V, VSNoV),
+    !,
+    add_var_ref(V, Req, UpdV),
+    collect_req_vars(Defs, Req, SSLBody, RVS, [UpdV|VSNoV], OutReq, OutVS).
+collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+    component_var(RV, SSLBody, CompVar),
+    !,
+    add_var_ref(CompVar, Req, V),
+    collect_req_vars(Defs, Req, SSLBody, RVS, [V|VS], OutReq, OutVS).
+collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+    scenario_var(RV, SSLBody, MainV, ScenarioV),
+    !,
+    update_req_with_var(Defs, ScenarioV, Req, UpdReq),
+    add_var_ref(MainV, Req, MainVar),
+    (get_dict(variable_name, ScenarioV, SVName),
+     existing_var(SVName, VS, SV, VSNoV)
+    -> add_var_ref(SV, Req, ScenarioVar),
+       collect_req_vars(Defs, UpdReq, SSLBody, RVS, [MainVar,ScenarioVar|VSNoV], OutReq, OutVS)
+    ; add_var_ref(ScenarioV, UpdReq, ScenarioVar),
+      collect_req_vars(Defs, UpdReq, SSLBody, RVS, [MainVar,ScenarioVar|VS], OutReq, OutVS)
+    ).
+collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+    print_message(warning, no_fret_var_info(RV)),
+    collect_req_vars(Defs, Req, SSLBody, RVS, VS, OutReq, OutVS).
+
+existing_var(VName, [Var|VS], Var, VS) :- get_dict(variable_name, Var, VName).
+existing_var(VName, [V|Vars], Var, [V|VSNoV]) :-
+    existing_var(VName, Vars, Var, VSNoV).
+
+add_var_ref(Var, Req, UpdVar) :-
+    get_dict('_id', Req, ReqID),
+    add_var_ref_(Var, ReqID, UpdVar).
+add_var_ref_(Var, ReqID, UpdVar) :-
+    (get_dict(reqs, Var, Reqs) ; Reqs = []),
+    (member(ReqID, Reqs)
+    -> UpdVar = Var
+    ; put_dict(_{reqs: [ReqID|Reqs]}, Var, UpdVar)
+    ).
+
+update_req_with_var(_, Var, Req, Req) :-
+    get_dict(semantics, Req, Semantics),
+    get_dict(variables, Semantics, ReqVars),
+    get_dict(variable_name, Var, VName),
+    member(VName, ReqVars),
+    !.
+update_req_with_var(Defs, Var, Req, UpdReq) :-
+    get_dict(fulltext, Req, OrigEnglish),
+    get_dict(variable_name, Var, VName),
+    (string_chars(OrigEnglish, Chars),
+     reverse(Chars, ['.'|RChars])
+    -> reverse(RChars, CS), string_chars(O, CS)
+    ; O = OrigEnglish
+    ),
+    format(atom(English), '~w & (~w >= 0).', [ O, VName ]),
+    get_dict(reqid, Req, RName),
+    format(atom(Context), 'Add variable ~w into FRET req ~w~n', [VName, RName]),
+    parse_fret_into_req(Defs, Context, Req, English, UpdReq).
+
+% ----------
+
+component_var(VName, SSLBody, CompVar) :-
+    phrase(extract_fret_component_var("Default", "Default", VName, CompVar), SSLBody, _).
+
+extract_fret_component_var(ProjName, _, VName, CompVar) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, SpecType),
+      member(SpecType, [ system, subsystem ]), %%%% <- selector
+      specElement_ref(SpecElement, SysName),
+      get_dict(body, SpecElement, SysBody),
+      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
+      phrase(extract_fret_component_var(NewProjName, SysName, VName, CompVar), SysBody, _Remaining)
+    }.
+extract_fret_component_var(ProjName, CompName, VName, Var) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, component), %%%% <- selector
+      specElement_ref(SpecElement, VName),
+      ( fret_usage_type(SpecElement, Usage, Type, ModeReqs)
+      -> get_dict(explanation, SpecElement, Expl),
+         mkVar(ProjName, CompName, VName, Expl, Type, Usage, ModeReqs, Var)
+      ; print_message(warning, no_fret_var_info(component, VName)),
+        fail
+      )
+    }.
+extract_fret_component_var(ProjName, CompName, VName, Var) -->
+    [ _ ],
+    extract_fret_component_var(ProjName, CompName, VName, Var).
+
+prolog:message(no_fret_var_info(ElementType, VarName)) -->
+    [ 'Found ~w for ~w but there is no FRET specification~n'
+      - [ ElementType, VarName ] ].
+prolog:message(no_fret_var_info(VarName)) -->
+    [ 'No FRET information for variable ~w~n' - [ VarName ] ].
+
+% ----------
+
+scenario_var(VName, SSLBody, MainVar, ScenarioVar) :-
+    phrase(extract_fret_scenario_var("Default", "Default", VName, MainVar, ScenarioVar), SSLBody, _).
+
+extract_fret_scenario_var(ProjName, _, VName, MainVar, ScenarioVar) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, SpecType),
+      member(SpecType, [ system, subsystem ]), %%%% <- selector
+      specElement_ref(SpecElement, SysName),
+      get_dict(body, SpecElement, SysBody),
+      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
+      phrase(extract_fret_scenario_var(NewProjName, SysName, VName, MainVar, ScenarioVar), SysBody, _Remaining)
+    }.
+extract_fret_scenario_var(ProjName, CompName, VName, MainVar, ScenarioVar) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, scenarios), %%%% <- selector
+      get_dict(name, SpecElement, ScenarioName),
+      string_concat(ScenarioVarName, " Modes", ScenarioName),
+      get_dict(scenarios, SpecElement, Scenarios),
+      find_scenario_var(VName, Scenarios, 0, Desc, Value),
+      Expl = "State variable",
+      format(atom(F), "~w = ~w", [ScenarioVarName, Value]),
+      mkVar(ProjName, CompName, VName, Desc, "boolean", "Mode", F, MainVar),
+      mkVar(ProjName, CompName, ScenarioVarName, Expl, "integer", "Output", "", ScenarioVar)
+    }.
+extract_fret_scenario_var(ProjName, CompName, VName, MainVar, ScenarioVar) -->
+    [ _ ],
+    extract_fret_scenario_var(ProjName, CompName, VName, MainVar, ScenarioVar).
+
+find_scenario_var(VName, [Scenario|_], Value, Desc, Value) :-
+    get_dict(id, Scenario, VName),
+    !,
+    get_dict(text, Scenario, Desc).
+find_scenario_var(VName, [_|Scenarios], ThisValue, Desc, Value) :-
+    succ(ThisValue, NextValue),
+    find_scenario_var(VName, Scenarios, NextValue, Desc, Value).
+
 
 % --------------------
 
@@ -114,27 +264,6 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
     },
     extract_fret(ProjName, FretCompName, Defs, NextReqs, Vars, Modes),
     { prepend_valid_reqs(ThisReqs, NextReqs, Reqs) }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, [Var|Vars], Modes) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, component), %%%% <- selector
-      fret_usage_type(SpecElement, Usage, Type, ModeReqs),
-      !,
-      specElement_ref(SpecElement, VarName),
-      get_dict(explanation, SpecElement, Expl),
-      mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var)
-    },
-    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, [Mode|Modes]) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, scenarios), %%%% <- selector
-      get_dict(name, SpecElement, ScenarioName),
-      string_concat(Var, " Modes", ScenarioName),
-      !,
-      get_dict(scenarios, SpecElement, Scenarios),
-      var_modes(Scenarios, 0, VarModes),
-      Mode = (Var, VarModes)
-    },
-    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
 extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
     [ _ ],  % skip other elements
     extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
@@ -226,38 +355,37 @@ parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Re
            [ Line, ProjName, CompName, ReqName, Num ]),
     format(atom(ParentID), '~w-req-~w', [ ProjName, UID ]),
     intercalate(Lines, " ", English),
+    (Num == 0
+    -> ReqID = ParentID, ParID = "", RName = ReqName
+    ; format(atom(ReqID), '~w-~w', [ ParentID, Num ]),
+      format(atom(RName), '~w-~w', [ ReqName, Num ]),
+      ParID = ParentID
+    ),
+    ReqBase = requirement{ reqid: RName,
+                           parent_reqid: ParID,
+                           project: ProjName,
+                           rationale: Expl,
+                           status: "",
+                           comments: "",
+                           '_id': ReqID
+                         },
+    parse_fret_into_req(Defs, Context, ReqBase, English, Req).
+parse_fret_into_req(Defs, Context, ReqBase, English, Req) :-
     parse_fret(Context, English, FretMent),
     !,
     ( fretment_semantics(Defs, FretMent, FretReq)
-    -> (Num == 0
-       -> ReqID = ParentID, ParID = "", RName = ReqName
-       ; format(atom(ReqID), '~w-~w', [ ParentID, Num ]),
-         format(atom(RName), '~w-~w', [ ReqName, Num ]),
-         ParID = ParentID
-       ),
-       Req = requirement{ reqid: RName,
-                          parent_reqid: ParID,
-                          project: ProjName,
-                          rationale: Expl,
-                          fulltext: English,
-                          status: "",
-                          comments: "",
-                          '_id': ReqID,
-                          semantics: FretReq
-                        }
+    -> put_dict(_{ fulltext: English, semantics: FretReq}, ReqBase, Req)
     ; print_message(error, no_semantics(Context, English, FretMent))
     ).
-parse_fret_or_error(_, ProjName, CompName, ReqName, _, _, _, Index, noreq) :-
-    get_dict(values, Index, Lines),
-    intercalate(Lines, " ", English),
-    print_message(error, bad_frettish(ProjName, CompName, ReqName, English)).
+parse_fret_into_req(_, Context, _, English, noreq) :-
+    print_message(error, bad_frettish(Context, English)).
 
 prolog:message(no_semantics(Context, English, FretMent)) -->
     [ 'Unable to determine semantics for ~w: ~w~n   :: ~w~n'
       - [ Context, English, FretMent ] ].
-prolog:message(bad_frettish(ProjName, CompName, ReqName, English)) -->
-    [ 'BAD Frettish statement for ~w.~w.~w: ~w~n'
-      - [ ProjName, CompName, ReqName, English ] ].
+prolog:message(bad_frettish(Context, English)) -->
+    [ 'BAD Frettish statement for ~w: ~w~n'
+      - [ Context, English ] ].
 
 fretment_semantics(Defs, Fretment, Semantics) :-
     Fretment = fretment(scope_info(Scope, ScopeVars),
