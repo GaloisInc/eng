@@ -39,15 +39,27 @@ lando_ssl(Source, InpString, Result, Leftover) :-
     phrase(lexical_analysis(Source, Tokens), Chars, Leftover),
     parse_lando(Source, Tokens, Result).
 
-parse_lando(_, Tokens, Result) :- phrase(ssl(Result), Tokens), !.
 parse_lando(Source, Tokens, Result) :-
-    phrase(ssl(Result), Tokens, Remainder),
-    !, % failed the parse, do not try other combos
-    print_message(error, incomplete_lando_parse(Source, Remainder)),
-    fail.
-parse_lando(Source, _Tokens, []) :-
-    print_message(error, lando_parse_failure(Source)),
-    fail.
+    tmp_file_stream(FailFName, FailStrm, [encoding(utf8)]),
+    ( phrase(ssl(FailStrm, Result), Tokens, Remainder)
+    -> (writeln(pl3),
+        (Remainder == []
+        -> close(FailStrm)
+        ; print_message(error, incomplete_lando_parse(Source, Remainder)),
+          show_errs(FailStrm, FailFName),
+          fail
+        )
+       )
+    ; print_message(error, lando_parse_failure(Source)),
+      show_errs(FailStrm, FailFName),
+      Result = [],
+      fail
+    ).
+
+show_errs(FailStrm, FailFName) :-
+    close(FailStrm),
+    read_file_to_string(FailFName, Fails, []),
+    writeln(Fails).
 
 % ----------------------------------------------------------------------
 % Helpers for working with the resulting Lando
@@ -152,14 +164,15 @@ c2eol([]) --> [].
 % grammar specified in grammar-v2.pdf in the develop docs of the Lando repo
 % (https://gitlab-ext.galois.com/RDE/tools/lando).
 
-ssl(Spec) --> lseq, body(0, Bodies, _), lseq, clseq(C), lseq, [ eof ],
-              { put_dict(_{comments:C}, _{body: Bodies}, Spec) }.
+ssl(FailStrm, Spec) -->
+    lseq, body(FailStrm, 0, Bodies, _), lseq, clseq(C), lseq, [ eof ],
+    { put_dict(_{comments:C}, _{body: Bodies}, Spec) }.
 
-body(LastUID, [Body|Bodies], UID) -->
+body(FailStrm, LastUID, [Body|Bodies], UID) -->
     { succ(LastUID, ThisUID) },
-    specElement(ThisUID, Body, NextUID),
-    body(NextUID, Bodies, UID).
-body(LastUID, [], LastUID) --> [].
+    specElement(FailStrm, ThisUID, Body, NextUID),
+    body(FailStrm, NextUID, Bodies, UID).
+body(_, LastUID, [], LastUID) --> [].
 
 
 lseq --> sequence(lmatch, _).
@@ -180,28 +193,34 @@ sseq --> sequence(smatch, _).
 sseqPlus --> smatch(_), sequence(smatch, _).
 smatch(token_s) --> [token_s].
 
-specElement(TUID, S,  UID) --> system(TUID, S, UID).
-specElement(TUID, S,  UID) --> subsystem(TUID, S, UID).
-specElement(TUID, C,  UID) --> component(TUID, C, UID).
-specElement(TUID, R,  UID) --> requirement(TUID, R, UID).
-specElement(UID, ES, UID) --> events(UID, ES).
-specElement(UID, SS, UID) --> scenarios(UID, SS).
-specElement(UID, RS, UID) --> requirements(UID, RS).
-specElement(UID, R,  UID) --> relation(UID, R).
-specElement(UID, CI, UID) --> componentImport(UID, CI).
+specElement(FailStrm, TUID, S,  UID) --> system(FailStrm, TUID, S, UID).
+specElement(FailStrm, TUID, S,  UID) --> subsystem(FailStrm, TUID, S, UID).
+specElement(FailStrm, TUID, C,  UID) --> component(FailStrm, TUID, C, UID).
+specElement(FailStrm, TUID, R,  UID) --> requirement(FailStrm, TUID, R, UID).
+specElement(FailStrm, UID, ES, UID) --> events(UID, ES).
+specElement(FailStrm, UID, SS, UID) --> scenarios(UID, SS).
+specElement(FailStrm, UID, RS, UID) --> requirements(UID, RS).
+specElement(FailStrm, UID, R,  UID) --> relation(UID, R).
+specElement(FailStrm, UID, CI, UID) --> componentImport(FailStrm, UID, CI).
+specElement(FailStrm, UID, _, UID) --> did_not_see(FailStrm, specElement).
 
-system(UID, System, NextUID) -->
+
+system(FailStrm, UID, System, NextUID) -->
     lseq,
     clseq(ICS),
-    [ w(system, SL, SC) ], !, sseq,
+    [ w(system, SL, SC) ], !,
+    saw(system, SL, system_(FailStrm, UID, ICS, SL, SC, System, NextUID)).
+system_(FailStrm, UID, ICS, SL, SC, System, NextUID) -->
+    sseq,
     name([], N, _),
     optional(abbrev(A), {A=[_{abbrevName:null}]}), !,
     clmatch_optional(CLC),
     lseq,
     explanation(E),
     clseq(ELC),
-    optional(indexing(I), {I=[_{indexing:[]}]}),
-    optional(contains(UID, B, CCS, NextUID), { B=[], CCS=[], NextUID = UID }),
+    optional(indexing(FailStrm, I), {I=[_{indexing:[]}]}),
+    optional(contains(FailStrm, UID, B, CCS, NextUID),
+             { B=[], CCS=[], NextUID = UID }),
     { first_line_pos(SL, SC, ICS, P),
       mkElement(system, N, P, UID, Elem0),
       addElemPart(_{explanation: E, body: B}, Elem0, Elem1),
@@ -209,10 +228,13 @@ system(UID, System, NextUID) -->
       foldl(extendElemPart(comments), [ICS, CLC, ELC, CCS], Elem2, System)
     }.
 
-subsystem(UID, Subsys, NextUID) -->
+subsystem(FailStrm, UID, Subsys, NextUID) -->
     lseq,
     clseq(ICS),
-    [ w(subsystem, SL, SC) ], !, sseq,
+    [ w(subsystem, SL, SC) ], !,
+    saw(subsystem, SL, subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID)).
+subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID) -->
+    sseq,
     name([], N, _),
     optional(abbrev(A), {A=[_{abbrevName:null}]}), !,
     % The following line is the only difference between system and subsystem
@@ -222,8 +244,9 @@ subsystem(UID, Subsys, NextUID) -->
     lseq,
     explanation(E),
     clseq(ELC),
-    optional(indexing(I), {I=[_{indexing:[]}]}),
-    optional(contains(UID, B, CCS, NextUID), { B=[], CCS=[], NextUID = UID }),
+    optional(indexing(FailStrm, I), {I=[_{indexing:[]}]}),
+    optional(contains(FailStrm, UID, B, CCS, NextUID),
+             { B=[], CCS=[], NextUID = UID }),
     { first_line_pos(SL, SC, ICS, P),
       mkElement(subsystem, N, P, UID, Elem0),
       addElemPart(_{explanation: E, body: B}, Elem0, Elem1),
@@ -231,7 +254,7 @@ subsystem(UID, Subsys, NextUID) -->
       foldl(extendElemPart(comments), [ICS, ELC, CLC, CCS], Elem2, Subsys)
     }.
 
-component(UID, Comp, UID) -->
+component(FailStrm, UID, Comp, UID) -->
     lseq,
     clseq(ICS),
     [ w(component, SL, SC) ], !, sseq,
@@ -243,8 +266,9 @@ component(UID, Comp, UID) -->
     lseq,
     explanation(E),
     % clseq(ELC),
-    componentFeatures(CF),
-    optional(contains(UID, B, CCS, NextUID), { B=[], CCS=[], NextUID = UID }),
+    componentFeatures(FailStrm, CF),
+    optional(contains(FailStrm, UID, B, CCS, NextUID),
+             { B=[], CCS=[], NextUID = UID }),
     { first_line_pos(SL, SC, ICS, P),
       mkElement(component, N, P, UID, Elem0),
       addElemPart(_{explanation: E,
@@ -255,7 +279,7 @@ component(UID, Comp, UID) -->
       foldl(extendElemPart(comments), [ICS, CLC, CCS], Elem2, Comp)
     }.
 
-componentImport(UID, CompImport) -->
+componentImport(FailStrm, UID, CompImport) -->
     lseq,
     clseq(ICS),
     [ w(import, SL, SC) ], sseqPlus, [ w(component, _, _) ], !, sseq,
@@ -264,7 +288,7 @@ componentImport(UID, CompImport) -->
     % TODO: support comments here?!
     sequence(clientClause, CLS),
     cmnt_only_optional(CLC),
-    blockend,
+    blockend(FailStrm),
     { first_line_pos(SL, SC, ICS, P),
       mkElement(componentImport, N, P, UID, Elem0),
       addElemPart(_{clientOf:[]}, Elem0, Elem1),
@@ -272,19 +296,24 @@ componentImport(UID, CompImport) -->
       foldl(extendElemPart(comments), [ICS, CLC], Elem2, CompImport)
     }.
 
-requirement(UID, Requirement, NextUID) -->
+requirement(FailStrm, UID, Requirement, NextUID) -->
     lseq,
     clseq(ICS),
     %% Other than the name, this is the same as system
-    [ w(requirement, SL, SC) ], !, sseq,
+    [ w(requirement, SL, SC) ], !,
+    saw(requirement, SL,
+        requirement_(FailStrm, UID, ICS, SL, SC, Requirement, NextUID)).
+requirement_(FailStrm, UID, ICS, SL, SC, Requirement, NextUID) -->
+    sseq,
     name([], N, _), !,
     optional(abbrev(A), {A=[_{abbrevName:null}]}), !,
     clmatch_optional(CLC),
     lseq,
     explanation(E),
     clseq(ELC),
-    optional(indexing(I), {I=[_{indexing:[]}]}),
-    optional(contains(UID, R, CCS, NextUID), { R=[], CCS=[], NextUID=UID }), !,
+    optional(indexing(FailStrm, I), {I=[_{indexing:[]}]}),
+    optional(contains(FailStrm, UID, R, CCS, NextUID),
+             { R=[], CCS=[], NextUID=UID }), !,
     { first_line_pos(SL, SC, ICS, P),
       mkElement(requirement, N, P, UID, Elem0),
       addElemPart(_{explanation: E, requirements: R}, Elem0, Elem1),
@@ -355,20 +384,21 @@ relationClauses(RS) --> sequence(relationClause, RS).
 relationClause(R) --> inheritClause(R).
 relationClause(R) --> clientClause(R).
 
-contains(UID, B, CS, NextUID) -->
+contains(FailStrm, UID, B, CS, NextUID) -->
     [ w(contains,_,_) ], !,
     lseq,
-    body(UID, B, NextUID),
+    body(FailStrm, UID, B, NextUID),
     [ w(end,_,_) ],
     %% clmatch_optional(_CLC), % TODO: comment discarded?
     optional((cmnt_only(C), {CS=[C]}), {CS=[]}),
-    blockend.
+    blockend(FailStrm).
 
-componentFeatures(_{features:CF}) --> sequence(componentFeature, CF).
+componentFeatures(FailStrm, _{features:CF}) -->
+    sequence(componentFeature(FailStrm), CF).
 
-componentFeature(CF) --> constraint(CF), blockend.
-componentFeature(CF) --> command(CF), blockend.
-componentFeature(CF) --> query(CF), blockend.
+componentFeature(FailStrm, CF) --> constraint(CF), blockend(FailStrm).
+componentFeature(FailStrm, CF) --> command(CF), blockend(FailStrm).
+componentFeature(FailStrm, CF) --> query(CF), blockend(FailStrm).
 
 constraint(CV) --> featureBody('.', CB), {addElemPart(CB, constraint{}, CV)}.
 command(CV)    --> featureBody('!', CB), {addElemPart(CB, command{}, CV)}.
@@ -478,9 +508,10 @@ sentTerm("?") --> [c('?',_,_)].
 parend(C) --> clmatch_optional(C), [ token_l ], lseq.
 parend(C) --> optional(cmnt_only(C), {C=[]}).
 
-indexing(_{indexing:X}) --> [ w(indexing,_,_) ], !,
-                            sseq, sequence(indexEntry, X),
-                            blockend.
+indexing(FailStrm, _{indexing:X}) -->
+    [ w(indexing,_,_) ], !,
+    sseq, sequence(indexEntry, X),
+    blockend(FailStrm).
 
 indexEntry(IndexEntry) -->
     [token_l], % lseq
@@ -511,8 +542,40 @@ moreIndexValueParts([V|VS], CS) --> [ token_l ], % lseqPlus,
                                     { append(C, MC, CS) }.
 moreIndexValueParts([], []) --> [].
 
-blockend --> lseqPlus.
+blockend(_) --> lseqPlus.
+blockend(FailStrm) --> did_not_see(FailStrm, "blockend").
 
+%% ----------------------------------------------------------------------
+
+saw(_What, _Line, Body) --> call(Body), !.
+saw(What, Line, _) -->
+    [ At1, At2, At3 ],
+    { format('** Attempting "~w" [line ~w], failing at: ~w, ~w, ~w~n',
+             [What, Line, At1, At2, At3]),
+      fail
+    }.
+saw(What, Line, _) -->
+    [ At1, At2 ],
+    { format('** Attempting "~w" [line ~w], failing at: ~w, ~w~n',
+             [What, Line, At1, At2]),
+      fail
+    }.
+saw(What, Line, _) -->
+    [ At ],
+    { format('** Attempting "~w" [line ~w], failing at: ~w~n', [What, Line, At]),
+      fail
+    }.
+
+did_not_see(FailStrm, What) -->
+    [ At ],
+    { format(FailStrm, '** Wanted "~w" but saw: ~w~n', [What, At]),
+      fail
+    }.
+did_not_see(FailStrm, What) -->
+    [ ],
+    { format(FailStrm, '** Wanted "~w" but reached the end~n', [What]),
+      fail
+    }.
 
 %% ----------------------------------------------------------------------
 
