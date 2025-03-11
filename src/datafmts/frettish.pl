@@ -209,6 +209,9 @@ component(_{ component: Comp,
 timing(_{ timing: "immediately", timingTextRange:Range}) -->
     lexeme(immediately, P),
     { range(P, Range) }.
+timing(_{ timing: "eventually", timingTextRange:Range}) -->
+    lexeme(eventually, P),
+    { range(P, Range) }.
 timing(_{ timing: "next", timingTextRange:Range}) -->
     lexeme(at, SP), lexeme(the, _), lexeme(next, _), lexeme(timepoint, TP),
     { pos(SP, TP, P), range(P, Range) }.
@@ -279,6 +282,7 @@ opt_comma(P) --> ws(P).
 and(P) --> token("and", P).
 at(P) --> token("at", P).
 during(P) --> token("during", P).
+eventually(P) --> token("eventually", P).
 false(P) --> token("false", P).
 if(P) --> token("if", P).
 immediately(P) --> token("immediately", P).
