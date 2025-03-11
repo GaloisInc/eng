@@ -172,21 +172,38 @@ generate_spec(Spec, "lando", SpecFile, Result) :-
     sum_list(Results, Result).
 generate_spec(_, _, _, 1).
 
-generate_spec_outputs(Spec, "lando", SSL, 0) :-
+generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "json"),
     open(OutFile, write, OutStrm),
-    write_lando_json(OutStrm, SSL),
-    format('Wrote lando spec "~w" to json file ~w~n', [ Spec, OutFile ]).
-generate_spec_outputs(Spec, "lando", SSL, 0) :-
+    ( write_lando_json(OutStrm, SSL)
+    -> Result = 0,
+       print_message(information, wrote_file(Spec, OutFile, "json"))
+    ; Result = 1,
+      print_message(error, did_not_write(Spec, OutFile, "json"))
+    ).
+generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "markdown"),
     open(OutFile, write, OutStrm),
-    write_lando_markdown(OutStrm, SSL),
-    format('Wrote lando spec "~w" to markdown file ~w~n', [ Spec, OutFile ]).
-generate_spec_outputs(Spec, "lando", SSL, 0) :-
+    (write_lando_markdown(OutStrm, SSL)
+    -> Result = 0,
+       print_message(information, wrote_file(Spec, OutFile, "markdown"))
+    ; Result = 1,
+      print_message(error, did_not_write(Spec, OutFile, "markdown"))
+    ).
+generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "fret"),
     open(OutFile, write, OutStrm),
-    write_lando_fret(OutStrm, SSL),
-    format('Wrote lando spec "~w" to fret file ~w~n', [ Spec, OutFile ]).
+    (write_lando_fret(OutStrm, SSL)
+    -> Result = 0,
+       print_message(information, wrote_file(Spec, OutFile, "fret"))
+    ; Result = 1,
+      print_message(error, did_not_write(Spec, OutFile, "fret"))
+    ).
+
+prolog:message(wrote_file(Spec, OutFile, Kind)) -->
+    [ 'Wrote lando spec "~w" to ~w file ~w~n' - [ Spec, Kind, OutFile ]].
+prolog:message(did_not_write(_Spec, OutFile, Kind)) -->
+    [ 'Unable to write ~w to file ~w due to errors~n' - [ Kind, OutFile ]].
