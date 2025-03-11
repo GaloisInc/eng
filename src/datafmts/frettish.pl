@@ -240,6 +240,10 @@ bool_expr(V, Vars, P) --> bool_term(LT, LV, LP),
                           bool_exprMore(LT, LV, LP, V, Vars, P).
 bool_term(V, [], P) --> lexeme(num, V, P).
 bool_term(V, [V], P) --> lexeme(word, V, P).
+bool_term(V, Vars, P) --> lexeme(not_, LP),
+                          bool_expr(NV, Vars, NP),
+                          { format(atom(X), '!(~w)', [NV]), atom_string(X, V) },
+                          { pos(LP, NP, P) }.
 bool_term(V, Vars, P) --> lexeme(lparen, LP),
                           bool_expr(PV, Vars, _),
                           { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
@@ -247,6 +251,8 @@ bool_term(V, Vars, P) --> lexeme(lparen, LP),
                           { pos(LP, RP, P) }.
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, and_, "&", V, Vars, P).
+bool_exprMore(LT, LV, LP, V, Vars, P) -->
+    bool_exprMoreBin(LT, LV, LP, or_, "|", V, Vars, P).
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, gteq_, ">=", V, Vars, P).
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
@@ -312,6 +318,7 @@ gt_(span(P,P)) --> [(P,'>')].
 lt_(span(P,P)) --> [(P,'<')].
 and_(span(P,P)) --> [(P,'&')].
 or_(span(P,P)) --> [(P,'|')].
+not_(span(P,P)) --> [(P,'!')].
 
 token(M,P) --> word(W,P), { any_case_match([M], W) }.
 
