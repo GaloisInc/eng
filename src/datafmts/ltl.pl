@@ -29,6 +29,7 @@ arithTerm(neg(E)) --> minus(_), lxm(arith, E).
 %% ltl(negnum(N)) --> lxm(minus), number(N).
 %% ltl(num(N)) --> lxm(number, N).
 %% ltl(call(I, Args)) --> lxm(ident, I), args(Args).
+arithTerm(val(N)) --> lxm(num, N).
 arithTerm(id(I)) --> lxm(ident, I).
 %% ltl(E) --> boolExpr(E, Ls0, Ls).
 %% %% ltl(E) --> boolEx(E).
@@ -50,9 +51,9 @@ moreArgs([A]) --> [','], boolEx(A).
 
 boolEx(E) --> boolTerm(T), boolExMore(T, E).
 % boolTerm(boolcall(I,Args)) --> lxm(ident, I), args(Args). % intercepts others and recurses infinitely
-boolTerm(boolid(I)) --> lxm(ident, I).
 boolTerm(true) --> lxm(w, "TRUE").
 boolTerm(false) --> lxm(w, "FALSE").
+boolTerm(boolid(I)) --> lxm(ident, I).
 boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
 boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
 boolTerm(ltlG(E)) --> lxm(ltlG), lxm(boolEx, E).
@@ -192,6 +193,10 @@ wchar(C) :- \+ char_type(C, space),
                           %% '{', '}', '^', '[', ']', %% XXX?
                           '$',
                           '/']).
+
+num([N|NS]) --> digit(N), num(NS).
+num(N) --> digit(N).
+digit(D) --> [ (D) ], { char_type(D, digit) }.
 
 % ----------------------------------------------------------------------
 
