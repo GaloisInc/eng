@@ -19,13 +19,6 @@ lando_to_fret(LandoSSL, FretMents) :-
 fret_results(Defs, SSLBody, [], InpReqs, OutReqs, OutVars) :-
     !,
     collect_vars(Defs, SSLBody, InpReqs, [], OutReqs, OutVars).
-
-    %% modes_to_vars(FretVars, FretModes, ModeVars),
-    %% writeln(fretres2),
-    %% append(FretVars, ModeVars, AllVars),
-    %% writeln(fretres3),
-    %% cross_reference(FretRequirements, AllVars, FretVariables),
-    %% writeln(fretres4).
 fret_results(_, _, Remaining, _, _, _) :-
     format('Unexpected extra not converted to Fret: ~w~n', [Remaining]),
     fail.
@@ -176,61 +169,6 @@ find_scenario_var(VName, [_|Scenarios], ThisValue, Desc, Value) :-
     find_scenario_var(VName, Scenarios, NextValue, Desc, Value).
 
 
-% --------------------
-
-cross_reference(_, [], []).
-cross_reference(Reqs, [V|Vars], [O|OutVars]) :-
-    cross_reference(Reqs, Vars, OutVars),
-    get_dict(variable_name, V, VarName),
-    var_ref_req_ids(VarName, Reqs, RefIds),
-    put_dict(V, _{ reqs: RefIds }, O).
-
-var_ref_req_ids(_, [], []).
-var_ref_req_ids(VarName, [noreq|Reqs], RefIds) :-
-    !,
-    var_ref_req_ids(VarName, Reqs, RefIds).
-var_ref_req_ids(VarName, [R|Reqs], [RefID|RefIds]) :-
-    get_dict(semantics, R, Semantics),
-    get_dict(variables, Semantics, VNames),
-    member(VarName, VNames), !,
-    get_dict('_id', R, RefID),
-    var_ref_req_ids(VarName, Reqs, RefIds).
-var_ref_req_ids(VarName, [_|Reqs], RefIds) :-
-    var_ref_req_ids(VarName, Reqs, RefIds).
-
-% --------------------
-
-modes_to_vars(_, [], []).
-modes_to_vars(Vars, [Mode|Modes], OutVars) :-
-    mode_vars(Vars, Mode, ModeVars), !,
-    modes_to_vars(Vars, Modes, MVars),
-    append(ModeVars, MVars, OutVars).
-modes_to_vars(Vars, [Mode|Modes], OutVars) :-
-    print_message(warning, no_var_for_mode(Mode)),
-    modes_to_vars(Vars, Modes, OutVars).
-
-prolog:message(no_var_for_mode(Mode)) -->
-    { Mode = (ModeName, _) },
-    [ 'No variable definition (component) for Mode (scenario) ~w~n' - [ ModeName ] ].
-
-mode_vars(Vars, (VarName, VarVals), MVars) :-
-    find_var(Vars, VarName, TgtVar),
-    get_dict(project, TgtVar, Proj),
-    get_dict(component_name, TgtVar, Comp),
-    Type = "boolean", % XXX?  or is it the type of TgtVar?
-    mkModeVars(Proj, Comp, VarName, VarVals, Type, MVars).
-
-mkModeVars(_, _, _, [], _, []).
-mkModeVars(Proj, Comp, VarName, [(MName, MDesc, MVal)|MVals], Type, [Var|MVars]) :-
-    format(atom(X), '~w = ~w', [VarName, MVal]),
-    atom_string(X, XS),
-    mkVar(Proj, Comp, MName, MDesc, Type, "Mode", XS, Var),
-    mkModeVars(Proj, Comp, VarName, MVals, Type, MVars).
-
-find_var([V|_], Name, V) :- get_dict(variable_name, V, Name), !.
-find_var([_|VS], Name, V) :- find_var(VS, Name, V).
-
-    
 % ----------------------------------------------------------------------
 
 get_semantics_defs(Defs) :-
