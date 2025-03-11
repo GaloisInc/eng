@@ -600,8 +600,9 @@ fetched_ft_pt_update(Defs, Inp, Out) :-
     subst("$scope_mode$", "$scope_mode_pt$", PE4, PTEF),
     replace_template_vars(Inp, "", "", PTEF, TPET),
     salt_to_smv(TPET, PSMV),
-    transform_to_AST(PSMV, PAST),
-    ast_to_LTL(PSMV, % PAST,
+    transform_to_AST(PSMV, PASTRaw),
+    xform_past_optimize(PASTRaw, PAST),
+    ast_to_LTL(PSMV, % KWQ: PAST,
                PLTL),
     ltl_ast_to_CoCo(PAST, PCOCO),
 
