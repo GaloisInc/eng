@@ -245,6 +245,10 @@ bool_term(V, Vars, P) --> lexeme(lparen, LP),
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, and_, "&", V, Vars, P).
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
+    bool_exprMoreBin(LT, LV, LP, gteq_, ">=", V, Vars, P).
+bool_exprMore(LT, LV, LP, V, Vars, P) -->
+    bool_exprMoreBin(LT, LV, LP, lteq_, "<=", V, Vars, P).
+bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, gt_, ">", V, Vars, P).
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, lt_, "<", V, Vars, P).
@@ -298,6 +302,8 @@ where(P) --> token("where", P).
 
 lparen(span(P,P)) --> [(P,'(')].
 rparen(span(P,P)) --> [(P,')')].
+gteq_(span(P,P)) --> [(P,'>'), (_, '=')].
+lteq_(span(P,P)) --> [(P,'<'), (_, '=')].
 gt_(span(P,P)) --> [(P,'>')].
 lt_(span(P,P)) --> [(P,'<')].
 and_(span(P,P)) --> [(P,'&')].
