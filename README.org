@@ -35,6 +35,22 @@
  engineering into the main portion of a project and provide a way to interact
  with them.
 
+** Installing
+
+ The only dependency for the ~eng~ tool is SWI Prolog.  The SWI Prolog tool can
+ be installed in most systems via the local package manager.  The ~eng~ tool is
+ OS independent and can be used under Linux, MacOS, or Windows.
+
+ To build and configure ~eng~:
+
+ 1. Download the ~eng~ repository and change to that directory
+ 2. ~./eng.sh dev fret_fetch~
+ 3. ~./eng.sh dev build~
+
+ The third step above creates and ~eng~ file, which is the executable file for
+ the tool.  You can copy this file to a location in your current PATH
+ (e.g. ~/usr/local/bin~, ~$HOME/bin~, etc.).
+
 ** How does it work?
 
  Information for the ~eng~ tool is provided by adding ~.eng~ files to the project

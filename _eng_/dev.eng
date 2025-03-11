@@ -68,6 +68,6 @@ doc
   eng_tool
     type = overview
     title = eng Tool Overview
-    location = REAME.org
+    location = README.org
     abstract = Description of the eng tool and an introduction to what it
                does and how it might be used.
