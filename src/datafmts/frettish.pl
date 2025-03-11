@@ -118,7 +118,7 @@ conditions(ReqCond, Vars) -->
       list_to_set(AllVars, Vars),
       put_dict(C, _{condition:"regular", conditionTextRange:Range}, ReqCond )
     }.
-conditions(null, []) --> [].
+conditions(_{condition:"null"}, []) --> [].
 
 cond_(C,CP,V) -->
     qcond1_(C0,CP0,V0), opt_comma(_), qcond2_(C0,CP0,V0,C,CP,V), opt_comma(_).
