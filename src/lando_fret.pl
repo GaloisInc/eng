@@ -16,12 +16,16 @@ lando_to_fret(LandoSSL, fret{ requirements:FretRequirements,
     phrase(extract_fret("Default", "Default",
                         SemanticDefs, FretRequirements, FretVars, FretModes),
            Body, Remaining),
-    ( Remaining == []
-    -> modes_to_vars(FretVars, FretModes, ModeVars),
-       append(FretVars, ModeVars, AllVars),
-       cross_reference(FretRequirements, AllVars, FretVariables)
-    ; format('Unexpected extra not converted to Fret: ~w~n', [Remaining])
-    ).
+    fret_results(Remaining, FretVars, FretModes, FretRequirements, FretVariables).
+
+fret_results([], FretVars, FretModes, FretRequirements, FretVariables) :-
+    !,
+    modes_to_vars(FretVars, FretModes, ModeVars),
+    append(FretVars, ModeVars, AllVars),
+    cross_reference(FretRequirements, AllVars, FretVariables).
+fret_results(Remaining, _, _, _, _) :-
+    format('Unexpected extra not converted to Fret: ~w~n', [Remaining]),
+    fail.
 
 resource(fret_semantics, 'src/semantics.json').
 
@@ -211,10 +215,13 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [_|IXS], Reqs)
     make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, IXS, Reqs).
 
 
-parse_fret_or_error(Defs, ProjName, _CompName, ReqName, Expl, UID, Num, Index, Req) :-
+parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
     get_dict(values, Index, Lines),
+    get_dict(pos, Index, pos{line:Line, col:_Col}),
+    format(atom(Context), 'line ~w (~w.~w.~w #~w)',
+           [ Line, ProjName, CompName, ReqName, Num ]),
     intercalate(Lines, " ", English),
-    parse_fret(English, FretMent),
+    parse_fret(Context, English, FretMent),
     fretment_semantics(Defs, FretMent, FretReq),
     !,
     ( Num == 0
