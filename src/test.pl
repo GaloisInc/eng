@@ -1,6 +1,6 @@
 :- use_module("datafmts/eqil").
 :- use_module("datafmts/lando").
-:- use_module("lando_fret").
+:- use_module("datafmts/ltl").
 :- set_test_options([show_blocked(true),
                      output(on_failure)
                      % output(always)
