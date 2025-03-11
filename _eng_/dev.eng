@@ -63,3 +63,11 @@ run =
       Runs the project main application in debug mode =
         exec =
           swipl -t main src/top.pl {Args}
+
+doc
+  eng_tool
+    type = overview
+    title = eng Tool Overview
+    location = REAME.org
+    abstract = Description of the eng tool and an introduction to what it
+               does and how it might be used.
