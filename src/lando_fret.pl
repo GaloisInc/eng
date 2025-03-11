@@ -1,11 +1,11 @@
 :- module(lando_fret, [ lando_to_fret/2,
-                        parse_fret/3,
                         transform_to_AST/2,  % for testing
                         ast_to_CoCo/2        % for testing
                       ]).
 
 :- use_module(library(http/json)).
 :- use_module('datafmts/lando').
+:- use_module('datafmts/frettish').
 :- use_module('englib').
 
 lando_to_fret(LandoSSL, fret{ requirements:FretRequirements,
@@ -212,7 +212,8 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [_|IXS], Reqs)
 parse_fret_or_error(Defs, ProjName, _CompName, ReqName, Expl, UID, Num, Index, Req) :-
     get_dict(values, Index, Lines),
     intercalate(Lines, " ", English),
-    parse_fret(Defs, English, FretReq),
+    parse_fret(English, FretMent),
+    fretment_semantics(Defs, FretMent, FretReq),
     !,
     ( Num == 0
     -> format(atom(ReqID), '~w-req-~w', [ ProjName, UID ]), RName = ReqName
@@ -238,98 +239,50 @@ prolog:message(bad_frettish(ProjName, CompName, ReqName, English)) -->
     [ 'BAD Frettish statement for ~w.~w.~w: ~w~n'
       - [ ProjName, CompName, ReqName, English ] ].
 
+fretment_semantics(Defs, Fretment, Semantics) :-
+    Fretment = fretment(scope_info(Scope, ScopeVars),
+                        condition_info(Condition, CondVars),
+                        component_info(Comp),
+                        timing_info(Timing),
+                        response_info(Response, RespVars)),
+    append([ScopeVars, CondVars, RespVars], AllVars),
+    list_to_set(AllVars, Vars),
+    SemanticsBase = semantics{ type: "nasa",
+                               % The set of variables referenced by this fret
+                               % requirement; n.b. referenced by name and not
+                               % by the _id.
+                               variables: Vars
+                             },
+    put_dict(SemanticsBase, Scope, Sem1),
+    put_dict(Sem1, Condition, Sem2),  % TODO: if no condition, this is null and breaks the next
+    put_dict(Sem2, Comp, Sem3),
+    put_dict(Sem3, Response, Sem4),
+    put_dict(Sem4, Timing, Sem5),
+
+    req_semantics_defs(Defs, Sem5, SemDefs),
+    create_variable_description(Sem5, DV),
+
+    get_dict(description, SemDefs, Desc0),
+    replace_template_vars(Sem5, "<b><i>", "</i></b>", Desc0, Desc),
+
+    generate_formulae(SemDefs, Sem5, Sem6),
+
+    put_dict(_{ diagramVariables: DV,
+                description: Desc
+              }, Sem6, Semantics).
+
+
+req_semantics_defs(Defs, Inp, Semantics) :-
+    get_dict(scope, Inp, S),
+    get_dict(type, S, ST),
+    get_dict(condition, Inp, C),
+    get_dict(timing, Inp, T),
+    get_dict(response, Inp, Rsp),
+    format(atom(DefKeyA), '~w,~w,~w,~w', [ST, C, T, Rsp]),
+    get_dict(DefKeyA, Defs, Semantics).
+
+
 % ----------------------------------------------------------------------
-
-%% Parses a Frettish English requirement to a Fret structured requirement, using
-%% the definitions and templates provided to enhance the structured requirement.
-parse_fret(Defs, English, FretRequirement) :-  % KWQ: return vars as well
-    string_chars(English, ECodes),
-    enumerate(ECodes, Input),
-    phrase(frettish(Defs, Semantics), Input, Remaining),
-    ( Remaining == [], ! ;
-      format('Unexpected frettish extra not parsed: ~w~n', [ Remaining ])
-    ),
-    FretRequirement = Semantics.
-
-enumerate(I, O) :- enum_(0, I, O).
-enum_(_, [], []).
-enum_(N, [I|IS], [(N,I)|OS]) :- succ(N, M), enum_(M, IS, OS).
-
-prolog:message(bad_response_text(EW, EP)) -->
-    [ 'Invalid FRETTISH Response specification at character ~w: ~w~n'
-      - [ EP, EW ] ].
-
-% scope conditions component shall timing responses
-frettish(Defs, Semantics) -->
-    scope(Scope, ScopeVars),
-    %% {format('....scope: ~w~n', [Scope])},
-    conditions(Condition, CondVars),
-    %% {format('....conditions: ~w with ~w~n', [Condition, CondVars])},
-    component(Comp),
-    %% {format('....component: ~w~n', [Comp])},
-    lexeme(shall, _),
-    !,
-    timing(Timing),
-    %% {format('....timing: ~w~n', [Timing])},
-    lexeme(satisfy, SP),
-    !,
-    ( responses(SP, Responses, RespVars)
-    ; word(EW, EP), { print_message(error, bad_response_text(EW, EP)) }
-    ),
-    %% {format('....responses: ~w with ~w~n', [Responses, RespVars])},
-    make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
-                  Responses, RespVars, Semantics).
-% scope conditions shall component timing responses
-frettish(Defs, Semantics) -->
-    scope(Scope, ScopeVars),
-    %% {format('....scope: ~w~n', [Scope])},
-    conditions(Condition, CondVars),
-    %% {format('....conditions: ~w with ~w~n', [Condition, CondVars])},
-    lexeme(shall, _),
-    !,
-    component(Comp),
-    %% {format('....component: ~w~n', [Comp])},
-    timing(Timing),
-    %% {format('....timing: ~w~n', [Timing])},
-    lexeme(satisfy, SP),
-    !,
-    ( responses(SP, Responses, RespVars)
-    ; word(EW, EP), { print_message(error, bad_response_text(EW, EP)) }
-    ),
-    %% {format('....responses: ~w with ~w~n', [Responses, RespVars])},
-    make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
-                  Responses, RespVars, Semantics).
-
-make_fret_req(Defs, Scope, ScopeVars, Condition, CondVars, Comp, Timing,
-              Response, RespVars, Semantics) -->
-    { append([ScopeVars, CondVars, RespVars], AllVars),
-      list_to_set(AllVars, Vars),
-      SemanticsBase = semantics{ type: "nasa",
-                                 % The set of variables referenced by this fret
-                                 % requirement; n.b. referenced by name and not
-                                 % by the _id.
-                                 variables: Vars
-                               },
-      put_dict(SemanticsBase, Scope, Sem1),
-      put_dict(Sem1, Condition, Sem2),
-      put_dict(Sem2, Comp, Sem3),
-      put_dict(Sem3, Response, Sem4),
-      put_dict(Sem4, Timing, Sem5),
-
-      req_semantics_defs(Defs, Sem5, SemDefs),
-      create_variable_description(Sem5, DV),
-
-      get_dict(description, SemDefs, Desc0),
-      replace_template_vars(Sem5, "<b><i>", "</i></b>", Desc0, Desc),
-
-      generate_formulae(SemDefs, Sem5, Sem6),
-
-      put_dict(_{ diagramVariables: DV,
-                  description: Desc
-                }, Sem6, Semantics)
-    }.
-
-% --------------------
 
 create_variable_description(Inp, VarDesc):-
     get_dict(scope, Inp, Scope),
@@ -396,15 +349,6 @@ cvd_rsp(Inp, "action", VarDesc) :-
     format(atom(X), 'Response = <b><i>~w</i></b>', [D]),
     atom_string(X, VarDesc).
 cvs_rsp(_, _, "").
-
-req_semantics_defs(Defs, Inp, Semantics) :-
-    get_dict(scope, Inp, S),
-    get_dict(type, S, ST),
-    get_dict(condition, Inp, C),
-    get_dict(timing, Inp, T),
-    get_dict(response, Inp, Rsp),
-    format(atom(DefKeyA), '~w,~w,~w,~w', [ST, C, T, Rsp]),
-    get_dict(DefKeyA, Defs, Semantics).
 
 % --------------------
 
@@ -819,191 +763,6 @@ xform_future_temporal(I, I). % TODO
 xform_past_optimize(I, I).  % TODO xform.transform(X, xform.optimizePT)
 xform_future_optimize(I, I).  % TODO xform.transform(X, xform.optimizeFT)
 
-% --------------------------------------------------
-
-scope(Scope, Vars) -->
-    scope_(SubScope, Vars, Pos), opt_comma(_),
-    { range(Pos, Range),
-      put_dict(SubScope, _{scopeTextRange:Range}, Scope)
-    }.
-scope(_{type: null}, []) --> [].
-
-scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
-    in(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
-scope_(_{scope:{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
-    during(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
-% scope_(TODO) --> TODO.
-
-scope_mode(Mode, [Mode], P) --> lexeme(mode, P0), lexeme(word, Mode, PE),
-                                { pos(P0, PE, P) }.
-scope_mode(Mode, [Mode], P) --> lexeme(word, Mode, P0), lexeme(mode, PE),
-                                { pos(P0, PE, P) }.
-scope_mode(Mode, [Mode], P) --> lexeme(word, Mode, P).
-
-% --------------------------------------------------
-
-conditions(ReqCond, Vars) -->
-    and(P0), cond_(C,CP,AllVars),
-    { pos(P0, CP, P),
-      range(P, Range),
-      list_to_set(AllVars, Vars),
-      put_dict(C, _{condition:"regular", conditionTextRange:Range}, ReqCond )
-    }.
-conditions(ReqCond, Vars) -->
-    cond_(C,CP,AllVars),
-    { range(CP, Range),
-      list_to_set(AllVars, Vars),
-      put_dict(C, _{condition:"regular", conditionTextRange:Range}, ReqCond )
-    }.
-conditions(null, []) --> [].
-
-cond_(C,CP,V) -->
-    qcond1_(C0,CP0,V0), opt_comma(_), qcond2_(C0,CP0,V0,C,CP,V), opt_comma(_).
-cond_(C,CP,V) --> qcond1_(C,CP,V), opt_comma(_).
-
-qcond1_(C,P,Vars) -->
-    lexeme(qualifier, Q, QP),
-    lexeme(precond, E, Vars, _), lexeme(is, _), lexeme(true, EP),
-    { !,
-      pos(QP, EP, P),
-      qcond1_true_(Q,E,C)
-    }.
-qcond1_(C,P,Vars) -->
-    lexeme(qualifier, Q, QP),
-    lexeme(precond, E, Vars, _), lexeme(is, _), lexeme(false, EP),
-    { !,
-      pos(QP, EP, P),
-      format(atom(PCA), "(!(~w))", [E]), atom_string(PCA, PC), % n.b. negated
-      C = _{ qualifier_word:Q,
-             pre_condition: PC,
-             regular_condition: PC
-           }
-    }.
-qcond1_(C,P,Vars) -->
-    lexeme(qualifier, Q, QP), lexeme(precond, E, Vars, CP),
-    { pos(QP, CP, P),
-      qcond1_true_(Q,E,C)
-    }.
-qcond1_true_(Q,E,C) :-
-    format(atom(PCA), "(~w)", [E]), atom_string(PCA, PC),
-    C = _{ qualifier_word:Q,
-           pre_condition: PC,
-           regular_condition: PC
-         }.
-
-qcond2_(C0,P0,V0,C,P,Vars) --> and(_), qcond2_and_(C0,P0,V0,C,P,Vars).
-qcond2_(C0,P0,V0,C,P,Vars) -->
-    or(_),
-    qcond1_(C1,P1,V1),
-    { pos(P0, P1, P),
-      get_dict(pre_condition, C0, C0P),
-      get_dict(pre_condition, C1, C1P),
-      format(atom(PCA), '((~w) | (~w))', [ C0P, C1P ]), atom_string(PCA, PC),
-      get_dict(qualifier_word, C1, C1QW),
-      append(V0, V1, Vars),
-      C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
-             pre_condition: PC,
-             regular_condition: PC
-           }
-    }.
-qcond2_(C0,P0,V0,C,P,Vars) --> qcond2_and_(C0,P0,V0,C,P,Vars).
-qcond2_and_(C0,P0,V0,C,P,Vars) -->
-    qcond1_(C1,P1,V1),
-    { pos(P0, P1, P),
-      get_dict(pre_condition, C0, C0P),
-      get_dict(pre_condition, C1, C1P),
-      format(atom(PCA), '((~w) & (~w))', [ C0P, C1P ]), atom_string(PCA, PC),
-      get_dict(qualifier_word, C1, C1QW),
-      append(V0, V1, Vars),
-      C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
-             pre_condition: PC,
-             regular_condition: PC
-           }
-    }.
-
-qualifier("upon", P) --> upon(P).
-qualifier("whenever", P) --> whenever(P).
-qualifier("when", P) --> when(P).
-qualifier("unless", P) --> unless(P).
-qualifier("where", P) --> where(P).
-qualifier("if", P) --> if(P).
-
-precond(E, V, P) --> bool_expr(E, V, P).
-
-% --------------------------------------------------
-
-component(_{ component: Comp,
-             component_name: Comp,
-             componentTextRange:Range }) -->
-    the(TP), lexeme(word, Comp, CP), { pos(TP, CP, P), range(P, Range) }.
-component(_{ component: Comp,
-             component_name: Comp,
-             componentTextRange:Range }) -->
-    word(Comp, P), { range(P, Range) }.
-
-% --------------------------------------------------
-
-timing(_{ timing: "immediately", timingTextRange:Range}) -->
-    lexeme(immediately, P),
-    { range(P, Range) }.
-timing(_{ timing: "next", timingTextRange:Range}) -->
-    lexeme(at, SP), lexeme(the, _), lexeme(next, _), lexeme(timepoint, TP),
-    { pos(SP, TP, P), range(P, Range) }.
-timing(_{ timing: "always"}) --> [],
-                                 { writeln('warning, defaulting to always timing: may not have understood timing phrase') }.
-
-
-% --------------------------------------------------
-
-responses(SP, _{response: "satisfaction",
-                post_condition: E,
-                responseTextRange: Range
-               }, Vars) -->
-    postcond(EP, AllVars, CP),
-    { format(atom(EA), '(~w)', [EP]), atom_string(EA, E),
-      pos(SP, CP, P),
-      list_to_set(AllVars, Vars),
-      range(P, Range)
-    }.
-
-postcond(E, V, P) --> bool_expr(E, V, P).
-
-% --------------------------------------------------
-
-%% bool_expr(E, V, P) --> [ (N,'!') ], bool_expr(E, PE, V), { pos(N, PE, P) }.
-%% bool_expr(E, Vars, P) --> [ (N,'~') ], bool_expr(E, PE, V), { pos(N, PE, P) }.
-bool_expr(V, Vars, P) --> bool_term(LT, LV, LP),
-                          bool_exprMore(LT, LV, LP, V, Vars, P).
-bool_term(V, [], P) --> lexeme(num, V, P).
-bool_term(V, [V], P) --> lexeme(word, V, P).
-bool_term(V, Vars, P) --> lexeme(lparen, LP),
-                          bool_expr(PV, Vars, _),
-                          { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
-                          lexeme(rparen, RP),
-                          { pos(LP, RP, P) }.
-bool_exprMore(LT, LV, LP, V, Vars, P) -->
-    bool_exprMoreBin(LT, LV, LP, and_, "&", V, Vars, P).
-bool_exprMore(LT, LV, LP, V, Vars, P) -->
-    bool_exprMoreBin(LT, LV, LP, gt_, ">", V, Vars, P).
-bool_exprMore(LT, LV, LP, V, Vars, P) -->
-    bool_exprMoreBin(LT, LV, LP, lt_, "<", V, Vars, P).
-bool_exprMore(LT, LV, LP, LT, LV, LP) --> [].
-
-bool_exprMoreBin(LT, LV, LP, Matcher, Op, V, Vars, P) -->
-    lexeme(Matcher, _), bool_term(RT, RV, RP),
-    { binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) },
-    bool_exprMore(XS, XV, XP, V, Vars, P).
-
-num([N|NS], P) --> dig(N, PD), num(NS, PN), { pos(PD, PN, P) }.
-num(N, P) --> dig(N, P).
-dig(D, span(P, P)) --> [ (P,D) ], { char_type(D, digit) }.
-
-binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) :-
-    format(atom(X), '~w ~w ~w', [ LT, Op, RT ]),
-    atom_string(X, XS),
-    pos(LP, RP, XP),
-    append(LV, RV, XV).
-
 conjunction([], "").
 conjunction([E|ES], C) :-
     conjunction(ES, ESC),
@@ -1038,90 +797,14 @@ replVars(Inp, Pre, Post, R) -->
     { string_chars(S, [C]), string_concat(S, T, R) }.
 replVars(_, _, _, "") --> [].
 
-w(W) --> [C], { word_char(C) }, w_(CS), { string_chars(W, [C|CS]) }.
-w_([C|CS]) --> [C], { word_char(C) }, !, w_(CS).
+w(W) --> [C], { wchar(C) }, w_(CS), { string_chars(W, [C|CS]) }.
+w_([C|CS]) --> [C], { wchar(C) }, !, w_(CS).
 w_([]) --> [].
 
-% --------------------------------------------------
-
-range(span(S,E), [S,E]).
-
-opt_comma(P) --> [(N,',')], ws(PE), { pos(N, PE, P) }.
-opt_comma(P) --> ws(P).
-
-and(P) --> token("and", P).
-at(P) --> token("at", P).
-during(P) --> token("during", P).
-false(P) --> token("false", P).
-if(P) --> token("if", P).
-immediately(P) --> token("immediately", P).
-in(P) --> token("in", P).
-is(P) --> token("is", P).
-mode(P) --> token("mode", P).
-next(P) --> token("next", P).
-occurrence(P) --> token("occurrence", P).
-of(P) --> token("of", P).
-or(P) --> token("or", P).
-satisfy(P) --> token("satisfy", P).
-shall(P) --> token("shall", P).
-the(P) --> token("the", P).
-timepoint(P) --> token("timepoint", P).
-true(P) --> token("true", P).
-unless(P) --> token("unless", P).
-upon(P) --> token("upon", P).
-whenever(P) --> token("whenever", P).
-when(P) --> token("when", P).
-where(P) --> token("where", P).
-
-lparen(span(P,P)) --> [(P,'(')].
-rparen(span(P,P)) --> [(P,')')].
-gt_(span(P,P)) --> [(P,'>')].
-lt_(span(P,P)) --> [(P,'<')].
-and_(span(P,P)) --> [(P,'&')].
-or_(span(P,P)) --> [(P,'|')].
-
-token(M,P) --> word(W,P), { any_case_match([M], W) }.
-
-any_case_match(Candidates, Word) :- to_lower(Word, LCWord),
-                                    member(LCWord, Candidates).
-
-to_lower(I, O) :- atom_string(IA, I), downcase_atom(IA, OA), atom_string(OA, O).
-
-word(W,P) --> [(N,C)], { word_char(C) }, wc(CS,PE),
-              { string_codes(W, [C|CS]), pos(N, PE, P) }.
-wc([C|CS],P) --> [(N,C)], { word_char(C) }, !, wc(CS,LP), { pos(N, LP, P) }.
-wc([],span(0,0)) --> [].
-
-word_char(C) :- \+ char_type(C, space),
-                % Exclude things that might be individual tokens needing to be
-                % recognized elsewhere in the grammar.
-                \+ member(C, ['(', ')', '.', '!', '?', ':', ',',
-                              %% '{', '}', '^', '[', ']', %% XXX?
-                              '$',
-                              '/']).
-
-number([N|NS]) --> digit(N), number(NS).
-number(N) --> digit(N).
-digit(D) --> [ D ], { member(D, "0123456789") }.
-
-lexeme(R) --> ws(_), { !, writeln(l0) }, lexeme(R).
-lexeme(R) --> call(R), { writeln(l1), writeln(R) }.
-
-lexeme(R, P) --> ws(_), { ! }, lexeme(R, P).
-lexeme(R, P) --> call(R, P).
-
-lexeme(R, O, P) --> ws(_), { ! }, lexeme(R, O, P).
-lexeme(R, O, P) --> call(R, O, P).
-
-lexeme(R, O, U, P) --> ws(_), { ! }, lexeme(R, O, U, P).
-lexeme(R, O, U, P) --> call(R, O, U, P).
-
-%% wsp(P) --> ws(A), ws(B), { pos(A,B,P) }.
-%% wsp(P) --> ws(P).
-
-ws(span(N,N)) --> [(N,C)], { char_type(C, space) }.
-
-pos(span(S,E), span(0,0), span(S,E)) :- !.
-pos(span(S,_), span(_,E), span(S,E)) :- !.
-pos(S, span(0,0), span(S,S)) :- !.
-pos(S, span(_,E), span(S,E)).
+wchar(C) :- \+ char_type(C, space),
+            % Exclude things that might be individual tokens needing to be
+            % recognized elsewhere in the grammar.
+            \+ member(C, ['(', ')', '.', '!', '?', ':', ',',
+                          %% '{', '}', '^', '[', ']', %% XXX?
+                          '$',
+                          '/']).
