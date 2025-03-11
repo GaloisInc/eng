@@ -310,9 +310,11 @@ cvd_st(Inp, "null", VarDesc) :-
 cvd_st(Inp, _, VarDesc) :-
     get_dict(condition, Inp, C),
     cvd_cnd(Inp, C, Y),
-    get_dict(scope_mode, Inp, M),
-    format(atom(X), 'M = <b><i>~w</i></b>, ~w', [M, Y]),
-    atom_string(X, VarDesc).
+    (get_dict(scope_mode, Inp, M),
+     format(atom(X), 'M = <b><i>~w</i></b>, ~w', [M, Y]),
+     atom_string(X, VarDesc)
+    ; VarDesc = Y
+    ).
 
 cvd_cnd(Inp, "regular", VarDesc) :-
     !,
@@ -378,8 +380,9 @@ scope_mode_transform(_Defs, Inp, Out) :-
     get_dict(scope, Inp, S),
     get_dict(type, S, ST),
     sc_mo_tr(ST, Inp, Out).
-sc_mo_tr("null", I, O) :-
-    !, put_dict(I, _{ scope_mode_pt: "BAD_PT", scope_mode_ft: "BAD_FT" }, O).
+sc_mo_tr(null, I, O) :-
+    !,
+    put_dict(I, _{ scope_mode_pt: "BAD_PT", scope_mode_ft: "BAD_FT" }, O).
 sc_mo_tr(_, I, O) :-
     get_dict(scope_mode, I, M),
     canon_bool_expr(M, MD),

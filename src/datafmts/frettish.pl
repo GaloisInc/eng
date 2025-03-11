@@ -89,7 +89,7 @@ scope(Scope, Vars) -->
     { range(Pos, Range),
       put_dict(SubScope, _{scopeTextRange:Range}, Scope)
     }.
-scope(_{type: null}, []) --> [].
+scope(_{scope:_{type: null}}, []) --> [].
 
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
     in(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
