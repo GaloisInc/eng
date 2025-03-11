@@ -206,7 +206,8 @@ emit_ltl(AST, LTLText) :-
 % --------------------
 
 % emit_CoCoSpec(I, O) :- string_concat("CoCoNo! ", I, O). % TODO
-emit_CoCoSpec(boolid(N), N).
+emit_CoCoSpec(boolid(N), C) :- string_concat("__", N, C).
+emit_CoCoSpec(id(I), C) :- string_concat("__", I, C).
 emit_CoCoSpec(not(E), C) :- emit_CoCoSpec(E, ES),
                           format(atom(CA), "not (~w)", [ES]),
                           atom_string(CA, C).
