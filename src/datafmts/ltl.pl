@@ -206,19 +206,34 @@ emit_ltl(AST, LTLText) :-
 % --------------------
 
 % emit_CoCoSpec(I, O) :- string_concat("CoCoNo! ", I, O). % TODO
+emit_CoCoSpec(true, true).
+emit_CoCoSpec(false, false).
+emit_CoCoSpec(val(V), V).
 emit_CoCoSpec(boolid(N), C) :- string_concat("__", N, C).
 emit_CoCoSpec(id(I), C) :- string_concat("__", I, C).
 emit_CoCoSpec(not(E), C) :- emit_CoCoSpec(E, ES),
                           format(atom(CA), "not (~w)", [ES]),
                           atom_string(CA, C).
+emit_CoCoSpec(neg(E), C) :- emit_CoCoSpec(E, ES),
+                            format(atom(CA), "-(~w)", [ES]),
+                            atom_string(CA, C).
 emit_CoCoSpec(ltlH(E), C) :- coco_call("H", E, C).  % Historically
 emit_CoCoSpec(ltlO(E), C) :- coco_call("O", E, C).  % Once
 emit_CoCoSpec(ltlY(E), C) :- coco_call("YtoPre", E, C).  % PrevFalse
 emit_CoCoSpec(ltlZ(E), C) :- coco_call("ZtoPre", E, C).  % PrevTrue
+
 emit_CoCoSpec(and(E1, E2), C) :- coco_infix("and", E1, E2, C).
 emit_CoCoSpec(or(E1, E2), C) :- coco_infix("or", E1, E2, C).
+emit_CoCoSpec(xor(E1, E2), C) :- coco_infix("xor", E1, E2, C).
 emit_CoCoSpec(implies(E1, E2), C) :- coco_infix("=>", E1, E2, C).
-emit_CoCoSpec(binS(E1, E2), C) :- coco_call("SI", E1, E2, C). % SinceInclusive
+emit_CoCoSpec(equiv(E1, E2), C) :- coco_infix("=", E1, E2, C).
+emit_CoCoSpec(eq(E1, E2), C) :- coco_infix("=", E1, E2, C).
+emit_CoCoSpec(neq(E1, E2), C) :- coco_infix("<>", E1, E2, C).
+emit_CoCoSpec(lt(E1, E2), C) :- coco_infix("<", E1, E2, C).
+emit_CoCoSpec(le(E1, E2), C) :- coco_infix("<=", E1, E2, C).
+emit_CoCoSpec(gt(E1, E2), C) :- coco_infix(">", E1, E2, C).
+emit_CoCoSpec(ge(E1, E2), C) :- coco_infix(">=", E1, E2, C).
+emit_CoCoSpec(binS(E1, E2), C) :- coco_call("SI", E1, E2, C). % SinceInclusive  % KWQ: Reversed (LTLASTSemantics.js)
 emit_CoCoSpec(X, _) :- format('No CoCo conversion for: ~w~n', [X]), fail.
 
 coco_call(F,A,C) :- emit_CoCoSpec(A,AS),
