@@ -82,3 +82,14 @@ test(upon_next_expr, [nondet]) :-
                                      not(ltlY(true)))))),
     emit_CoCoSpec(AST, CoCo),
     assertion(CoCo == CoCoOut).
+
+test(in_upon_next_expr, [nondet]) :-
+    %% In startup upon shutdown_requested the Starter shall at the next timepoint satisfy shutdown_running.
+    %% Inp is ptExpanded_fetched with var replacements
+    Inp = "((H (((! startup) & (Y startup)) -> (Y (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) S (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) & (startup & (Z (! startup)))))))) & (((! ((! startup) & (Y startup))) S ((! ((! startup) & (Y startup))) & (startup & (Z (! startup))))) -> (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) S (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) & (startup & (Z (! startup)))))))",
+    CoCoExp = "(H(((not (startup) and YtoPre(startup)) => YtoPre(SI((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))), ((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))) and (startup and ZtoPre(not (startup)))))))) and (SI(not ((not (startup) and YtoPre(startup))), (not ((not (startup) and YtoPre(startup))) and (startup and ZtoPre(not (startup))))) => SI((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))), ((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))) and (startup and ZtoPre(not (startup)))))))",
+    parse_ltl(Inp, AST),
+    % Not validing AST itself: it's rather large, and there's not significant
+    % value to doing so.
+    emit_CoCoSpec(AST, CoCo),
+    assertion(CoCo == CoCoExp).
