@@ -51,6 +51,23 @@
  the tool.  You can copy this file to a location in your current PATH
  (e.g. ~/usr/local/bin~, ~$HOME/bin~, etc.).
 
+*** Getting started
+
+  Once ~eng~ has been installed, the following commands will demonstrate the
+  usage of ~eng~ and lead to further information:
+
+  #+begin_example
+  $ eng
+  $ eng doc
+  $ eng doc list
+  $ eng doc info eng_tool
+  $ eng doc show eng_tool
+  $ eng help
+  $ eng help doc
+  $ eng system list
+  $ eng system gen Lando
+  #+end_example
+
 ** How does it work?
 
  Information for the ~eng~ tool is provided by adding ~.eng~ files to the project
