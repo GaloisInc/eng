@@ -124,13 +124,18 @@ eng_cmd_help(Cmd, HelpInfo) :-
 
 engfile_dir("_eng_").
 
-find_engfile_dir(Dir, Dir) :- exists_directory(Dir), !.
-find_engfile_dir(Dir, _) :- file_directory_name(Dir, Main),
-                            file_directory_name(Main, Main), !, fail.
+find_engfile_dir(Dir, AbsDir) :-
+    absolute_file_name(Dir, AbsDir),
+    exists_directory(AbsDir), !.
+find_engfile_dir(Dir, _) :-
+    absolute_file_name(Dir, AbsDir),
+    file_directory_name(AbsDir, Main),
+    file_directory_name(Main, Main), !, fail.
 find_engfile_dir(Dir, EngDir) :-
-    file_directory_name(Dir, Main),
+    absolute_file_name(Dir, AbsDir),
+    file_directory_name(AbsDir, Main),
     file_directory_name(Main, Parent),
-    file_base_name(Dir, EDir),
+    file_base_name(AbsDir, EDir),
     directory_file_path(Parent, EDir, CheckNext),
     find_engfile_dir(CheckNext, EngDir).
 
