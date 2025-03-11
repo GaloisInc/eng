@@ -11,8 +11,12 @@ parse_fret(Context, English, FretRequirement) :-
     string_chars(English, ECodes),
     enumerate(ECodes, Input),
     phrase(frettish(Semantics), Input, Remaining),
-    ( Remaining == [], !
-    ; show_remaining(Context, Remaining)
+    ( Remaining == []
+    -> true
+    ; ( Remaining = [(_,'.')]
+      -> true
+      ; show_remaining(Context, Remaining)
+      )
     ),
     FretRequirement = Semantics.
 
