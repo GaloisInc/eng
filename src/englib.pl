@@ -1,4 +1,5 @@
-:- module(englib, [ intercalate/3,
+:- module(englib, [ enumerate/2,
+                    intercalate/3,
                     show_type/2,
                     string_trim/2,
                     string_codes_ltrim/3,
@@ -13,6 +14,10 @@
 
 :- use_module(library(apply)).
 :- use_module(library(lists)).
+
+enumerate(I, O) :- enum_(0, I, O).
+enum_(_, [], []).
+enum_(N, [I|IS], [(N,I)|OS]) :- succ(N, M), enum_(M, IS, OS).
 
 intercalate([], _, "").
 intercalate([E], _, E) :- string(E).
