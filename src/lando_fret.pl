@@ -224,17 +224,19 @@ parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Re
     get_dict(pos, Index, pos{line:Line, col:_Col}),
     format(atom(Context), 'line ~w (~w.~w.~w #~w)',
            [ Line, ProjName, CompName, ReqName, Num ]),
+    format(atom(ParentID), '~w-req-~w', [ ProjName, UID ]),
     intercalate(Lines, " ", English),
     parse_fret(Context, English, FretMent),
     !,
     ( fretment_semantics(Defs, FretMent, FretReq)
     -> (Num == 0
-       -> format(atom(ReqID), '~w-req-~w', [ ProjName, UID ]), RName = ReqName
-       ; format(atom(ReqID), '~w-req-~w-~w', [ ProjName, UID, Num ]),
-         format(atom(RName), '~w-~w', [ ReqName, Num ])
+       -> ReqID = ParentID, ParID = "", RName = ReqName
+       ; format(atom(ReqID), '~w-~w', [ ParentID, Num ]),
+         format(atom(RName), '~w-~w', [ ReqName, Num ]),
+         ParID = ParentID
        ),
        Req = requirement{ reqid: RName,
-                          % parent_reqid:?  % KWQ: TODO
+                          parent_reqid: ParID,
                           project: ProjName,
                           rationale: Expl,
                           fulltext: English,
