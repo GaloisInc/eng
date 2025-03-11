@@ -68,7 +68,7 @@
  component and begins the new component; multiple components in the same file do
  not necessarily need to have the same type.
 
- Specific syntax is provided in detailed sections of the [[syntax.org]]
+ Specific syntax is provided in detailed sections of the eqil_design
  documentation.
 
 ** ~eng~ commands
@@ -90,8 +90,9 @@
  statement is understandably vague; more information will be provided to clarify
  these in the description of the commands where these are likely to occur.
 
- Tne various ~eng~ commands provided are described in detailed sections of the
- [[commands.org]] document.
+ Tne various ~eng~ commands provided are described by simply issuing the ~eng~
+ command with no arguments.  The ~eng help COMMAND~ can be used to get more
+ information about a specific command.
 
 ** Ease of use
 

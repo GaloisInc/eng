@@ -1,3 +1,89 @@
+* EQIL format
+
+The EQIL format is a very simple key/value configuration specification format
+(EQIL = EQuals Information Language):
+
+ * All specifications are of the form "key = value".  Any line containing an
+   equals sign will be identified as a key on the left of the equals and a value
+   on the right of the equals (only the first equals sign on a line is
+   significant).
+
+ * Indentation of keys is significant: keys can be nested via indentation.
+
+ * Keys can be multiple words with any characters except an '=' character,
+   although they are limited to a single line.
+
+ * Values can have any characters and extend across multiple lines until the next
+   key at the same indentation level (although trailing blank lines are trimmed).
+
+Those are the four main rules.  There are some clarifications:
+
+ * The EQIL reader is flexible and does not impose a specific
+   validation/interpretation on the file contents; this is left to the
+   application.  For example:
+
+   #+begin_example
+   key1 = value1
+   key2 =
+     key3 = value3
+     key4 = This is value #4.
+   #+end_example
+
+   In this example, the following keys and values are available to the
+   application:
+
+     | key  | value                    |
+     |------+--------------------------|
+     | key1 | value1                   |
+     |------+--------------------------|
+     | key2 | key3 = value3            |
+     |      | key4 = This is value #4. |
+     |------+--------------------------|
+     | key3 | value3                   |
+     |------+--------------------------|
+     | key4 | This is value #4.        |
+     |------+--------------------------|
+
+  * A line that is indented at the same level as a previous key but without an
+    equals sign is treated as an implicit key; the value for that key is any
+    subsequent lines that are indented at a level greater than that implicit key
+    line.
+
+  * The key may be blank.  In this case, the ~eng~ tool will update the file to
+    assign numerically increasing keys built from the parent key.
+
+    #+begin_example
+    topkey =
+      = value 1
+      = value 2
+    #+end_example
+
+    Is rewritten to become:
+
+    #+begin_example
+    topkey =
+      topkey1 = value 1
+      topkey2 = value 2
+    #+end_example
+
+    It is expected that EQIL files are kept under version control and that the
+    user can accept (commit) or reject (restore the original) the effects of
+    these modifications to the EQIL file.
+
+  * Normalization.  If the file is re-written, EQIL will generally retain the
+    original file contents, but there will be some changes:
+
+    * values for identical keys will be merge.
+    * All equal signs separating keys and values will be surrounded by a space.
+    * Implicit keys will have an explicit equals sign.
+
+    Sometimes the combination of the above rules will cause unintended changes to
+    values.  To mitigate against this, see the ~Block values~ section below.
+
+    Note that if EQIL files are not rewritten, normalization is not a concern.
+
+* Details
+
     sections =
 
       implicit keys =
