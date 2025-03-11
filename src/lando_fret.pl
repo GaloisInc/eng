@@ -52,9 +52,16 @@ var_ref_req_ids(VarName, [_|Reqs], RefIds) :-
 
 modes_to_vars(_, [], []).
 modes_to_vars(Vars, [Mode|Modes], OutVars) :-
-    mode_vars(Vars, Mode, ModeVars),
+    mode_vars(Vars, Mode, ModeVars), !,
     modes_to_vars(Vars, Modes, MVars),
     append(ModeVars, MVars, OutVars).
+modes_to_vars(Vars, [Mode|Modes], OutVars) :-
+    print_message(warning, no_var_for_mode(Mode)),
+    modes_to_vars(Vars, Modes, OutVars).
+
+prolog:message(no_var_for_mode(Mode)) -->
+    { Mode = (ModeName, _) },
+    [ 'No variable definition (component) for Mode (scenario) ~w~n' - [ ModeName ] ].
 
 mode_vars(Vars, (VarName, VarVals), MVars) :-
     find_var(Vars, VarName, TgtVar),
