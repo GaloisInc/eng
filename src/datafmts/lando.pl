@@ -368,7 +368,13 @@ commonEntry(FailStrm, Entry) -->
     clseq(ICS),
     name([ "events",
            "scenarios",
-           "requirements"
+           "requirements",
+           "requirement",
+           "component",
+           "subsystem",
+           "system",
+           "relation",
+           "import"
          ], N, P),
     {get_dict(line, P, Line)},
     saw(FailStrm, N, Line, commonEntry_(ICS, N, P, Entry)).
