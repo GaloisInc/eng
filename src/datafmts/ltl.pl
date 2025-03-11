@@ -1,6 +1,6 @@
 % Parses the LTL input text into an AST.
 
-:- module(ltl, [ parse_ltl/2 ]).
+:- module(ltl, [ parse_ltl/2, emit_ltl/2, emit_CoCoSpec/2 ]).
 
 :- use_module('../englib').
 
@@ -192,3 +192,37 @@ wchar(C) :- \+ char_type(C, space),
                           %% '{', '}', '^', '[', ']', %% XXX?
                           '$',
                           '/']).
+
+% ----------------------------------------------------------------------
+
+emit_ltl(AST, LTLText) :-
+    string_concat("LTLNo! ", AST, LTLText).  % TODO
+
+% --------------------
+
+% emit_CoCoSpec(I, O) :- string_concat("CoCoNo! ", I, O). % TODO
+emit_CoCoSpec(boolid(N), N).
+emit_CoCoSpec(not(E), C) :- emit_CoCoSpec(E, ES),
+                          format(atom(CA), "not (~w)", [ES]),
+                          atom_string(CA, C).
+emit_CoCoSpec(ltlH(E), C) :- coco_call("H", E, C).  % Historically
+emit_CoCoSpec(ltlO(E), C) :- coco_call("O", E, C).  % Once
+emit_CoCoSpec(ltlY(E), C) :- coco_call("YtoPre", E, C).  % PrevFalse
+emit_CoCoSpec(ltlZ(E), C) :- coco_call("ZtoPre", E, C).  % PrevTrue
+emit_CoCoSpec(and(E1, E2), C) :- coco_infix("and", E1, E2, C).
+emit_CoCoSpec(or(E1, E2), C) :- coco_infix("or", E1, E2, C).
+emit_CoCoSpec(implies(E1, E2), C) :- coco_infix("=>", E1, E2, C).
+emit_CoCoSpec(binS(E1, E2), C) :- coco_call("SI", E1, E2, C). % SinceInclusive
+emit_CoCoSpec(X, _) :- format('No CoCo conversion for: ~w~n', [X]), fail.
+
+coco_call(F,A,C) :- emit_CoCoSpec(A,AS),
+                    format(atom(CA), "~w(~w)", [F,AS]),
+                    atom_string(CA, C).
+coco_call(F,A,B,C) :- emit_CoCoSpec(A,AS),
+                      emit_CoCoSpec(B,BS),
+                      format(atom(CA), "~w(~w, ~w)", [F,AS,BS]),
+                      atom_string(CA, C).
+coco_infix(F,A,B,C) :- emit_CoCoSpec(A,AS),
+                       emit_CoCoSpec(B,BS),
+                       format(atom(CA), "(~w ~w ~w)", [AS,F,BS]),
+                       atom_string(CA, C).

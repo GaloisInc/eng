@@ -469,7 +469,7 @@ fetched_ft_pt_update(Defs, Inp, Out) :-
     transform_to_AST(PSMV, PAST),
     ast_to_LTL(PSMV, % PAST,
                PLTL),
-    ast_to_CoCo(PAST, PCOCO),
+    ltl_ast_to_CoCo(PAST, PCOCO),
 
     get_dict(ftExpanded, Defs, FTE),
     subst("$regular_condition$", "$regular_condition_SMV_ft$", FTE, FE2),
@@ -562,38 +562,9 @@ transform_to_AST(I, AST) :-
     subst('=>', '->', I, I1),
     parse_ltl(I1, AST).
 
-% --------------------
+ast_to_LTL(I, O) :- emit_ltl(I, O).
 
-ast_to_LTL(I, O) :- string_concat("LTLNo! ", I, O).  % TODO
-
-% --------------------
-
-% ast_to_CoCo(I, O) :- string_concat("CoCoNo! ", I, O). % TODO
-ast_to_CoCo(boolid(N), N).
-ast_to_CoCo(not(E), C) :- ast_to_CoCo(E, ES),
-                          format(atom(CA), "not (~w)", [ES]),
-                          atom_string(CA, C).
-ast_to_CoCo(ltlH(E), C) :- coco_call("H", E, C).  % Historically
-ast_to_CoCo(ltlO(E), C) :- coco_call("O", E, C).  % Once
-ast_to_CoCo(ltlY(E), C) :- coco_call("YtoPre", E, C).  % PrevFalse
-ast_to_CoCo(ltlZ(E), C) :- coco_call("ZtoPre", E, C).  % PrevTrue
-ast_to_CoCo(and(E1, E2), C) :- coco_infix("and", E1, E2, C).
-ast_to_CoCo(or(E1, E2), C) :- coco_infix("or", E1, E2, C).
-ast_to_CoCo(implies(E1, E2), C) :- coco_infix("=>", E1, E2, C).
-ast_to_CoCo(binS(E1, E2), C) :- coco_call("SI", E1, E2, C). % SinceInclusive
-ast_to_CoCo(X, _) :- format('No CoCo conversion for: ~w~n', [X]), fail.
-
-coco_call(F,A,C) :- ast_to_CoCo(A,AS),
-                    format(atom(CA), "~w(~w)", [F,AS]),
-                    atom_string(CA, C).
-coco_call(F,A,B,C) :- ast_to_CoCo(A,AS),
-                      ast_to_CoCo(B,BS),
-                      format(atom(CA), "~w(~w, ~w)", [F,AS,BS]),
-                      atom_string(CA, C).
-coco_infix(F,A,B,C) :- ast_to_CoCo(A,AS),
-                       ast_to_CoCo(B,BS),
-                       format(atom(CA), "(~w ~w ~w)", [AS,F,BS]),
-                       atom_string(CA, C).
+ltl_ast_to_CoCo(I, O) :- emit_CoCoSpec(I, O).
 
 % --------------------
 
