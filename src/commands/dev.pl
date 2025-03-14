@@ -13,8 +13,9 @@ dev_focus("Development Engineering").
 dev_help(Info) :-
     engfile_dir(EngDirV),
     exec_subcmd_help("dev", ExecHelpI),
-    [EngDir, ExecHelp] = [EngDirV, ExecHelpI],
-    Info = {|string(EngDir, ExecHelp)||
+    exec_spec_help(10, ExecInfo),
+    [EngDir, ExecHelp, ExecSpecHelp] = [EngDirV, ExecHelpI, ExecInfo],
+    Info = {|string(EngDir, ExecHelp, ExecSpecHelp)||
 | Perform a DEVELOPMENT engineering task.
 |
 | Development tasks typically consist of running one or more user-defined
@@ -41,12 +42,7 @@ dev_help(Info) :-
 |           ARG = ARG FOR TESTTYPE FOR THIS TEST
 |       testrunner =
 |         TESTRUNNER =
-|           exec = SHELL COMMAND(S) TO RUN
-|           exec = ANOTHER TEST COMMAND
-|           in dir = DIRECTORY
-|           env vars =
-|             VARNAME = VARVALUE
-|             ...
+|           {ExecSpecHelp}
 |
 | There can be multiple testcase entries that can use the same testrunner, and
 | the testrunner can have testtype-specific arguments that will be substituted
@@ -137,7 +133,6 @@ run_test(_Context, TestName, _Args, 1) :-
     print_message(error, test_missing_type(TestName)).
 
 run_test_type(Context, TestName, "EXE", _Args, TestFailed) :-
-    get_test_runner_exec(TestName, TestExec, EnvVars, InDir),
     % arguments for an EXE test (optional)
     (eng:eng(dev, subcmd, test, testcase, TestName, 'Input', TestSource) ;
      TestSource = ""),
@@ -146,10 +141,9 @@ run_test_type(Context, TestName, "EXE", _Args, TestFailed) :-
               'Input' = TestSource
              ],
     % TODO: use input Args somehow?
-    exec_test_runner(Context, TestName, TestExec, ArgMap, EnvVars, InDir, TestFailed).
+    exec_test_runner(Context, ArgMap, TestName, TestFailed).
 
 run_test_type(Context, TestName, "KAT", _Args, TestFailed) :-
-    get_test_runner_exec(TestName, TestExec, EnvVars, InDir),
     % arguments for a KAT test: all are *required*
     eng:eng(dev, subcmd, test, testcase, TestName, 'Input', TestSource),
     eng:eng(dev, subcmd, test, testcase, TestName, 'Output', TestOutput),
@@ -161,7 +155,7 @@ run_test_type(Context, TestName, "KAT", _Args, TestFailed) :-
               'Expected' = TestExpected
              ],
     % TODO: use input Args somehow?
-    exec_test_runner(Context, TestName, TestExec, ArgMap, EnvVars, InDir, TestFailed).
+    exec_test_runner(Context, ArgMap, TestName, TestFailed).
 run_test_type(_Context, TestName, "KAT", _Args, 1) :-
     % arguments for a KAT test: all are *required*
     \+ eng:key(dev, subcmd, test, testcase, TestName, 'Input'),
@@ -184,37 +178,17 @@ run_test_type(_Context, TestName, _TestType, _Args, 1) :-
 run_test_type(_Context, TestName, TestType, _Args, 1) :-
     print_message(error, unknown_test_type(TestName, TestType)).
 
-get_test_runner_exec(TestName, TestExec, EnvVars, InDir) :-
+exec_test_runner(Context, ArgMap, TestName, TestFailed) :-
     eng:eng(dev, subcmd, test, testcase, TestName, runner, TestRunner),
     atom_string(TestR, TestRunner),
-    findall(E, eng:eng(dev, subcmd, test, testrunner, TestR, exec, E), TestExec),
-    findall((N,V), eng:eng(dev, subcmd, test, testrunner, TestR, 'env vars', N, V), EnvVars),
-    test_dir(TestR, InDir).
-get_test_runner_exec(TestName, _, _, _) :-
-    \+ eng:key(dev, subcmd, test, testcase, TestName, runner), !,
+    exec_from_spec_at(Context, ArgMap, [dev, subcmd, test, testrunner, TestR],
+                      TestFailed).
+exec_test_runner(_, _, TestName, 1) :-
+    \+ eng:key(dev, subcmd, test, testcase, TestName, runner),
     print_message(error, test_runner_not_specified(TestName)),
     report_result(TestName, 1),
     fail.
-get_test_runner_exec(TestName, _TestExec, _, _) :-
-    eng:eng(dev, subcmd, test, testcase, TestName, runner, TestRunner),
-    atom_string(TestR, TestRunner),
-    \+ eng:eng(dev, subcmd, test, testrunner, TestR), !,
-    print_message(error, test_runner_not_found(TestName, TestRunner)),
-    fail.
-get_test_runner_exec(TestName, _TestExec, _, _) :-
-    eng:eng(dev, subcmd, test, testcase, TestName, runner, TestRunner),
-    atom_string(TestR, TestRunner),
-    \+ eng:key(dev, subcmd, test, testrunner, TestR, exec), !,
-    print_message(error, unknown_runner_exec(TestName, TestRunner)),
-    fail.
 
-test_dir(TestR, InDir) :-
-    eng:eng(dev, subcmd, test, testrunner, TestR, 'in dir', InDir), !.
-test_dir(_, curdir).
-
-exec_test_runner(Context, TestName, TestExec, ArgMap, EnvVars, InDir, TestFailed) :-
-    format(atom(Ref), 'test "~w"', [TestName]),
-    do_exec(Context, Ref, ArgMap, TestExec, EnvVars, InDir, TestFailed).
 
 report_result(TestName, TestFailed) :-
     ( TestFailed = 0, !,
