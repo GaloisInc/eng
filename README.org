@@ -35,6 +35,19 @@
  engineering into the main portion of a project and provide a way to interact
  with them.
 
+** Discoverability
+
+ One of the keys to being able to use ~eng~ (or any tool) is discoverability.
+ The ability to use a tool effectively means that the tool should be a supporting
+ partner in its usage, for both beginning and experienced users.  To this end,
+ ~eng~ has been designed so that you can specify as little or as much as possible
+ and ~eng~ can indicate what or how that command can be used.
+
+ #+begin_quote
+ When in doubt, just type ~eng~, and don't be afraid type type ~eng help~ or
+ ~eng CMD~ to receive guidance.
+ #+end_quote
+
 ** Installing
 
  The only dependency for the ~eng~ tool is SWI Prolog.  The SWI Prolog tool can
