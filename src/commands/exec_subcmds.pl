@@ -1,5 +1,7 @@
 :- module(exec_subcmds, [ exec_subcmd_help/2,
                           exec_subcmd_do/5,
+                          exec_spec_help/2,
+                          exec_from_spec_at/4,
                           do_exec/7,
                           prep_args/3
                         ]).
@@ -12,21 +14,32 @@
 % definitions can be used with other commands that wish to introduce this
 % extensible functionality.
 
+exec_spec_help(Indent, Info) :-
+    OrigInfo = {|string||
+| exec = SHELL COMMAND(S) TO RUN WITH Args
+| exec = ANOTHER SHELL COMMAND
+| in dir = DIRECTORY
+| env vars =
+|   VARNAME = VARVALUE
+|   ...
+|},
+    split_string(OrigInfo, "\n", "", Lines),
+    string_rpad("\n", " ", Indent, Pfx),
+    intercalate(Lines, Pfx, Info).
+
+
 exec_subcmd_help(Cmd, Info) :-
-    Info = {|string(Cmd)||
+    exec_spec_help(12, EInfo),
+    [CmdHelp, ExecSpecHelp] = [Cmd, EInfo],
+    Info = {|string(CmdHelp, ExecSpecHelp)||
 | Sub-commands which run an external executable can be defined:
 |
-|     {Cmd} =
+|     {CmdHelp} =
 |       subcmd =
 |         CMDNAME =
 |           DESCRIPTION =
 |             needs = CMDNAME TO RUN BEFORE THIS ONE
-|             exec = SHELL COMMAND(S) TO RUN WITH Args
-|             exec = ANOTHER SHELL COMMAND
-|             in dir = DIRECTORY
-|             env vars =
-|               VARNAME = VARVALUE
-|               ...
+|             {ExecSpecHelp}
 |
 | The "exec" value can contain Args in curly braces: this will be replaced with
 | any additional arguments specified on the eng command-line.  The first word
@@ -94,6 +107,35 @@ subcmd_args_argmap(Args, [ 'Args' = ArgStr ]) :-
     maplist([E,O]>>format(atom(O), "\"~w\"", [E]), Args, QuotedArgs),
     foldl([S,A,O]>>(string_concat(A, " ", AS),
                     string_concat(AS, S, O)), QuotedArgs, "", ArgStr).
+
+%% ----------------------------------------------------------------------
+
+%% exec_from_spec_at is a general function that performs a do_exec based on the
+%% standard exec configuration found at the specified root key.  If there is no
+%% exec configuration, this will fail.
+
+exec_from_spec_at(Context, ArgMap, RootPath, Result) :-
+    append(RootPath, [exec], ExecPath),
+    findall(E, list_call(eng:eng, ExecPath, E), ES),
+    (ES == []
+    -> fail
+    ; exec_from_spec_at(Context, ArgMap, RootPath, ES, Result)
+    ).
+
+exec_from_spec_at(Context, ArgMap, RootPath, ExecCmds, Result) :-
+    append(RootPath, 'env vars', EnvPath),
+    findall(V, list_call(eng:eng, EnvPath, V), VS),
+    exec_from_spec_at_dir(RootPath, ExecDir),
+    maplist(atom_string, RootPath, SP),
+    intercalate(SP, ".", Ref),
+    do_exec(Context, Ref, ArgMap, ExecCmds, VS, ExecDir, Result).
+
+exec_from_spec_at_dir(RootPath, ExecDir) :-
+    append(RootPath, 'in dir', DirPath),
+    list_call(eng:eng, DirPath, ExecDir),
+    !.
+exec_from_spec_at_dir(_, curdir).
+
 
 %% ----------------------------------------------------------------------
 
