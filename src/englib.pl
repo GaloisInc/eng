@@ -1,5 +1,6 @@
 :- module(englib, [ enumerate/2,
                     intercalate/3,
+                    list_call/3,
                     show_type/2,
                     string_trim/2,
                     string_codes_ltrim/3,
@@ -14,6 +15,9 @@
 
 :- use_module(library(apply)).
 :- use_module(library(lists)).
+
+list_call(Op, [X|XS], Out) :- list_call(call(Op, X), XS, Out).
+list_call(Op, [], Out) :- call(Op, Out).
 
 enumerate(I, O) :- enum_(0, I, O).
 enum_(_, [], []).
