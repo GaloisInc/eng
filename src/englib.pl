@@ -80,7 +80,7 @@ string_rpad(S, P, N, OS) :-
     string_rpad(S, P, D, SS),
     string_concat(SS, P, OS).
 
-% Substitue all occurrences of This with That in Inp list.  From
+% Substitute all occurrences of This with That in Inp list.  From
 % https://github.com/SWI-Prolog/plweb-examples/blob/master/usage/substitute-with-append.md
 substl(This, That, Inp, Out) :-
     append(This, After, Rest),
