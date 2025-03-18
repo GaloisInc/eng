@@ -165,15 +165,15 @@ vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :- !,
 
 vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :- !,
     do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
-            [ 'darcs w --repodir={VCSDir} -l',
-              'darcs pull --repodir={VCSDir} -q --dry-run',
-              'darcs push --repodir={VCSDir} -q --dry-run'
+            [ 'darcs pull --repodir={VCSDir} -q --dry-run',
+              'darcs push --repodir={VCSDir} -q --dry-run',
+              'darcs w --repodir={VCSDir} -l'
             ],
             [], TopDir, Sts).
 
 vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :- !,
-    vctl_status(Context, darcs(DarcsDir), Args, DSts),
     vctl_status(Context, GitTool, Args, GSts),
+    vctl_status(Context, darcs(DarcsDir), Args, DSts),
     sum_list([DSts, GSts], Sts).
 
 vctl_status(_Context, Tool, _Args, 1) :-
