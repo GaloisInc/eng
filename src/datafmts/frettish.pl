@@ -241,7 +241,7 @@ bool_expr(V, Vars, P) --> bool_term(LT, LV, LP),
 bool_term(V, [], P) --> lexeme(num, V, P).
 bool_term(V, [V], P) --> lexeme(word, V, P).
 bool_term(V, Vars, P) --> lexeme(not_, LP),
-                          bool_expr(NV, Vars, NP),
+                          bool_term(NV, Vars, NP),
                           { format(atom(X), '!(~w)', [NV]), atom_string(X, V) },
                           { pos(LP, NP, P) }.
 bool_term(V, Vars, P) --> lexeme(lparen, LP),

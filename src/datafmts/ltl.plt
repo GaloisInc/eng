@@ -37,6 +37,16 @@ test(bool_or_expr, [nondet]) :-
     emit_CoCoSpec(AST, CoCo),
     assertion(CoCo == "(shutdown_running or startup)").
 
+test(bool_triple_term, [nondet]) :-
+    Inp = "stopping & !shutdown_running & !startup",
+    parse_ltl(Inp, AST),
+    assertion(AST == and(and(boolid("stopping"),
+                             not(boolid("shutdown_running"))),
+                         not(boolid("startup"))
+                        )),
+    emit_CoCoSpec(AST, CoCo),
+    assertion(CoCo == "((stopping and not (shutdown_running)) and not (startup))").
+
 test(bool3_expr, [nondet]) :-
     Inp = "((shutdown_running) | (startup & (Z (! startup))))",
     parse_ltl(Inp, AST),

@@ -63,7 +63,7 @@ boolTerm(ltlX(E)) --> lxm(ltlX), lxm(boolEx, E).
 boolTerm(ltlZ(E)) --> lxm(ltlZ), lxm(boolEx, E).
 boolTerm(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolEx, E).
 boolTerm(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolEx, E).
-boolTerm(not(E)) --> lxm(not), boolEx(E).
+boolTerm(not(E)) --> lxm(not), boolTerm(E).
 boolTerm(E) --> lxm(lp), lxm(boolEx, E), lxm(rp).
 boolTerm(eq(E1,E2)) --> lxm(arithEx, E1), lxm(eq), lxm(arithEx, E2).
 boolTerm(le(E1,E2)) --> lxm(arithEx, E1), lxm(le), lxm(arithEx, E2).
