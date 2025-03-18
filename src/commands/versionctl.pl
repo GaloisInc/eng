@@ -33,7 +33,19 @@ vctl_help(Info) :-
 | EQIL format (see the EQIL design document), and have the following structure
 | (uppercase is user-specified input):
 |
-|    {ExecHelp}
+|    vctl =
+|      darcs =
+|        complement = COMPLEMENT_REPO_PATHS
+|
+| In normal operations, the vctl command uses the repository information in
+| the current working directory and needs no additional configuration.  At
+| present, eng supports git and darcs.
+|
+| The darcs complement repo is optional. If the current project is using
+| darcs for version control, the provided repository paths will automatically
+| be supplied along with the --complement flag; this is useful for filtering
+| out patches from the upstream repository that should not be considered for
+| pulling into the local repository by moving them to the complement repository.
 |
 | Frequently, a Personal Access Token (PAT) is needed to access private
 | repositories or to avoid rate limiting.  A PAT can be set in an EQIL
@@ -163,7 +175,26 @@ vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :- !,
     ),
     format('build status = ~w~n', [ BldStatus ]).
 
-vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :- !,
+vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+    eng:key(vctl, darcs, complement),
+    !,
+    directory_file_path(VCSDir, "_darcs", DarcsDir),
+    directory_file_path(DarcsDir, "prefs", PrefsDir),
+    directory_file_path(PrefsDir, "defaultrepo", DefRepoFile),
+    read_file_to_string(DefRepoFile, DefRepoStr, []),
+    string_trim(DefRepoStr, DefRepo),
+    eng:eng(vctl, darcs, complement, ComplRepo),
+    format(atom(PullCmd),
+           'darcs pull --repodir=~w -q --dry-run --complement ~w ~w',
+           [VCSDir, DefRepo, ComplRepo]),
+    do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
+            [ PullCmd,
+              'darcs push --repodir={VCSDir} -q --dry-run',
+              'darcs w --repodir={VCSDir} -l'
+            ],
+            [], TopDir, Sts).
+vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+    !,
     do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
             [ 'darcs pull --repodir={VCSDir} -q --dry-run',
               'darcs push --repodir={VCSDir} -q --dry-run',
