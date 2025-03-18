@@ -60,6 +60,7 @@ vctl_help(Info) :-
 
 vctl_help("status", "show status of local directory (workspace).").
 vctl_help("push", "push local changes upstream.").
+vctl_help("pull", "pull changes from upstream to local.").
 vctl_help(SubCmd, Help) :- eng:key(vctl, subcmd, SubCmd, Help).
 
 vctl_cmd(Context, [status|Args], Sts) :-
@@ -68,6 +69,9 @@ vctl_cmd(Context, [status|Args], Sts) :-
 vctl_cmd(Context, [push|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_push(Context, VCTool, Args, Sts).
+vctl_cmd(Context, [pull|Args], Sts) :-
+    vcs_tool(Context, VCTool), !,
+    vctl_pull(Context, VCTool, Args, Sts).
 vctl_cmd(_, [Cmd|_], 1) :-
     member(Cmd, [ status, push ]), !,
     print_message(error, vcs_tool_undefined).
@@ -79,7 +83,15 @@ vctl_cmd(_, [], 1) :-
     print_message(error, no_defined_subcmds(vctl)).
 
 % ----------------------------------------------------------------------
+%% Determine the VCS tool used for this project working directory.
 
+% Find the VCS(s) applicable to the TopDir in the context.  Returns one of:
+%
+%   git(DIR)                    % DIR contains the .git directory
+%   git(DIR, forge(URL, Auth))  % Like above, but with git remote origin info
+%   darcs(DIR)                  % DIR contains the _darcs directory
+%   darcs(DIR, git(..))         % Like above, but with the git backing dir (for dgsync)
+%
 vcs_tool(context(_, TopDir), GitTool) :-
     vcs_tool_git(context(_, TopDir), TopDir, GitTool).
 vcs_tool(context(_, TopDir), DarcsTool) :-
@@ -247,25 +259,73 @@ git_build_status_url(URL, Fetch_SHA, StatusURL) :-
 
 % ----------------------------------------------------------------------
 
-vctl_push(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :- !,
-    do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
+vctl_push(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
+    !,
+    do_exec(context(EngDir, TopDir), 'vcs git push', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} push origin'
             ],
             [], TopDir, Sts).
+vctl_push(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
+    !,
+    vctl_push(Context, git(VCSDir), Args, Sts).
 
-vctl_push(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :- !,
-    do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
+vctl_push(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+    !,
+    do_exec(context(EngDir, TopDir), 'vcs darcs push', [ 'VCSDir' = VCSDir ],
             [ 'darcs push --repodir={VCSDir}'
             ],
             [], TopDir, Sts).
 
 vctl_push(Context, darcs(DarcsDir, GitTool), Args, Sts) :- !,
-    vctl_status(Context, darcs(DarcsDir), Args, DSts),
+    vctl_push(Context, darcs(DarcsDir), Args, DSts),
     format('Darcs pushes will need dgsync to add to git'),
-    vctl_status(Context, GitTool, Args, GSts),
+    vctl_push(Context, GitTool, Args, GSts),
     sum_list([DSts, GSts], Sts).
 
 vctl_push(_Context, Tool, _Args, 1) :-
+    print_message(error, unknown_vcs_tool(Tool)).
+
+% ----------------------------------------------------------------------
+
+vctl_pull(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
+    !,
+    do_exec(context(EngDir, TopDir), 'vcs git pull', [ 'VCSDir' = VCSDir ],
+            [ 'git -C {VCSDir} pull origin'
+            ],
+            [], TopDir, Sts).
+vctl_pull(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
+    !,
+    vctl_pull(Context, git(VCSDir), Args, Sts).
+
+vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+    eng:key(vctl, darcs, complement),
+    !,
+    directory_file_path(VCSDir, "_darcs", DarcsDir),
+    directory_file_path(DarcsDir, "prefs", PrefsDir),
+    directory_file_path(PrefsDir, "defaultrepo", DefRepoFile),
+    read_file_to_string(DefRepoFile, DefRepoStr, []),
+    string_trim(DefRepoStr, DefRepo),
+    eng:eng(vctl, darcs, complement, ComplRepo),
+    format(atom(PullCmd),
+           'darcs pull --repodir=~w -q --dry-run --complement ~w ~w',
+           [VCSDir, DefRepo, ComplRepo]),
+    do_exec(context(EngDir, TopDir), 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
+            [ PullCmd ], [], TopDir, Sts).
+
+vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+    !,
+    do_exec(context(EngDir, TopDir), 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
+            [ 'darcs pull --repodir={VCSDir}'
+            ],
+            [], TopDir, Sts).
+
+vctl_pull(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
+    !,
+    vctl_pull(Context, GitTool, Args, GSts),
+    vctl_pull(Context, darcs(DarcsDir), Args, DSts),
+    sum_list([DSts, GSts], Sts).
+
+vctl_pull(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
 % ----------------------------------------------------------------------
