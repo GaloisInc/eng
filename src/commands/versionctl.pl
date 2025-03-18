@@ -307,7 +307,7 @@ vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
     string_trim(DefRepoStr, DefRepo),
     eng:eng(vctl, darcs, complement, ComplRepo),
     format(atom(PullCmd),
-           'darcs pull --repodir=~w -q --dry-run --complement ~w ~w',
+           'darcs pull --repodir=~w -q --complement ~w ~w',
            [VCSDir, DefRepo, ComplRepo]),
     do_exec(context(EngDir, TopDir), 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
             [ PullCmd ], [], TopDir, Sts).
