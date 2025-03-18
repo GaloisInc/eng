@@ -128,9 +128,14 @@ replace_url_path([], P, [path(P)]).
 replace_url_path([path(_)|XS], P, URL) :- !, replace_url_path(XS, P, URL).
 replace_url_path([X|XS], P, [X|URL]) :- replace_url_path(XS, P, URL).
 
+replace_url_host([], H, [host(H)]).
+replace_url_host([host(_)|XS], H, URL) :- !, replace_url_host(XS, H, URL).
+replace_url_host([X|XS], H, [X|URL]) :- replace_url_host(XS, H, URL).
+
 prolog:message(using_pat(H)) --> [ "Using PAT to access ~w~n" - [ H ] ].
 
 % ----------------------------------------------------------------------
+%% VCTL status command
 
 vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :- !,
     do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
@@ -140,9 +145,23 @@ vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :- !,
             [], TopDir, Sts).
 vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :- !,
     vctl_status(Context, git(VCSDir), Args, Sts),
-    git_status_url(URL, StatusURL),
+    directory_file_path(VCSDir, ".git", GitDir),
+    directory_file_path(GitDir, "FETCH_HEAD", FHFile),
+    read_file_to_string(FHFile, FHData, []),
+    split_string(FHData, "\t ", "", [Fetch_SHA|_]),
+    git_build_status_url(URL, Fetch_SHA, StatusURL),
     http_get(StatusURL, Data, [json_object(dict)|Auth]),
-    format('build status = ~w~n', [ Data.get(status) ]).
+    (get_dict(status, Data, BldStatus)  % Gitlab
+    ; (get_dict(workflow_runs, Data, []), BldStatus = "no CI"
+      ; get_dict(workflow_runs, Data, WFRuns),
+        reverse(WFRuns, [WFRun|_]),
+        ( get_dict(status, WFRun, "completed"),
+          get_dict(conclusion, WFRun, BldStatus)
+        ; get_dict(status, WFRun,  BldStatus)
+        )
+      )
+    ),
+    format('build status = ~w~n', [ BldStatus ]).
 
 vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :- !,
     do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
@@ -160,9 +179,9 @@ vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :- !,
 vctl_status(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
-git_status_url(URL, StatusURL) :-
+git_build_status_url(URL, _Fetch_SHA, StatusURL) :-
     member(host(H), URL),
-    sub_string(H, _, _, _, "gitlab"),
+    sub_string(H, _, _, _, "gitlab"),  %% <--- selector
     git_repo_path(URL, PathParts),
     intercalate(PathParts, "%2F", Project),
     intercalate(["api", "v4", "projects", Project,
@@ -179,6 +198,21 @@ git_status_url(URL, StatusURL) :-
     string_concat(SBM, SAS, StatusURLR),
     atom_string(StatusURL, StatusURLR).
 
+git_build_status_url(URL, Fetch_SHA, StatusURL) :-
+    member(host(H), URL),
+    sub_string(H, _, _, _, "github"),  %% <--- selector
+    git_repo_path(URL, PathParts),
+    intercalate(PathParts, "/", RepoPath),
+    %% intercalate(["/repos", RepoPath, "commits", "HEAD", "status"], "/", SPath),
+    intercalate(["/repos", RepoPath, "actions", "runs"], "/", SPath),
+    replace_url_path(URL, SPath, StatusURLP),
+    intercalate(["api", H], ".", APIHost),
+    replace_url_host(StatusURLP, APIHost, StatusURLH),
+    StatusURLQ = [search([exclude_pull_requests=true,
+                          head_sha=Fetch_SHA
+                         ])|StatusURLH],
+    parse_url(StatusURLS, StatusURLQ),
+    atom_string(StatusURL, StatusURLS).
 
 % ----------------------------------------------------------------------
 
