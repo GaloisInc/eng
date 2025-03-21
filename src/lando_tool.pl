@@ -1,5 +1,6 @@
 :- module(lando_tool, [ lando/3,
                         write_lando_fret/2,
+                        write_lando_fret_kind2/3,
                         write_lando_json/2,
                         write_lando_markdown/2
                       ]).
@@ -10,6 +11,7 @@
 :- use_module('src/datafmts/lando').
 :- use_module('englib').
 :- use_module(lando_fret).
+:- use_module(fret_kind2).
 
 lando(LandoSource, [], Sts) :-
     ( parse_lando_file(LandoSource, SSL), !,
@@ -39,6 +41,10 @@ lando(LandoSource, ['to-fret', OutFile], 0) :-
     open(OutFile, write, OutStrm),
     write_lando_fret(OutStrm, SSL).
 
+lando(LandoSource, ['to-fret-kind2', OutDir], 0) :-
+    parse_lando_file(LandoSource, SSL),
+    write_lando_fret_kind2(OutDir, SSL).
+
 lando(LandoSource, _, 1) :-
     \+ parse_lando_file(LandoSource, _),
     print_message(error, parse_failure(LandoSource)).
@@ -52,9 +58,24 @@ prolog:message(parse_failure(S)) --> [ 'Failed to parse ~w Lando file.' - [S] ].
 write_lando_json(Strm, SSL) :- json_write_dict(Strm, SSL, [tag(type)]).
 
 write_lando_fret(OutStrm, SSL) :-
-    lando_to_fret(SSL, FretProject),
+    lando_to_fret(SSL, _, FretProject),
     json_write_dict(OutStrm, FretProject, []),
     format(OutStrm, '~n', []).
+
+write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
+    lando_to_fret(SSL, Reqs, FretProject),
+    fret_kind2(Reqs, FretProject, Kind2ConnComps),
+    !,
+    maplist(write_kind2(OutDir), Kind2ConnComps, OutFiles).
+
+write_kind2(OutDir, Kind2Comp, Kind2FName) :-
+    get_dict(compNum, Kind2Comp, CNum),
+    get_dict(compName, Kind2Comp, PName),
+    format(atom(FName), '~w_~w.lus', [ PName, CNum ]),
+    directory_file_path(OutDir, FName, Kind2FName),
+    open(Kind2FName, write, OutStrm),
+    get_dict(kind2, Kind2Comp, Lustre),
+    format(OutStrm, '~w~n', [Lustre]).
 
 %% ----------------------------------------------------------------------
 

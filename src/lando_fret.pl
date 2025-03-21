@@ -1,4 +1,4 @@
-:- module(lando_fret, [ lando_to_fret/2 ]).
+:- module(lando_fret, [ lando_to_fret/3 ]).
 
 :- use_module(library(http/json)).
 :- use_module('datafmts/frettish').
@@ -7,10 +7,11 @@
 :- use_module('englib').
 
 
-lando_to_fret(LandoSSL, FretMents) :-
+lando_to_fret(LandoSSL, Reqs, FretMents) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
     phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, _, _), Body, Remaining),
+    !,
     fret_results(SemanticDefs, Body, Remaining, Reqs, FretRequirements, FretVariables),
     FretMents = fret{ requirements: FretRequirements,
                       variables: FretVariables

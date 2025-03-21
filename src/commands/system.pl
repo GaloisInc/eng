@@ -202,6 +202,20 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutFile, "fret"))
     ).
+generate_spec_outputs(Spec, "lando", SSL, Result) :-
+    eng:key(system, spec, Spec, generate, OutDir),
+    eng:eng(system, spec, Spec, generate, OutDir, format, "fret_kind2"),
+    (write_lando_fret_kind2(OutDir, SSL, OutFiles)
+    -> Result = 0,
+       wrote_file_messages(Spec, "fret_kind2", OutFiles)
+    ; Result = 1,
+      print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
+    ).
+
+wrote_file_messages(_, _, []).
+wrote_file_messages(Spec, Kind, [OutFile|FS]) :-
+    print_message(information, wrote_file(Spec, OutFile, Kind)),
+    wrote_file_messages(Spec, Kind, FS).
 
 prolog:message(wrote_file(Spec, OutFile, Kind)) -->
     [ 'Wrote lando spec "~w" to ~w file ~w~n' - [ Spec, Kind, OutFile ]].
