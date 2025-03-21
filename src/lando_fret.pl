@@ -34,46 +34,57 @@ collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, Semantics),
     get_dict(variables, Semantics, ReqVars),
-    collect_req_vars(Defs, FretReq, SSLBody, ReqVars, SubVars, OutFretReq, OutVars),
+    InpConsts = inputs(Defs, FretReq, SSLBody),
+    collect_req_vars(InpConsts, ReqVars, SubVars, OutFretReq, OutVars),
     get_dict(requirement, OutFretReq, OutReq),
     OutReqs = [OutReq|SubReqs].
 
-collect_req_vars(_, FretReq, _, [], VS, FretReq, VS).
-collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(_, FretReq, _).
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  %% KWQ: remove
     existing_var(RV, VS, V, VSNoV),
     !,
-    get_dict(requirement, FretReq, Req),
-    add_var_ref(V, Req, UpdV),
-    collect_req_vars(Defs, FretReq, SSLBody, RVS, [UpdV|VSNoV], OutReq, OutVS).
-collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
-    component_var(RV, SSLBody, CompVar),
+    add_var_ref(V, Inputs, UpdV),
+    collect_req_vars(Inputs, RVS, [UpdV|VSNoV], OutReq, OutVS).
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
+    component_var(RV, Inputs, CompVar),
     !,
-    get_dict(requirement, FretReq, Req),
-    add_var_ref(CompVar, Req, V),
-    collect_req_vars(Defs, FretReq, SSLBody, RVS, [V|VS], OutReq, OutVS).
-collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
-    scenario_var(RV, SSLBody, MainV, ScenarioV),
+    add_var_ref(CompVar, Inputs, V),
+    collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
+    scenario_var(RV, Inputs, MainV, ScenarioV),
+    get_dict(variable_name, ScenarioV, SVName),
+    component_var(SVName, Inputs, _),
     !,
-    get_dict(requirement, FretReq, Req),
-    update_req_with_var(Defs, ScenarioV, FretReq, UpdReq),
-    add_var_ref(MainV, Req, MainVar),
-    (get_dict(variable_name, ScenarioV, SVName),
-     existing_var(SVName, VS, SV, VSNoV)
-    -> add_var_ref(SV, Req, ScenarioVar),
-       collect_req_vars(Defs, UpdReq, SSLBody, RVS, [MainVar,ScenarioVar|VSNoV], OutReq, OutVS)
-    ; get_dict(requirement, UpdReq, UReq),
-      add_var_ref(ScenarioV, UReq, ScenarioVar),
-      collect_req_vars(Defs, UpdReq, SSLBody, RVS, [MainVar,ScenarioVar|VS], OutReq, OutVS)
-    ).
-collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+    % The RV references a specific scenario (RV/MainV) in a scenarios group
+    % (SVName), and there is a component definition for the SVName, so the
+    % ScenarioV is an nteger state variable, where one of the values is RV.  The
+    % output FRET requirement will need to reference the ScenarioV in the
+    % Responses portion (if it doesn't already) as well as cross-referencing
+    % the ScenarioV and the Req to each other in addition to cross referencing
+    % the MainV and the Req together.
+
+    % Update the Req to ensure it references the Scenario variable--if needed--by
+    % modifying the FRETtish English and re-parsing.
+    update_req_with_var(Inputs, ScenarioV, UpdInps),
+    % Update the MainV Variable with a reference to this Req
+    add_var_ref(MainV, UpdInps, MainVar),
+    % Update the ScenarioV Variable (if necessary) with a reference to this Req
+
+    (existing_var(SVName, VS, SV, VSNoV)
+    -> add_var_ref(SV, UpdInps, ScenarioVar), NextVS = VSNoV
+    ; add_var_ref(ScenarioV, UpdInps, ScenarioVar), NextVS = VS
+    ),
+    collect_req_vars(UpdInps, RVS, [MainVar,ScenarioVar|NextVS], OutReq, OutVS).
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     print_message(warning, no_fret_var_info(RV)),
-    collect_req_vars(Defs, FretReq, SSLBody, RVS, VS, OutReq, OutVS).
+    collect_req_vars(Inputs, RVS, VS, OutReq, OutVS).
 
 existing_var(VName, [Var|VS], Var, VS) :- get_dict(variable_name, Var, VName).
 existing_var(VName, [V|Vars], Var, [V|VSNoV]) :-
     existing_var(VName, Vars, Var, VSNoV).
 
-add_var_ref(Var, Req, UpdVar) :-
+add_var_ref(Var, inputs(_, FretReq, _), UpdVar) :-
+    get_dict(requirement, FretReq, Req),
     get_dict('_id', Req, ReqID),
     add_var_ref_(Var, ReqID, UpdVar).
 add_var_ref_(Var, ReqID, UpdVar) :-
@@ -83,14 +94,15 @@ add_var_ref_(Var, ReqID, UpdVar) :-
     ; put_dict(_{reqs: [ReqID|Reqs]}, Var, UpdVar)
     ).
 
-update_req_with_var(_, Var, FretReq, FretReq) :-
+update_req_with_var(Inputs, Var, Inputs) :-
+    Inputs = inputs(_, FretReq, _),
     get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, Semantics),
     get_dict(variables, Semantics, ReqVars),
     get_dict(variable_name, Var, VName),
     member(VName, ReqVars),
     !.
-update_req_with_var(Defs, Var, FretReq, UpdReq) :-
+update_req_with_var(inputs(Defs, FretReq, SSL), Var, inputs(Defs, UpdReq, SSL)) :-
     get_dict(requirement, FretReq, Req),
     get_dict(fulltext, Req, OrigEnglish),
     get_dict(variable_name, Var, VName),
@@ -106,7 +118,7 @@ update_req_with_var(Defs, Var, FretReq, UpdReq) :-
 
 % ----------
 
-component_var(VName, SSLBody, CompVar) :-
+component_var(VName, inputs(_, _, SSLBody), CompVar) :-
     phrase(extract_fret_component_var("Default", "Default", VName, CompVar), SSLBody, _).
 
 extract_fret_component_var(ProjName, _, VName, CompVar) -->
@@ -141,7 +153,7 @@ prolog:message(no_fret_var_info(VarName)) -->
 
 % ----------
 
-scenario_var(VName, SSLBody, MainVar, ScenarioVar) :-
+scenario_var(VName, inputs(_, _, SSLBody), MainVar, ScenarioVar) :-
     phrase(extract_fret_scenario_var("Default", "Default", VName, MainVar, ScenarioVar), SSLBody, _).
 
 extract_fret_scenario_var(ProjName, _, VName, MainVar, ScenarioVar) -->
