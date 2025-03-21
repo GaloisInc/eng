@@ -79,15 +79,22 @@ lando_markdown(AllElements, ParentNames, Msgs) -->
       % relation allows a qname and is different, so don't process it here
       \+ is_list(Name), % !,
       %% get_dict(uid, SpecElement, UID),
+      ( get_dict(portion_mark, SpecElement, PM)
+      -> (PM == no_portion_mark
+         -> PortionMark = "" % Allows defaulting/validation of parse
+         ; format(atom(PortionMark), '(~w) ', [ PM ])
+         )
+      ; PortionMark = ""
+      ),
       specElement_type(SpecElement, Type),
       specElement_ref(SpecElement, Ref),
       format(atom(StartMsg), "<!-- BEGIN ~w ~w -->", [ Type, Name ]),
       headerPrefix(ParentNames, Prefix),
       ( get_dict(abbrevName, SpecElement, AName), \+ AName == null, !,
-        format(atom(Title), "~w <a id=\"~w\">~w: ~w (~w)</a>",
-               [ Prefix, Ref, Type, Name, AName ])
-      ; format(atom(Title), "~w <a id=\"~w\">~w: ~w</a>",
-               [ Prefix, Ref, Type, Name ])
+        format(atom(Title), "~w <a id=\"~w\">~w~w: ~w (~w)</a>",
+               [ Prefix, Ref, PortionMark, Type, Name, AName ])
+      ; format(atom(Title), "~w <a id=\"~w\">~w~w: ~w</a>",
+               [ Prefix, Ref, PortionMark, Type, Name ])
       ),
       ( ParentNames = [], !, ElemQName = []
       ; ( reverse([Name|ParentNames], QNameL),

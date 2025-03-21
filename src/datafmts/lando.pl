@@ -211,7 +211,7 @@ system(FailStrm, UID, System, NextUID) -->
     saw(FailStrm, system, SL, system_(FailStrm, UID, ICS, SL, SC, System, NextUID)).
 system_(FailStrm, UID, ICS, SL, SC, System, NextUID) -->
     sseq,
-    name([], N, _),
+    name([], N, PMrk, _),
     optional(abbrev(A), {A=[_{abbrevName:null}]}), !,
     clmatch_optional(CLC),
     lseq,
@@ -221,7 +221,7 @@ system_(FailStrm, UID, ICS, SL, SC, System, NextUID) -->
     optional(contains(FailStrm, UID, B, CCS, NextUID),
              { B=[], CCS=[], NextUID = UID }),
     { first_line_pos(SL, SC, ICS, P),
-      mkElement(system, N, P, UID, Elem0),
+      mkElement(system, N, PMrk, P, UID, Elem0),
       addElemPart(_{explanation: E, body: B}, Elem0, Elem1),
       foldl(addElemPart, [A, I], Elem1, Elem2),
       foldl(extendElemPart(comments), [ICS, CLC, ELC, CCS], Elem2, System)
@@ -234,7 +234,7 @@ subsystem(FailStrm, UID, Subsys, NextUID) -->
     saw(FailStrm, subsystem, SL, subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID)).
 subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID) -->
     sseq,
-    name([], N, _),
+    name([], N, PMrk, _),
     optional(abbrev(A), {A=[_{abbrevName:null}]}), !,
     % The following line is the only difference between system and subsystem
     optional(clientClause(C), {C=[_{clientOf:[]}]}),
@@ -247,7 +247,7 @@ subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID) -->
     optional(contains(FailStrm, UID, B, CCS, NextUID),
              { B=[], CCS=[], NextUID = UID }),
     { first_line_pos(SL, SC, ICS, P),
-      mkElement(subsystem, N, P, UID, Elem0),
+      mkElement(subsystem, N, PMrk, P, UID, Elem0),
       addElemPart(_{explanation: E, body: B}, Elem0, Elem1),
       foldl(addElemPart, [A, C, I], Elem1, Elem2),
       foldl(extendElemPart(comments), [ICS, ELC, CLC, CCS], Elem2, Subsys)
@@ -260,7 +260,7 @@ component(FailStrm, UID, Comp, UID) -->
     saw(FailStrm, component, SL, component_(FailStrm, UID, ICS, SL, SC, Comp, UID)).
 component_(FailStrm, UID, ICS, SL, SC, Comp, UID) -->
     sseq,
-    name(["inherit", "client"], N, _),
+    name(["inherit", "client"], N, PMrk, _),
     optional(abbrev(A), {A=[_{abbrevName:null}]}), !,
     % TODO: support comments here?!
     relationClauses(RS),
@@ -272,7 +272,7 @@ component_(FailStrm, UID, ICS, SL, SC, Comp, UID) -->
     optional(contains(FailStrm, UID, B, CCS, NextUID),
              { B=[], CCS=[], NextUID = UID }),
     { first_line_pos(SL, SC, ICS, P),
-      mkElement(component, N, P, UID, Elem0),
+      mkElement(component, N, PMrk, P, UID, Elem0),
       addElemPart(_{explanation: E,
                     parts: B,
                     inherits: [],
@@ -310,7 +310,7 @@ requirement(FailStrm, UID, Requirement, NextUID) -->
         requirement_(FailStrm, UID, ICS, SL, SC, Requirement, NextUID)).
 requirement_(FailStrm, UID, ICS, SL, SC, Requirement, NextUID) -->
     sseq,
-    name([], N, _), !,
+    name([], N, PMrk, _), !,
     optional(abbrev(A), {A=[_{abbrevName:null}]}), !,
     clmatch_optional(CLC),
     lseq,
@@ -320,7 +320,7 @@ requirement_(FailStrm, UID, ICS, SL, SC, Requirement, NextUID) -->
     optional(contains(FailStrm, UID, R, CCS, NextUID),
              { R=[], CCS=[], NextUID=UID }), !,
     { first_line_pos(SL, SC, ICS, P),
-      mkElement(requirement, N, P, UID, Elem0),
+      mkElement(requirement, N, PMrk, P, UID, Elem0),
       addElemPart(_{explanation: E, requirements: R}, Elem0, Elem1),
       foldl(addElemPart, [A, I], Elem1, Elem2),
       foldl(extendElemPart(comments), [ICS , CLC, ELC, CCS], Elem2, Requirement)
@@ -355,12 +355,12 @@ requirements_(FailStrm, UID, ICS, SL, SC, Requirements) -->
 
 commonEventReqScenario(FailStrm, T, UID, ICS, SL, SC, Result, ES) -->
     sseq,
-    name([], N, _),
+    name([], N, PMrk, _),
     clmatch_optional(CLC),
     lseq,
     sequence(commonEntry(FailStrm), ES),
     { first_line_pos(SL, SC, ICS, P),
-      mkElement(T, N, P, UID, Elem0),
+      mkElement(T, N, PMrk, P, UID, Elem0),
       foldl(extendElemPart(comments), [ICS, CLC], Elem0, Result)
     }.
 
@@ -447,9 +447,21 @@ featureBody(E, CB) --> clseq(ICS),
 
 featureEnd(CS) --> sseq, optional((cmnt_only(C), {CS=[C]}), {CS=[]}).
 
-name(Excluding, N, P) --> sseq, nameWord(Excluding, X, P),
-                          sequence(moreName(Excluding), YS), sseq,
-                          { intercalate([X|YS], " ", N) }.
+name(Excluding, N, P) --> % no classification allowed (e.g. qname ref)
+    sseq, nameWord(Excluding, X, P),
+    sequence(moreName(Excluding), YS), sseq,
+    { intercalate([X|YS], " ", N) }.
+name(Excluding, N, PortionMark, P) -->
+    sseq,
+    [c('(',_,_)], fullWord("():", "):", PortionMark, _), [c(')',_,_)],
+    sseq,
+    nameWord(Excluding, X, P),
+    sequence(moreName(Excluding), YS), sseq,
+    { intercalate([X|YS], " ", N) }.
+name(Excluding, N, no_portion_mark, P) --> % default portion mark
+    sseq, nameWord(Excluding, X, P),
+    sequence(moreName(Excluding), YS), sseq,
+    { intercalate([X|YS], " ", N) }.
 moreName(Excluding, Y) --> sseqPlus, nameWord(Excluding, Y, _).
 abbrev(_{abbrevName:X}) --> [c('(',L,C)], !,
                             (nameWord([], X, _)
@@ -610,7 +622,7 @@ first_line_pos(_, _, [C|_], P) :- get_dict(pos, C, P).
 first_line_pos(SP, [], SP).
 first_line_pos(_, [C|_], P) :- get_dict(pos, C, P).
 
-mkElement(E, N, P, UID, E{ name: N, uid: UID, pos: P }).
+mkElement(E, N, PM, P, UID, E{ name: N, portion_mark: PM, uid: UID, pos: P }).
 
 % Adds P to dict E, where P is either a dict or a list of dicts
 addElemPart(P, E, EOut) :-
