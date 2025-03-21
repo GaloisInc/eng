@@ -666,7 +666,7 @@ xform_past_temporal_unbounded(I, I).  % TODO
 xform_future_temporal_unbounded(I, I). % TODO
 xform_past_temporal(I, I).  % TODO
 xform_future_temporal(I, I). % TODO
-xform_past_optimize(I, I).  % TODO xform.transform(X, xform.optimizePT)
+xform_past_optimize(I, O) :- past_optimize(I, O).
 xform_future_optimize(I, I).  % TODO xform.transform(X, xform.optimizeFT)
 
 conjunction([], "").

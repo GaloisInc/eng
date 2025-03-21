@@ -1,6 +1,9 @@
 % Parses the LTL input text into an AST.
 
-:- module(ltl, [ parse_ltl/2, emit_ltl/2, emit_CoCoSpec/2 ]).
+:- module(ltl, [ parse_ltl/2,
+                 past_optimize/2,
+                 emit_ltl/2,
+                 emit_CoCoSpec/2 ]).
 
 :- use_module('../englib').
 
@@ -197,6 +200,19 @@ wchar(C) :- \+ char_type(C, space),
 num([N|NS]) --> digit(N), num(NS).
 num(N) --> digit(N).
 digit(D) --> [ (D) ], { char_type(D, digit) }.
+
+
+% ----------------------------------------------------------------------
+
+past_optimize(and(E1, E2), and(E1O, E2O)) :-
+    !, past_optimize(E1, E1O), past_optimize(E2, E2O).
+past_optimize(or(E1, E2), or(E1O, E2O)) :-
+    !, past_optimize(E1, E1O), past_optimize(E2, E2O).
+past_optimize(implies(E1, E2), implies(E1O, E2O)) :-
+    !, past_optimize(E1, E1O), past_optimize(E2, E2O).
+past_optimize(ltlH(E), ltlH(EO)) :- !, past_optimize(E, EO).
+past_optimize(ltlZ(false), not(ltlY(true))) :- !.  % R8, R1
+past_optimize(AST, AST).
 
 % ----------------------------------------------------------------------
 
