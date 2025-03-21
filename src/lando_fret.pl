@@ -34,35 +34,40 @@ collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, Semantics),
     get_dict(variables, Semantics, ReqVars),
-    collect_req_vars(Defs, Req, SSLBody, ReqVars, SubVars, OutReq, OutVars),
+    collect_req_vars(Defs, FretReq, SSLBody, ReqVars, SubVars, OutFretReq, OutVars),
+    get_dict(requirement, OutFretReq, OutReq),
     OutReqs = [OutReq|SubReqs].
 
-collect_req_vars(_, Req, _, [], VS, Req, VS).
-collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+collect_req_vars(_, FretReq, _, [], VS, FretReq, VS).
+collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
     existing_var(RV, VS, V, VSNoV),
     !,
+    get_dict(requirement, FretReq, Req),
     add_var_ref(V, Req, UpdV),
-    collect_req_vars(Defs, Req, SSLBody, RVS, [UpdV|VSNoV], OutReq, OutVS).
-collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+    collect_req_vars(Defs, FretReq, SSLBody, RVS, [UpdV|VSNoV], OutReq, OutVS).
+collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
     component_var(RV, SSLBody, CompVar),
     !,
+    get_dict(requirement, FretReq, Req),
     add_var_ref(CompVar, Req, V),
-    collect_req_vars(Defs, Req, SSLBody, RVS, [V|VS], OutReq, OutVS).
-collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+    collect_req_vars(Defs, FretReq, SSLBody, RVS, [V|VS], OutReq, OutVS).
+collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
     scenario_var(RV, SSLBody, MainV, ScenarioV),
     !,
-    update_req_with_var(Defs, ScenarioV, Req, UpdReq),
+    get_dict(requirement, FretReq, Req),
+    update_req_with_var(Defs, ScenarioV, FretReq, UpdReq),
     add_var_ref(MainV, Req, MainVar),
     (get_dict(variable_name, ScenarioV, SVName),
      existing_var(SVName, VS, SV, VSNoV)
     -> add_var_ref(SV, Req, ScenarioVar),
        collect_req_vars(Defs, UpdReq, SSLBody, RVS, [MainVar,ScenarioVar|VSNoV], OutReq, OutVS)
-    ; add_var_ref(ScenarioV, UpdReq, ScenarioVar),
+    ; get_dict(requirement, UpdReq, UReq),
+      add_var_ref(ScenarioV, UReq, ScenarioVar),
       collect_req_vars(Defs, UpdReq, SSLBody, RVS, [MainVar,ScenarioVar|VS], OutReq, OutVS)
     ).
-collect_req_vars(Defs, Req, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
+collect_req_vars(Defs, FretReq, SSLBody, [RV|RVS], VS, OutReq, OutVS) :-
     print_message(warning, no_fret_var_info(RV)),
-    collect_req_vars(Defs, Req, SSLBody, RVS, VS, OutReq, OutVS).
+    collect_req_vars(Defs, FretReq, SSLBody, RVS, VS, OutReq, OutVS).
 
 existing_var(VName, [Var|VS], Var, VS) :- get_dict(variable_name, Var, VName).
 existing_var(VName, [V|Vars], Var, [V|VSNoV]) :-
@@ -78,13 +83,15 @@ add_var_ref_(Var, ReqID, UpdVar) :-
     ; put_dict(_{reqs: [ReqID|Reqs]}, Var, UpdVar)
     ).
 
-update_req_with_var(_, Var, Req, Req) :-
+update_req_with_var(_, Var, FretReq, FretReq) :-
+    get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, Semantics),
     get_dict(variables, Semantics, ReqVars),
     get_dict(variable_name, Var, VName),
     member(VName, ReqVars),
     !.
-update_req_with_var(Defs, Var, Req, UpdReq) :-
+update_req_with_var(Defs, Var, FretReq, UpdReq) :-
+    get_dict(requirement, FretReq, Req),
     get_dict(fulltext, Req, OrigEnglish),
     get_dict(variable_name, Var, VName),
     (string_chars(OrigEnglish, Chars),
@@ -281,8 +288,7 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [Index|IXS], [
     get_dict(key, Index, "FRET"),
     !,
     parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num,
-                        Index, Requirement),
-    Req = _{requirement:Requirement},
+                        Index, Req),
     succ(Num, NextNum),
     make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, NextNum, IXS, Reqs).
 make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [_|IXS], Reqs) :-
@@ -315,7 +321,8 @@ parse_fret_into_req(Defs, Context, ReqBase, English, Req) :-
     parse_fret(Context, English, FretMent),
     !,
     ( fretment_semantics(Defs, FretMent, FretReq)
-    -> put_dict(_{ fulltext: English, semantics: FretReq}, ReqBase, Req)
+    -> put_dict(_{fulltext: English, semantics: FretReq}, ReqBase, Requirement),
+       Req = _{requirement:Requirement, fretment:FretMent}
     ; print_message(error, no_semantics(Context, English, FretMent))
     ).
 parse_fret_into_req(_, Context, _, English, noreq) :-
