@@ -163,7 +163,7 @@ prolog:message(using_pat(H)) --> [ "Using PAT to access ~w~n" - [ H ] ].
 
 vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :- !,
     do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
-            [ 'git -C {VCSDir} status',
+            [ 'git -C {VCSDir} status -s',
               'git -C {VCSDir} fetch --dry-run origin -q'
             ],
             [], TopDir, Sts).
