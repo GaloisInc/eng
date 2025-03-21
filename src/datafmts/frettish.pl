@@ -238,6 +238,13 @@ postcond(E, V, P) --> bool_expr(E, V, P).
 
 bool_expr(V, Vars, P) --> bool_term(LT, LV, LP),
                           bool_exprMore(LT, LV, LP, V, Vars, P).
+bool_expr(V, Vars, P) --> numeric_expr(LT, LV, LP),
+                          relational_op(Op, _),
+                          numeric_expr(RT, RV, RP),
+                          { binary_(Op, LT, LV, LP, RT, RV, RP, XT, XV, XP) },
+                          bool_exprMore(XT, XV, XP, V, Vars, P).
+bool_term("true", [], P) --> lexeme(true, P).
+bool_term("false", [], P) --> lexeme(false, P).
 bool_term(V, [], P) --> lexeme(num, V, P).
 bool_term(V, [V], P) --> lexeme(word, V, P).
 bool_term(V, Vars, P) --> lexeme(not_, LP),
@@ -249,24 +256,49 @@ bool_term(V, Vars, P) --> lexeme(lparen, LP),
                           { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
                           lexeme(rparen, RP),
                           { pos(LP, RP, P) }.
+% KWQ: ~ XOR -> => <-> <=> "IF be THEN be" "AT THE (PREVIOUS|NEXT) OCCURRENCE OF be, be", "ID(args,...)"
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, and_, "&", V, Vars, P).
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, or_, "|", V, Vars, P).
-bool_exprMore(LT, LV, LP, V, Vars, P) -->
-    bool_exprMoreBin(LT, LV, LP, gteq_, ">=", V, Vars, P).
-bool_exprMore(LT, LV, LP, V, Vars, P) -->
-    bool_exprMoreBin(LT, LV, LP, lteq_, "<=", V, Vars, P).
-bool_exprMore(LT, LV, LP, V, Vars, P) -->
-    bool_exprMoreBin(LT, LV, LP, gt_, ">", V, Vars, P).
-bool_exprMore(LT, LV, LP, V, Vars, P) -->
-    bool_exprMoreBin(LT, LV, LP, lt_, "<", V, Vars, P).
 bool_exprMore(LT, LV, LP, LT, LV, LP) --> [].
 
 bool_exprMoreBin(LT, LV, LP, Matcher, Op, V, Vars, P) -->
     lexeme(Matcher, _), bool_term(RT, RV, RP),
     { binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) },
     bool_exprMore(XS, XV, XP, V, Vars, P).
+%% bool_exprMoreBin(LT, LV, LP, Matcher, Op, V, Vars, P) -->
+%%     lexeme(Matcher, _), numeric_expr..., relational_op..., numeric_expr..., % if not requiring parens for these
+%%     { binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) },
+%%     bool_exprMore(XS, XV, XP, V, Vars, P).
+
+numeric_expr(E, Vars, P) --> numeric_term(LT, LV, LP),
+                             numeric_exprMore(LT, LV, LP, E, Vars, P).
+numeric_term(V, [], P) --> lexeme(num, V, P).
+numeric_term(V, [V], P) --> lexeme(word, V, P).
+numeric_term(V, Vars, P) --> lexeme(minus_, LP),
+                             numeric_term(NV, Vars, NP),
+                             { format(atom(X), '(-~w)', [NV]), atom_string(X, V) },
+                             { pos(LP, NP, P) }.
+numeric_term(V, Vars, P) --> lexeme(lparen, LP),
+                             numeric_expr(PV, Vars, _),
+                             { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
+                             lexeme(rparen, RP),
+                             { pos(LP, RP, P) }.
+% KWQ: ^ - * / + - (E)
+numeric_exprMore(LT, LV, LP, V, Vars, P) -->
+    lexeme(relational_op, RO, _),
+    numeric_term(RT, RV, RP),
+    { binary_(RO, LT, LV, LP, RT, RV, RP, XT, XV, XP) },
+    numeric_exprMore(XT, XV, XP, V, Vars, P).
+numeric_exprMore(LT, LV, LP, LT, LV, LP) --> [].
+
+relational_op("!=", Pos) --> lexeme(neq_, Pos).
+relational_op("<=", Pos) --> lexeme(lteq_, Pos).
+relational_op(">=", Pos) --> lexeme(gteq_, Pos).
+relational_op("=", Pos) --> lexeme(eq_, Pos).
+relational_op("<", Pos) --> lexeme(lt_, Pos).
+relational_op(">", Pos) --> lexeme(gt_, Pos).
 
 num([N|NS], P) --> dig(N, PD), num(NS, PN), { pos(PD, PN, P) }.
 num(N, P) --> dig(N, P).
@@ -319,6 +351,9 @@ lt_(span(P,P)) --> [(P,'<')].
 and_(span(P,P)) --> [(P,'&')].
 or_(span(P,P)) --> [(P,'|')].
 not_(span(P,P)) --> [(P,'!')].
+eq_(span(P,P)) --> [(P,'=')].
+neq_(span(P,P)) --> [(P,'!=')].
+minus_(span(P,P)) --> [(P,'-')].
 
 token(M,P) --> word(W,P), { any_case_match([M], W) }.
 
