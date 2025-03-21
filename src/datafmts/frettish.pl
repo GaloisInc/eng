@@ -125,30 +125,28 @@ cond_(C,CP,V) -->
 cond_(C,CP,V) --> qcond1_(C,CP,V), opt_comma(_).
 
 qcond1_(C,P,Vars) -->
+    lexeme(unless, QP),
+    lexeme(precond, E, Vars, EP),
+    { !, pos(QP, EP, P), qcond1_false_("unless",E,C)}.
+qcond1_(C,P,Vars) -->
     lexeme(qualifier, Q, QP),
     lexeme(precond, E, Vars, _), lexeme(is, _), lexeme(true, EP),
-    { !,
-      pos(QP, EP, P),
-      qcond1_true_(Q,E,C)
-    }.
+    { !, pos(QP, EP, P), qcond1_true_(Q,E,C)}.
 qcond1_(C,P,Vars) -->
     lexeme(qualifier, Q, QP),
     lexeme(precond, E, Vars, _), lexeme(is, _), lexeme(false, EP),
-    { !,
-      pos(QP, EP, P),
-      format(atom(PCA), "(!(~w))", [E]), atom_string(PCA, PC), % n.b. negated
-      C = _{ qualifier_word:Q,
-             pre_condition: PC,
-             regular_condition: PC
-           }
-    }.
+    { !, pos(QP, EP, P), qcond1_false_(Q,E,C)}.
 qcond1_(C,P,Vars) -->
     lexeme(qualifier, Q, QP), lexeme(precond, E, Vars, CP),
-    { pos(QP, CP, P),
-      qcond1_true_(Q,E,C)
-    }.
+    { pos(QP, CP, P), qcond1_true_(Q,E,C)}.
 qcond1_true_(Q,E,C) :-
     format(atom(PCA), "(~w)", [E]), atom_string(PCA, PC),
+    C = _{ qualifier_word:Q,
+           pre_condition: PC,
+           regular_condition: PC
+         }.
+qcond1_false_(Q,E,C) :-
+    format(atom(PCA), "(!(~w))", [E]), atom_string(PCA, PC), % n.b. negated
     C = _{ qualifier_word:Q,
            pre_condition: PC,
            regular_condition: PC
