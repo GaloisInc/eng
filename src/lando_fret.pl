@@ -29,8 +29,9 @@ resource(fret_semantics, 'src/semantics.json').
 % --------------------
 
 collect_vars(_, _, [], [], [], []).
-collect_vars(Defs, SSLBody, [Req|InpReqs], Vars, OutReqs, OutVars) :-
+collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     collect_vars(Defs, SSLBody, InpReqs, Vars, SubReqs, SubVars),
+    get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, Semantics),
     get_dict(variables, Semantics, ReqVars),
     collect_req_vars(Defs, Req, SSLBody, ReqVars, SubVars, OutReq, OutVars),
@@ -280,7 +281,8 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [Index|IXS], [
     get_dict(key, Index, "FRET"),
     !,
     parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num,
-                        Index, Req),
+                        Index, Requirement),
+    Req = _{requirement:Requirement},
     succ(Num, NextNum),
     make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, NextNum, IXS, Reqs).
 make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [_|IXS], Reqs) :-
@@ -289,11 +291,11 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [_|IXS], Reqs)
 
 parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
     get_dict(values, Index, Lines),
+    intercalate(Lines, " ", English),
     get_dict(pos, Index, pos{line:Line, col:_Col}),
     format(atom(Context), 'line ~w (~w.~w.~w #~w)',
            [ Line, ProjName, CompName, ReqName, Num ]),
     format(atom(ParentID), '~w-req-~w', [ ProjName, UID ]),
-    intercalate(Lines, " ", English),
     (Num == 0
     -> ReqID = ParentID, ParID = "", RName = ReqName
     ; format(atom(ReqID), '~w-~w', [ ParentID, Num ]),
