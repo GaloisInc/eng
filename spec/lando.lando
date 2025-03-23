@@ -1,6 +1,35 @@
 // System specification describing Lando itself
 
-subsystem lando
-Lando is a tool for describing a system in a Systems Specificaion Language
+subsystem lando (Lando)
+Lando is a tool for describing a system in a Systems Specification Language
 (defined by Lando) and performing validation on and conversion of that SSL
 to other useful forms.
+
+contains
+
+  subsystem fret extraction
+  It is possible to extract FRET specifications from Lando.  This is described
+  further in the lando2fret document.
+
+end
+
+subsystem Formal Requirements Elicitation Tool (FRET)
+FRET is a tool developed by NASA to use semi-formal English statements to
+describe a system, and convert those statements to verify with the Kind2
+verifier.
+
+  indexing
+    URL: https://github.com/NASA-SW-VnV/fret
+
+subsystem Kind2 (Kind2)
+Kind 2 is an open-source, multi-engine, SMT-based automatic model checker for
+safety properties of finite-state or infinite-state synchronous reactive systems
+expressed as in an extension of the Lustre language. In its basic configuration
+it takes as input one or more Lustre files annotated with properties to be proven
+invariant, and outputs for each property either a confirmation or a
+counterexample, i.e., a sequence inputs that falsifies the property. More
+advanced features include contract-based compositional verification, proof
+generation for proven properties, and contract-based test generation.
+
+  indexing
+    URL: https://kind2-mc.github.io/kind2/
