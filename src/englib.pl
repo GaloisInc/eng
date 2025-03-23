@@ -39,6 +39,7 @@ prolog:message(unknown_type(Where, What)) -->
     [ 'Unknown type provided to ~w: ~w~n' - [ Where, What ] ].
 
 show_type(X, "atom") :- atom(X), !.
+show_type(X, "number") :- number(X), !.
 show_type(X, "string") :- string(X), !.
 show_type(X, "var") :- var(X), !.
 show_type(X, R) :- is_list(X), !,
