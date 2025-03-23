@@ -622,6 +622,8 @@ first_line_pos(_, _, [C|_], P) :- get_dict(pos, C, P).
 first_line_pos(SP, [], SP).
 first_line_pos(_, [C|_], P) :- get_dict(pos, C, P).
 
+mkElement(E, N, P, UID, E{ name: N, uid: UID, pos: P }).
+mkElement(E, N, no_portion_mark, P, UID, E{ name: N, uid: UID, pos: P }).
 mkElement(E, N, PM, P, UID, E{ name: N, portion_mark: PM, uid: UID, pos: P }).
 
 % Adds P to dict E, where P is either a dict or a list of dicts
