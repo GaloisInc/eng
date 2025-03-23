@@ -482,8 +482,11 @@ nameWord(Excluding, X, P) --> fullWord("():", "():,.!?", X, P),
 fullWord(MCI, FCI, W, _{line:L, col:C}) -->
     [w(A,L,C)],
     { main_does_not_contain(A, MCI) },
-    remWord(MCI,FCI,WS), !,
-    { string_concat(A, WS, W) }.
+    remWord(MCI,FCI,WS),
+    { string_concat(A, WS, W),
+      does_not_end_with(W, FCI),
+      true
+    }.
 fullWord(MCI, FCI, W, _{line:L, col:C}) -->
     [c(A,L,C)],
     remWord(MCI,FCI,WS), !,
@@ -492,7 +495,8 @@ fullWord(MCI, FCI, W, _{line:L, col:C}) -->
 
 remWord(MCI, FCI, W) --> [ c(Char,_,_) ],
                          remWord(MCI, FCI, WS),
-                         { ok_ending(MCI, FCI, Char, WS, W) }.
+                         { atom_string(Char, CStr),
+                           ok_ending(MCI, FCI, CStr, WS, W) }.
 remWord(MCI, FCI, W) --> [ w(A,_,_) ],
                          { main_does_not_contain(A, MCI) },
                          remWord(MCI, FCI, WS),
@@ -638,7 +642,8 @@ extendElemPart(N, P, E, EOut) :-
     get_dict(N, E, OldP), !, (append(OldP, P, NewP), put_dict(N, E, NewP, EOut))
     ; put_dict(N, E, P, EOut).
 
-% Fails if the first string has overlaps with the second or third strings.
+% Fails if the first string--excepting the final character has overlaps with the
+% second.
 main_does_not_contain(S, Invalid) :-
     string_codes(S, SC),
     append(M, [_], SC),
