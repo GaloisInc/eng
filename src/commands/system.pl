@@ -52,28 +52,32 @@ system_cmd(_, ['list'|_], 0) :-
     writeln('Known system specifications:'), show_system_specs(_); true.
 
 system_cmd(_, ['validate'], 1) :- print_message(error, specify_ssl_id).
-system_cmd(_, ['validate', 'ALL'], Result) :-
-    process_system_specs(validate_system_spec, Result).
-system_cmd(_, ['validate'|Specs], Result) :-
-    process_system_specs(validate_system_spec, Specs, Result).
+system_cmd(Context, ['validate', 'ALL'], Result) :-
+    process_system_specs(Context, validate_system_spec, Result).
+system_cmd(Context, ['validate'|Specs], Result) :-
+    process_system_specs(Context, validate_system_spec, Specs, Result).
 
 system_cmd(_, ['gen'], 1) :- print_message(error, specify_ssl_id).
-system_cmd(_, ['gen', 'ALL'], Result) :-
-    process_system_specs(generate_system_spec, Result).
-system_cmd(_, ['gen'|Specs], Result) :-
-    process_system_specs(generate_system_spec, Specs, Result).
+system_cmd(Context, ['gen', 'ALL'], Result) :-
+    process_system_specs(Context, generate_system_spec, Result).
+system_cmd(Context, ['gen'|Specs], Result) :-
+    process_system_specs(Context, generate_system_spec, Specs, Result).
 
 system_cmd(_, [Cmd|_], 1) :-
     print_message(error, invalid_system_subcmd(Cmd)).
 
 % ----------------------------------------------------------------------
 
-process_system_specs(Op, Result) :-
+process_system_specs(Context, Op, Result) :-
+    Context = context(_, TopDir),
+    working_directory(_, TopDir),
     (setof(S, eng:key(system, spec, S), Specs); Specs = []),
     maplist(Op, Specs, Results),
     sum_list(Results, Result).
 
-process_system_specs(Op, Specs, Result) :-
+process_system_specs(Context, Op, Specs, Result) :-
+    Context = context(_, TopDir),
+    working_directory(_, TopDir),
     findall(R, (member(Spec, Specs), call(Op, Spec, R)), Results),
     sum_list(Results, Result).
 
