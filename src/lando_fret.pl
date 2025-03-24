@@ -523,9 +523,9 @@ fretment_semantics(Defs, Fretment, Semantics) :-
     Fretment = fretment(scope_info(Scope, ScopeVars),
                         condition_info(Condition, CondVars),
                         component_info(Comp),
-                        timing_info(Timing),
+                        timing_info(Timing, TimingVars),
                         response_info(Response, RespVars)),
-    append([ScopeVars, CondVars, RespVars], AllVars),
+    append([ScopeVars, CondVars, TimingVars, RespVars], AllVars),
     list_to_set(AllVars, Vars),
     SemanticsBase = semantics{ type: "nasa",
                                % The set of variables referenced by this fret

@@ -36,7 +36,7 @@ unenumerate([C|OS], [(_,C)|CS]) :- unenumerate(OS, CS).
 frettish(fretment(scope_info(Scope, ScopeVars),
                   condition_info(Condition, CondVars),
                   component_info(Comp),
-                  timing_info(Timing),
+                  timing_info(Timing, TimingVars),
                   response_info(Responses, RespVars)
                  )) -->
     scope(Scope, ScopeVars),
@@ -47,7 +47,7 @@ frettish(fretment(scope_info(Scope, ScopeVars),
     %% {format('....component: ~w~n', [Comp])},
     lexeme(shall, _),
     !,
-    timing(Timing),
+    timing(Timing, TimingVars),
     %% {format('....timing: ~w~n', [Timing])},
     lexeme(satisfy, SP),
     !,
@@ -59,7 +59,7 @@ frettish(fretment(scope_info(Scope, ScopeVars),
 frettish(fretment(scope_info(Scope, ScopeVars),
                   condition_info(Condition, CondVars),
                   component_info(Comp),
-                  timing_info(Timing),
+                  timing_info(Timing, TimingVars),
                   response_info(Responses, RespVars)
                  )) -->
     scope(Scope, ScopeVars),
@@ -69,8 +69,8 @@ frettish(fretment(scope_info(Scope, ScopeVars),
     lexeme(shall, _),
     !,
     component(Comp),
-    %% {format('....component: ~w~n', [Comp])},
-    timing(Timing),
+    %% {format('._..component: ~w~n', [Comp])},
+    timing(Timing, TimingVars),
     %% {format('....timing: ~w~n', [Timing])},
     lexeme(satisfy, SP),
     !,
@@ -92,15 +92,27 @@ scope(Scope, Vars) -->
     }.
 scope(_{scope:_{type: null}}, []) --> [].
 
+scope_(_{scope:_{type: "after"}, scope_mode:Mode,
+         exclusive: false, required: false}, Vars, Pos) -->
+    after(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
+scope_(_{scope:_{type: "before"}, scope_mode:Mode,
+         exclusive: false, required: false}, Vars, Pos) -->
+    before(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
+scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
+    during(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars, Pos) -->
-    when(P0), lexeme(not, _), lexeme(in, _), scope_mode(Mode, Vars, PM),
+    if(P0), lexeme(not, _), lexeme(in, _), scope_mode(Mode, Vars, PM),
     { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
     in(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
-scope_(_{scope:{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
-    during(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
-% scope_(TODO) --> TODO.
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars, Pos) -->
+    when(P0), lexeme(not, _), lexeme(in, _), scope_mode(Mode, Vars, PM),
+    { pos(P0, PM, Pos) }.
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars, Pos) -->
+    unless(P0), lexeme(in, _), scope_mode(Mode, Vars, PM),
+    { pos(P0, PM, Pos) }.
 
+% scope_mode: mode WORD | WORD mode | WORD
 scope_mode(Mode, [Mode], P) --> lexeme(mode, P0), lexeme(word, Mode, PE),
                                 { pos(P0, PE, P) }.
 scope_mode(Mode, [Mode], P) --> lexeme(word, Mode, P0), lexeme(mode, PE),
@@ -111,18 +123,20 @@ scope_mode(Mode, [Mode], P) --> lexeme(word, Mode, P).
 
 conditions(ReqCond, Vars) -->
     and(P0), cond_(C,CP,AllVars),
-    { pos(P0, CP, P),
-      range(P, Range),
-      list_to_set(AllVars, Vars),
-      put_dict(C, _{condition:"regular", conditionTextRange:Range}, ReqCond )
-    }.
+    { pos(P0, CP, P), set_cond(C, P, AllVars, ReqCond, Vars) }.
 conditions(ReqCond, Vars) -->
     cond_(C,CP,AllVars),
-    { range(CP, Range),
-      list_to_set(AllVars, Vars),
-      put_dict(C, _{condition:"regular", conditionTextRange:Range}, ReqCond )
-    }.
+    { set_cond(C, CP, AllVars, ReqCond, Vars) }.
 conditions(_{condition:"null"}, []) --> [].
+set_cond(C, CP, AllVars, ReqCond, Vars) :-
+    range(CP, Range),
+    list_to_set(AllVars, Vars),
+    (get_dict(qualifier_word, C, "whenever")
+    -> CND = "noTrigger"
+    ; CND = "regular"
+    ),
+    put_dict(C, _{condition:CND, conditionTextRange:Range}, ReqCond).
+
 
 cond_(C,CP,V) -->
     qcond1_(C0,CP0,V0), opt_comma(_), qcond2_(C0,CP0,V0,C,CP,V), opt_comma(_).
@@ -208,22 +222,70 @@ component(_{ component: Comp,
 
 % --------------------------------------------------
 
-timing(_{ timing: "immediately", timingTextRange:Range}) -->
-    lexeme(immediately, P),
-    { range(P, Range) }.
-timing(_{ timing: "eventually", timingTextRange:Range}) -->
-    lexeme(eventually, P),
-    { range(P, Range) }.
-timing(_{ timing: "next", timingTextRange:Range}) -->
+timing(_{ timing: "always", timingTextRange:Range}, []) -->
+    lexeme(always, P), {range(P, Range)}.
+timing(_{ timing: "before", stop_condition: Cond, timingTextRange:Range}, Vars) -->
+    lexeme(before, SP), bool_expr(Cond, Vars, LP),
+    { pos(SP, LP, P), range(P, Range) }.
+timing(_{ timing: "immediately", timingTextRange:Range}, []) -->
+    lexeme(at, SP), lexeme(the, _), lexeme(first, _), lexeme(timepoint, TP),
+    { pos(SP, TP, P), range(P, Range) }.
+timing(_{ timing: "finally", timingTextRange:Range}, []) -->
+    lexeme(at, SP), lexeme(the, _), lexeme(last, _), lexeme(timepoint, TP),
+    { pos(SP, TP, P), range(P, Range) }.
+timing(_{ timing: "next", timingTextRange:Range}, []) -->
     lexeme(at, SP), lexeme(the, _), lexeme(next, _), lexeme(timepoint, TP),
     { pos(SP, TP, P), range(P, Range) }.
-timing(_{ timing: "always", timingTextRange:Range}) -->
-    lexeme(always, P), {range(P, Range)}.
-timing(_{ timing: "never", timingTextRange:Range}) -->
+timing(_{ timing: "immediately", timingTextRange:Range}, []) -->
+    lexeme(at, SP), lexeme(the, _), lexeme(same, _), lexeme(timepoint, TP),
+    { pos(SP, TP, P), range(P, Range) }.
+timing(_{ timing: "for", duration: Duration, timingTextRange:Range}, []) -->
+    lexeme(for, SP), duration_upper(Duration, LP),
+    { pos(SP, LP, P), range(P, Range) }.
+timing(_{ timing: "immediately", timingTextRange:Range}, []) -->
+    lexeme(immediately, P),
+    { range(P, Range) }.
+timing(_{ timing: "eventually", timingTextRange:Range}, []) -->
+    lexeme(eventually, P),
+    { range(P, Range) }.
+timing(_{ timing: "immediately", timingTextRange:Range}, []) -->
+    lexeme(initially, P),
+    { range(P, Range) }.
+timing(_{ timing: "finally", timingTextRange:Range}, []) -->
+    lexeme(finally, P),
+    { range(P, Range) }.
+timing(_{ timing: "never", timingTextRange:Range}, []) -->
     lexeme(never, P), {range(P, Range)}.
+timing(_{ timing: "until", stop_condition: Cond, timingTextRange:Range}, Vars) -->
+    lexeme(until, SP), bool_expr(Cond, Vars, LP),
+    { pos(SP, LP, P), range(P, Range) }.
+timing(_{ timing: "within", duration: Duration, timingTextRange:Range}, []) -->
+    lexeme(within, SP), duration_upper(Duration, LP),
+    { pos(SP, LP, P), range(P, Range) }.
 timing(_{ timing: "always"}) --> [],
                                  { writeln('warning, defaulting to always timing: may not have understood timing phrase') }.
 
+duration_upper(D, P) --> lexeme(number, Dur, SP),
+                          lexeme(timeunit, LP),
+                         { pos(SP, LP, P),
+                           % ensure JSON outputs numbers as a string because
+                           % that's how FRET does it.
+                           format(atom(DA), "~w ", [Dur]),
+                           atom_string(DA, D)
+                         }.
+
+timeunit(P) --> lexeme(token, "tick", P).
+timeunit(P) --> lexeme(token, "ticks", P).
+timeunit(P) --> lexeme(token, "hour", P).
+timeunit(P) --> lexeme(token, "hours", P).
+timeunit(P) --> lexeme(token, "minute", P).
+timeunit(P) --> lexeme(token, "minutes", P).
+timeunit(P) --> lexeme(token, "second", P).
+timeunit(P) --> lexeme(token, "seconds", P).
+timeunit(P) --> lexeme(token, "millisecond", P).
+timeunit(P) --> lexeme(token, "milliseconds", P).
+timeunit(P) --> lexeme(token, "microsecond", P).
+timeunit(P) --> lexeme(token, "microseconds", P).
 
 % --------------------------------------------------
 
@@ -262,7 +324,7 @@ bool_term(V, [], P) --> lexeme(num, V, P).
 bool_term(V, [V], P) --> lexeme(word, V, P).
 bool_term(V, Vars, P) --> lexeme(not_, LP),
                           bool_term(NV, Vars, NP),
-                          { format(atom(X), '!(~w)', [NV]), atom_string(X, V) },
+                          { format(atom(X), '(! ~w)', [NV]), atom_string(X, V) },
                           { pos(LP, NP, P) }.
 bool_term(V, Vars, P) --> lexeme(lparen, LP),
                           bool_expr(PV, Vars, _),
@@ -330,16 +392,23 @@ range(span(S,E), [S,E]).
 opt_comma(P) --> [(N,',')], ws(PE), { pos(N, PE, P) }.
 opt_comma(P) --> ws(P).
 
+after(P) --> token("after", P).
 always(P) --> token("always", P).
 and(P) --> token("and", P).
 at(P) --> token("at", P).
+before(P) --> token("before", P).
 during(P) --> token("during", P).
 eventually(P) --> token("eventually", P).
 false(P) --> token("false", P).
+finally(P) --> token("finally", P).
+first(P) --> token("first", P).
+for(P) --> token("for", P).
 if(P) --> token("if", P).
 immediately(P) --> token("immediately", P).
+initially(P) --> token("initially", P).
 in(P) --> token("in", P).
 is(P) --> token("is", P).
+last(P) --> token("last", P).
 mode(P) --> token("mode", P).
 never(P) --> token("never", P).
 next(P) --> token("next", P).
@@ -347,6 +416,7 @@ not(P) --> token("not", P).
 occurrence(P) --> token("occurrence", P).
 of(P) --> token("of", P).
 or(P) --> token("or", P).
+same(P) --> token("same", P).
 satisfy(P) --> token("satisfy", P).
 shall(P) --> token("shall", P).
 then(P) --> token("then", P).
@@ -354,10 +424,12 @@ the(P) --> token("the", P).
 timepoint(P) --> token("timepoint", P).
 true(P) --> token("true", P).
 unless(P) --> token("unless", P).
+until(P) --> token("until", P).
 upon(P) --> token("upon", P).
 whenever(P) --> token("whenever", P).
 when(P) --> token("when", P).
 where(P) --> token("where", P).
+within(P) --> token("within", P).
 
 lparen(span(P,P)) --> [(P,'(')].
 rparen(span(P,P)) --> [(P,')')].
@@ -392,9 +464,10 @@ word_char(C) :- \+ char_type(C, space),
                               '$',
                               '/']).
 
-number([N|NS]) --> digit(N), number(NS).
-number(N) --> digit(N).
-digit(D) --> [ D ], { member(D, "0123456789") }.  % KWQ: char_code numeric
+number([N|NS], P) --> digit(N, SP), number(NS, NP), {pos(SP, NP, P)}.
+number(N, P) --> digit(N, P).
+digit(D, P) --> [ (P,D) ],
+                { member(D, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']) }. % KWQ: char_code numeric
 
 lexeme(R) --> ws(_), { !, writeln(l0) }, lexeme(R).
 lexeme(R) --> call(R), { writeln(l1), writeln(R) }.
