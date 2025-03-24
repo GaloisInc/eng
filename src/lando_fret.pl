@@ -50,6 +50,11 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     !,
     add_var_ref(CompVar, Inputs, V),
     collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
+    events_var(RV, Inputs, Var),
+    !,
+    add_var_ref(Var, Inputs, V),
+    collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  % old
     scenario_var(RV, Inputs, MainV, scenario(ScenarioV, mode)),
     get_dict(variable_name, ScenarioV, SVName),
@@ -344,6 +349,43 @@ find_scenario_var(VName, [Scenario|_], Value, Desc, Value) :-
 find_scenario_var(VName, [_|Scenarios], ThisValue, Desc, Value) :-
     succ(ThisValue, NextValue),
     find_scenario_var(VName, Scenarios, NextValue, Desc, Value).
+
+
+% ----------
+
+% Search the Lando elements (recursively) to find an "events" declaration for
+% which this input name is one of the event names.
+
+events_var(VName, inputs(_, _, SSLBody), Var) :-
+    phrase(extract_fret_events_var("Default", "Default", VName, Var), SSLBody, _).
+
+extract_fret_events_var(ProjName, _, VName, Var) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, SpecType),
+      member(SpecType, [ system, subsystem ]), %%%% <- selector
+      specElement_ref(SpecElement, SysName),
+      get_dict(body, SpecElement, SysBody),
+      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
+      phrase(extract_fret_events_var(NewProjName, SysName, VName, Var), SysBody, _Remaining)
+    }.
+extract_fret_events_var(ProjName, CompName, VName, Var) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, events), %%%% <- selector
+      get_dict(events, SpecElement, Events),
+      find_event_var(VName, Events, Desc),
+      % n.b. deduplication is handled elsewhere
+      mkVar(ProjName, CompName, VName, Desc, "boolean", "Input", "", Var)
+    }.
+extract_fret_events_var(ProjName, CompName, VName, Var) -->
+    [ _ ],
+    extract_fret_events_var(ProjName, CompName, VName, Var).
+
+find_event_var(VName, [Event|_], Desc) :-
+    get_dict(id, Event, VName),
+    !,
+    get_dict(text, Event, Desc).
+find_event_var(VName, [_|Events], Desc) :-
+    find_event_var(VName, Events, Desc).
 
 
 % ----------------------------------------------------------------------

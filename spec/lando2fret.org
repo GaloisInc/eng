@@ -94,6 +94,9 @@ Conversion from Lando to FRET:
   * The explanation of the ~requirement~ will be used as the FRET justification
     text.
 
+  * A FRET ~events~ with an event entry that matches a FRET variable name will
+    automatically be declared as a Fret Input boolean variable.
+
   * A FRET ~scenarios~ with a one-word word followed by the word "Values" will be
     assumed to describe the (mutually-exclusive) state values for a state.
 
@@ -141,8 +144,9 @@ Conversion from Lando to FRET:
     > In stopping & brakes, the Car shall at the next timepoint satisfy stopped.
     #+end_example
 
-  * General fret variables are indicated by a Lando ~component~, where the
-    variable name is the Lando ~abbrevName~ or first word of the name.
+  * General fret variables (i.e. those not auto-generated via an "events" or
+    "scenarios" Lando specification) are indicated by a Lando ~component~, where
+    the variable name is the Lando ~abbrevName~ or first word of the name.
 
     * Usage :: The FRET use of variable is specified by a component constraint
       ~FRET <USAGE> var.~ where ~USAGE~ is one of: ~Input~, ~Output~, ~Mode~,
