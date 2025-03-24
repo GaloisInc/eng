@@ -213,6 +213,8 @@ timing(_{ timing: "eventually", timingTextRange:Range}) -->
 timing(_{ timing: "next", timingTextRange:Range}) -->
     lexeme(at, SP), lexeme(the, _), lexeme(next, _), lexeme(timepoint, TP),
     { pos(SP, TP, P), range(P, Range) }.
+timing(_{ timing: "always", timingTextRange:Range}) -->
+    lexeme(always, P), {range(P, Range)}.
 timing(_{ timing: "always"}) --> [],
                                  { writeln('warning, defaulting to always timing: may not have understood timing phrase') }.
 
@@ -315,6 +317,7 @@ range(span(S,E), [S,E]).
 opt_comma(P) --> [(N,',')], ws(PE), { pos(N, PE, P) }.
 opt_comma(P) --> ws(P).
 
+always(P) --> token("always", P).
 and(P) --> token("and", P).
 at(P) --> token("at", P).
 during(P) --> token("during", P).
