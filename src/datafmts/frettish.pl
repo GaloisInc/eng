@@ -92,6 +92,9 @@ scope(Scope, Vars) -->
     }.
 scope(_{scope:_{type: null}}, []) --> [].
 
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars, Pos) -->
+    when(P0), lexeme(not, _), lexeme(in, _), scope_mode(Mode, Vars, PM),
+    { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
     in(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
 scope_(_{scope:{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
@@ -340,6 +343,7 @@ is(P) --> token("is", P).
 mode(P) --> token("mode", P).
 never(P) --> token("never", P).
 next(P) --> token("next", P).
+not(P) --> token("not", P).
 occurrence(P) --> token("occurrence", P).
 of(P) --> token("of", P).
 or(P) --> token("or", P).
