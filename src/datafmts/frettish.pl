@@ -11,6 +11,7 @@ parse_fret(Context, English, FretRequirement) :-
     string_chars(English, ECodes),
     enumerate(ECodes, Input),
     phrase(frettish(Semantics), Input, Remaining),
+    !,
     ( Remaining == []
     -> true
     ; ( Remaining = [(_,'.')]
