@@ -9,6 +9,7 @@
 :- use_module('../load').
 :- use_module('../datafmts/lando').
 :- use_module('../lando_tool').
+:- use_module('../lando_validate').
 
 :- dynamic system_spec/1.
 
@@ -160,10 +161,31 @@ show_system_spec(Spec, Name, Format) :-
 validate_system_spec(InputSpec, R) :-
     with_spec_format_and_file(InputSpec, validate_spec, R).
 
-validate_spec(Spec, "lando", SpecFile, 0) :-
-    parse_lando_file(SpecFile, _SSL), !,
-    format("TBD: validation of lando spec: ~w~n", [ Spec ]).
+validate_spec(Spec, "lando", SpecFile, NumProblems) :-
+    parse_lando_file(SpecFile, SSL), !,
+    validate_lando(SSL, Problems),
+      length(Problems, NumProblems),
+    ( Problems == []
+    -> format('Validated Lando specification ~w in ~w~n', [Spec, SpecFile])
+    ; maplist(show_lando_validation_error(Spec, SpecFile), Problems),
+      print_message(error, lando_validation_errors(Spec, SpecFile, NumProblems))
+    ).
+validate_spec(Spec, Format, SpecFile, 1) :-
+    print_message(error, invalid_parse(Format, Spec, SpecFile)).
 validate_spec(_, _, _, 1).
+
+show_lando_validation_error(Spec, SpecFile, Err) :-
+    print_message(error, lando_validation_error(Spec, SpecFile, Err)).
+
+prolog:message(invalid_parse(Format, Spec, SpecFile)) -->
+    [ 'Validation Error: unable to parse ~w format~n  [~w = ~w]~n' -
+      [ Format, SpecFile, Spec ] ].
+prolog:message(lando_validation_error(Spec, SpecFile, Err)) -->
+    [ 'Validation Error: ~w~n  [~w = ~w]~n' - [ Err, SpecFile, Spec ] ].
+prolog :message(number_lando_validation_errors(Spec, SpecFile, Count)) -->
+    [ 'Total of ~w validation Errors~n  [~w = ~w]~n' -
+      [ Count, SpecFile, Spec ] ].
+
 
 % ----------------------------------------------------------------------
 
