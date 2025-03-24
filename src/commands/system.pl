@@ -12,6 +12,7 @@
 :- use_module('../datafmts/lando').
 :- use_module('../lando_tool').
 :- use_module('../lando_validate').
+:- use_module('../fret_kind2').
 
 :- dynamic system_spec/1.
 
@@ -248,14 +249,73 @@ show_kind2_result(O, "realizable", Sts, Sts) :-
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
     print_message(success, kind2_realizable(Time, Unit)). % which CC?
+show_kind2_result(O, "unrealizable", Sts, Sts) :-
+    !,
+    get_dict(conflictingSet, O, Conflicts),
+    get_dict(size, Conflicts, CSize),
+    get_dict(nodes, Conflicts, [Node|Nodes]),
+    (Nodes == [] ; print_message(warning, other_unrealizable_nodes(Nodes))),
+    get_dict(elements, Node, Elems),
+    maplist(get_dict(name), Elems, Names),
+    maplist(normalize_kind2_var, Names, ContractNames),
+    get_dict(deadlockingTrace, O, [Trace|Traces]),
+    (Traces == [] ; print_message(warning, other_unrealizable_traces(Traces))),
+    get_dict(streams, Trace, Streams),
+    findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
+    append(Inputs, ContractNames, InterestingVars),
+    !,
+    show_stream_steps(InterestingVars, Streams),
+    print_message(error, kind2_unrealizable(CSize, Names)).
 show_kind2_result(_, R, Sts, Sts) :-
     print_message(error, unknown_kind2_result(R)).
+
+trace_input(StreamEntry, Name) :-
+    get_dict(class, StreamEntry, "input"),
+    get_dict(name, StreamEntry, Name).
+
+show_stream_steps(Vars, Streams) :-
+    length(Vars, NVars),
+    succ(NVars, NCols),
+    make_format(NCols, Fmt),
+    format(Fmt, ["Step"|Vars]),
+    !,
+    show_stream_steps(Vars, Streams, Fmt, 0).
+show_stream_steps(Vars, Streams, Fmt, StepNum) :-
+    maplist(get_step_val(Streams, StepNum), Vars, Vals),
+    format(Fmt, [StepNum|Vals]),
+    !,
+    succ(StepNum, NextStepNum),
+    (show_stream_steps(Vars, Streams, Fmt, NextStepNum); true).
+
+get_step_val([S|_], StepNum, Var, Val) :-
+    get_dict(name, S, Var),
+    get_dict(instantValues, S, Vals),
+    get_valnum(Vals, StepNum, Val).
+get_step_val([_|Streams], StepNum, Var, Val) :-
+    get_step_val(Streams, StepNum, Var, Val).
+
+get_valnum(StepVals, StepNum, Val) :- member([StepNum,Val], StepVals).
+
+make_format(0, '~78|~n') :- !.
+make_format(N, Fmt) :-
+    succ(P, N),
+    make_format(P, PFmt),
+    atom_concat('~t~w', PFmt, Fmt).
+
 
 show_lando_validation_error(Spec, SpecFile, Err) :-
     print_message(error, lando_validation_error(Spec, SpecFile, Err)).
 
 prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
+prolog:message(kind2_unrealizable(Num, Names)) -->
+    [ 'UNREALIZABLE, ~w conflicts: ~w' - [ Num, Names ] ].
+prolog:message(other_unrealizable_nodes(Nodes)) -->
+    [ 'additional nodes not handled: ~w' - [ Nodes ] ].
+prolog:message(other_unrealizable_traces(Traces)) -->
+    [ 'additional traces not handled: ~w' - [ Traces ] ].
+prolog:message(other_unrealizable_streams(Streams)) -->
+    [ 'additional streams not handled: ~w' - [ Streams ] ].
 prolog:message(unknown_kind2_result(R)) -->
     [ 'Unknown kind2 result: ~w~n' - [ R ] ].
 prolog:message(unrecognized_kind2_result_type(OType)) -->

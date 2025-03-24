@@ -1,4 +1,5 @@
-:- module(fret_kind2, [ fret_kind2/3
+:- module(fret_kind2, [ fret_kind2/3,
+                        normalize_kind2_var/2
                       ]).
 
 :- use_module(library(apply)).
@@ -148,7 +149,7 @@ req_vars([R|RS], [G|GS], [D|DS]) :-
     get_dict(semantics, R, Sem),
     get_dict('CoCoSpecCode', Sem, E),
     format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, E ]),
-    format(atom(G), 'guarantee ~w;', [V]),
+    format(atom(G), 'guarantee "~w" ~w;', [RID, V]),
     req_vars(RS, GS, DS).
 
 normalize_kind2_var(Inp, Out) :-
