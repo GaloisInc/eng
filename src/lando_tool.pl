@@ -75,7 +75,8 @@ write_kind2(OutDir, Kind2Comp, Kind2FName) :-
     directory_file_path(OutDir, FName, Kind2FName),
     open(Kind2FName, write, OutStrm),
     get_dict(kind2, Kind2Comp, Lustre),
-    format(OutStrm, '~w~n', [Lustre]).
+    format(OutStrm, '~w~n', [Lustre]),
+    close(OutStrm).
 
 %% ----------------------------------------------------------------------
 
