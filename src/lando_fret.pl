@@ -7,13 +7,14 @@
 :- use_module('englib').
 
 
-lando_to_fret(LandoSSL, Reqs, FretMents) :-
+lando_to_fret(LandoSSL, FretRequirements, FretMents) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
     phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, _, _), Body, Remaining),
     !,
     fret_results(SemanticDefs, Body, Remaining, Reqs, FretRequirements, FretVariables),
-    FretMents = fret{ requirements: FretRequirements,
+    fretOut(FretRequirements, OutRequirements),
+    FretMents = fret{ requirements: OutRequirements,
                       variables: FretVariables
                     }.
 
@@ -23,6 +24,11 @@ fret_results(Defs, SSLBody, [], InpReqs, OutReqs, OutVars) :-
 fret_results(_, _, Remaining, _, _, _) :-
     format('Unexpected extra not converted to Fret: ~w~n', [Remaining]),
     fail.
+
+fretOut([], []).
+fretOut([FullReq|FReqs], [R|RS]) :-
+    get_dict(requirement, FullReq, R),
+    fretOut(FReqs, RS).
 
 resource(fret_semantics, 'src/semantics.json').
 
@@ -36,8 +42,7 @@ collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     get_dict(variables, Semantics, ReqVars),
     InpConsts = inputs(Defs, FretReq, SSLBody),
     collect_req_vars(InpConsts, ReqVars, SubVars, OutFretReq, OutVars),
-    get_dict(requirement, OutFretReq, OutReq),
-    OutReqs = [OutReq|SubReqs].
+    OutReqs = [OutFretReq|SubReqs].
 
 collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(_, FretReq, _).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  %% KWQ: remove
