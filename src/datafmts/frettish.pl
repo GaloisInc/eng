@@ -246,6 +246,13 @@ bool_expr(V, Vars, P) --> numeric_expr(LT, LV, LP),
                           bool_exprMore(XT, XV, XP, V, Vars, P).
 bool_term("true", [], P) --> lexeme(true, P).
 bool_term("false", [], P) --> lexeme(false, P).
+bool_term(V, Vars, P) --> lexeme(if, IP), bool_expr(Cnd, CVars, _CP),
+                          lexeme(then, _), bool_expr(Thn, TVars, TP),
+                          { format(atom(X), '(~w) => (~w)', [ Cnd, Thn ]),
+                            atom_string(X, V),
+                            append(CVars, TVars, Vars),
+                            pos(IP, TP, P)
+                          }.
 bool_term(V, [], P) --> lexeme(num, V, P).
 bool_term(V, [V], P) --> lexeme(word, V, P).
 bool_term(V, Vars, P) --> lexeme(not_, LP),
@@ -335,6 +342,7 @@ of(P) --> token("of", P).
 or(P) --> token("or", P).
 satisfy(P) --> token("satisfy", P).
 shall(P) --> token("shall", P).
+then(P) --> token("then", P).
 the(P) --> token("the", P).
 timepoint(P) --> token("timepoint", P).
 true(P) --> token("true", P).
