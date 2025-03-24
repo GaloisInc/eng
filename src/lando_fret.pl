@@ -45,11 +45,6 @@ collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     OutReqs = [OutFretReq|SubReqs].
 
 collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(_, FretReq, _).
-collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  %% KWQ: remove
-    existing_var(RV, VS, V, VSNoV),
-    !,
-    add_var_ref(V, Inputs, UpdV),
-    collect_req_vars(Inputs, RVS, [UpdV|VSNoV], OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     component_var(RV, Inputs, CompVar),
     !,
@@ -102,7 +97,12 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     -> add_var_ref(ExistingFSV, UpdInps, FSV), NextVS = FVSNoV
     ; add_var_ref(FinalStateV, UpdInps, FSV), NextVS = MidVS
     ),
-    collect_req_vars(UpdInps, RVS, [MainV,ISV,FSV|NextVS], OutReq, OutVS).
+    % Don't duplicate the state variable
+    get_dict(variable_name, MainV, MainVName),
+    (existing_var(MainVName, NextVS, _, _)
+    ->  collect_req_vars(UpdInps, RVS, [ISV,FSV|NextVS], OutReq, OutVS)
+    ; collect_req_vars(UpdInps, RVS, [MainV,ISV,FSV|NextVS], OutReq, OutVS)
+    ).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     print_message(warning, no_fret_var_info(RV)),
     collect_req_vars(Inputs, RVS, VS, OutReq, OutVS).
