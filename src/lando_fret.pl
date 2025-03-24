@@ -102,8 +102,7 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  % new
 
     % Update the Req to ensure it references the Scenario state initial and final
     % variables--if needed--by modifying the FRETtish English and re-parsing.
-    update_req_with_var(Inputs, InitStateV, MidInps),
-    update_req_with_var(MidInps, FinalStateV, UpdInps),
+    update_req_with_var(Inputs, RV, InitStateV, FinalStateV, UpdInps),
 
     % Update the initial state variable Variable (if necessary) with a reference
     % to this Req.
@@ -159,6 +158,64 @@ update_req_with_var(inputs(Defs, FretReq, SSL), Var, inputs(Defs, UpdReq, SSL)) 
     get_dict(reqid, Req, RName),
     format(atom(Context), 'Add variable ~w into FRET req ~w~n', [VName, RName]),
     parse_fret_into_req(Defs, Context, Req, English, UpdReq).
+
+update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
+                    inputs(Defs, UpdReq, SSL)) :-
+    get_dict(requirement, FretReq, Req),
+    req_needs_var(Req, InitialSV, PreVar),
+    req_needs_var(Req, FinalSV, PostVar),
+    update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq).
+
+update_req_with_var_(_, Req, _, hasvar, hasvar, Req) :- !.
+update_req_with_var_(Defs, Req, RV, hasvar, PostVar, UpdReq) :-
+    !,
+    get_dict(fulltext, Req, OrigEnglish),
+    split_frettish(OrigEnglish, Pre, Post),
+    add_var_state_access(RV, PostVar, Post, UpdPost),
+    update_req_with_newfret(Defs, Pre, UpdPost, Req, UpdReq).
+update_req_with_var_(Defs, Req, RV, PreVar, hasvar, UpdReq) :-
+    !,
+    get_dict(fulltext, Req, OrigEnglish),
+    % Note: this does a crude search-and-replace in the text; if the frettish was
+    % parsed to an API this could be much more refined.
+    split_frettish(OrigEnglish, Pre, Post),
+    add_var_state_access(RV, PreVar, Pre, UpdPre),
+    update_req_with_newfret(Defs, UpdPre, Post, Req, UpdReq).
+update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq) :-
+    get_dict(fulltext, Req, OrigEnglish),
+    % Note: this does a crude search-and-replace in the text; if the frettish was
+    % parsed to an API this could be much more refined.
+    split_frettish(OrigEnglish, Pre, Post),
+    add_var_state_access(RV, PreVar, Pre, UpdPre),
+    add_var_state_access(RV, PostVar, Post, UpdPost),
+    update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq).
+update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq) :-
+    format(atom(English), '~w shall ~w', [ UpdPre, UpdPost ]),
+    get_dict(reqid, Req, RName),
+    format(atom(Context), 'Add state references into FRET req ~w~n', [RName]),
+    parse_fret_into_req(Defs, Context, Req, English, UpdReq).
+
+split_frettish(Frettish, PreCond, PostCond) :-
+    string_chars(Frettish, CS),
+    string_chars(" shall ", SS),
+    append(PreCondCS, SS, AShall),
+    append(AShall, PostCondCS, CS),
+    string_chars(PreCond, PreCondCS),
+    string_chars(PostCond, PostCondCS).
+
+req_needs_var(Req, Var, hasvar) :- req_accesses_var(Req, Var), !.
+req_needs_var(_, Var, Var).
+
+req_accesses_var(Req, Var) :-
+    get_dict(semantics, Req, Semantics),
+    get_dict(variables, Semantics, ReqVars),
+    get_dict(variable_name, Var, VName),
+    member(VName, ReqVars).
+
+add_var_state_access(LclVName, StateVar, Phrase, Out) :-
+    get_dict(variable_name, StateVar, N),
+    format(atom(Repl), '(~w = ~w)', [N, LclVName]),
+    subst(LclVName, Repl, Phrase, Out).
 
 % ----------
 
