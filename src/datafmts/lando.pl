@@ -110,9 +110,9 @@ lstream(_, _, [eof]) --> [].
 
 % Individual token recognition (make sure there's a token recognition for
 % anything not accepted by word tokenizer w() below.
+token(L, C, comment(Cmnt, L, NC), NL, 0) --> comment(L, C, Cmnt, NL, NC), !.
 token(L, C, w(T, L, C), L, NC) --> w(W), !, { atom_chars(T, W),
                                               length(W, WC), plus(C, WC, NC) }.
-token(L, C, comment(Cmnt, L, C), NL, NC) --> comment(L, C, Cmnt, NL, NC).
 token(L, C, c('.',L,C), L, NC) --> ['.'], { succ(C, NC) }.
 token(L, C, c(',',L,C), L, NC) --> [','], { succ(C, NC) }.
 token(L, C, c(':',L,C), L, NC) --> [':'], { succ(C, NC) }.
@@ -125,9 +125,8 @@ token(L, C, c('/',L,C), L, NC) --> ['/'], { succ(C, NC) }. % after comment!
 token(L, C, token_l, NL, NC) --> token(L, C, token_n, NL, NC).
 token(L, C, token_b, NL, NC) --> token(L, C, token_n, L1, C1),
                                  token(L1, C1, token_n, NL, NC).
-token(L, _, token_n, NL, NC) --> [X], {char_type(X, end_of_line)}, !,
-                                 { succ(L, L1) },
-                                 skip_token_s(L1, 0, _, NL, NC).
+token(L, _, token_n, NL, 0) --> [X], {char_type(X, end_of_line)}, !,
+                                { succ(L, NL) }.
 token(L, C, token_s, L, NC) --> [X], { is_S(X), succ(C, NC) }.
 
 skip_token_s(L, C, TSs, NL, NC) --> eat_token_s(L, C, TSs, NL, NC).
@@ -152,8 +151,23 @@ word_char(C) :- \+ char_type(C, space),
                               %% '{', '}', '^', '[', ']', %% XXX?
                               '/']).
 
+whitespace(N) --> [C], {is_S(C)}, whitespace(M), {succ(M, N)}.
+whitespace(0) --> [].
+
 % Parse a comment (here to end-of-line)
-comment(L, _, S, L, 0) --> ['/', '/'], white, whites, c2eol(CS), { atom_chars(S, CS) }.
+comment(L, C, S, L, F) -->
+    % Comment on a line; must have at least one preceeding space (to disambiguate
+    % with things like https://a/url).
+    white,
+    whitespace(W),
+    [ '/', '/'],
+    whites,
+    c2eol(CS), { atom_chars(S, CS), succ(W, X), plus(C, X, F) }.
+comment(L, 0, S, L, 0) -->
+    % Comment at the start of a line, no preceeding whitespace
+    ['/', '/'],
+    whites,
+    c2eol(CS), { atom_chars(S, CS) }.
 
 c2eol([C|Cs]) --> [C], { \+ char_type(C, end_of_line) }, c2eol(Cs).
 c2eol([]) --> [].
@@ -181,6 +195,7 @@ lmatch(token_l) --> sseq, [token_l], sseq.
 clseq(CS) --> sequence(clmatch, CS).
 clmatch(_{text:X, pos:_{line:L,col:C}}) --> sseq, [comment(X, L, C), token_l, token_l].
 clmatch(_{text:X, pos:_{line:L,col:C}}) --> sseq, [comment(X, L, C), token_l].
+clmatch(_{text:X, pos:_{line:L,col:C}}) --> sseq, [comment(X, L, C)].
 clmatch_optional(CS) --> clmatch(C), {CS=[C]}; {CS=[]}.
 cmnt_only(_{text:X, pos:_{line:L,col:C}}) --> sseq, [comment(X, L, C)].
 cmnt_only_optional(CS) --> (sseq,
@@ -207,6 +222,7 @@ specElement(FailStrm, UID, _, UID) --> did_not_see(FailStrm, specElement).
 system(FailStrm, UID, System, NextUID) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(system, SL, SC) ], !,
     saw(FailStrm, system, SL, system_(FailStrm, UID, ICS, SL, SC, System, NextUID)).
 system_(FailStrm, UID, ICS, SL, SC, System, NextUID) -->
@@ -230,6 +246,7 @@ system_(FailStrm, UID, ICS, SL, SC, System, NextUID) -->
 subsystem(FailStrm, UID, Subsys, NextUID) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(subsystem, SL, SC) ], !,
     saw(FailStrm, subsystem, SL, subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID)).
 subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID) -->
@@ -256,6 +273,7 @@ subsystem_(FailStrm, UID, ICS, SL, SC, Subsys, NextUID) -->
 component(FailStrm, UID, Comp, UID) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(component, SL, SC) ], !,
     saw(FailStrm, component, SL, component_(FailStrm, UID, ICS, SL, SC, Comp, UID)).
 component_(FailStrm, UID, ICS, SL, SC, Comp, UID) -->
@@ -284,6 +302,7 @@ component_(FailStrm, UID, ICS, SL, SC, Comp, UID) -->
 componentImport(FailStrm, UID, CompImport) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(import, SL, SC) ], sseqPlus, [ w(component, _, _) ], !,
     saw(FailStrm, componentImport, SL, componentImport_(FailStrm, UID, ICS, SL, SC, CompImport)).
 componentImport_(FailStrm, UID, ICS, SL, SC, CompImport) -->
@@ -304,6 +323,7 @@ componentImport_(FailStrm, UID, ICS, SL, SC, CompImport) -->
 requirement(FailStrm, UID, Requirement, NextUID) -->
     lseq,
     clseq(ICS),
+    sseq,
     %% Other than the name, this is the same as system
     [ w(requirement, SL, SC) ], !,
     saw(FailStrm, requirement, SL,
@@ -329,6 +349,7 @@ requirement_(FailStrm, UID, ICS, SL, SC, Requirement, NextUID) -->
 events(FailStrm, UID, Events) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(events, SL, SC) ], !,
     saw(FailStrm, events, SL, events_(FailStrm, UID, ICS, SL, SC, Events)).
 events_(FailStrm, UID, ICS, SL, SC, Events) -->
@@ -338,6 +359,7 @@ events_(FailStrm, UID, ICS, SL, SC, Events) -->
 scenarios(FailStrm, UID, Scenarios) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(scenarios, SL, SC) ], !,
     saw(FailStrm, events, SL, scenarios_(FailStrm, UID, ICS, SL, SC, Scenarios)).
 scenarios_(FailStrm, UID, ICS, SL, SC, Scenarios) -->
@@ -347,6 +369,7 @@ scenarios_(FailStrm, UID, ICS, SL, SC, Scenarios) -->
 requirements(FailStrm, UID, Requirements) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(requirements, SL, SC) ], !,
     saw(FailStrm, events, SL, requirements_(UID, ICS, SL, SC, Requirements)).
 requirements_(FailStrm, UID, ICS, SL, SC, Requirements) -->
@@ -366,6 +389,7 @@ commonEventReqScenario(FailStrm, T, UID, ICS, SL, SC, Result, ES) -->
 
 commonEntry(FailStrm, Entry) -->
     clseq(ICS),
+    sseq,
     name([ "events",
            "scenarios",
            "requirements",
@@ -387,6 +411,7 @@ commonEntry_(ICS, N, P, Entry) -->
 relation(FailStrm, UID, Relation) -->
     lseq,
     clseq(ICS),
+    sseq,
     [ w(relation, SL, SC) ], !,
     saw(FailStrm, relation, SL, relation_(UID, ICS, SL, SC, Relation)).
 relation_(UID, ICS, SL, SC, Relation) -->
@@ -408,9 +433,11 @@ relationClause(R) --> inheritClause(R).
 relationClause(R) --> clientClause(R).
 
 contains(FailStrm, UID, B, CS, NextUID) -->
+    sseq,
     [ w(contains,_,_) ], !,
     lseq,
     body(FailStrm, UID, B, NextUID),
+    sseq,
     [ w(end,_,_) ],
     %% clmatch_optional(_CLC), % TODO: comment discarded?
     optional((cmnt_only(C), {CS=[C]}), {CS=[]}),
@@ -428,6 +455,7 @@ command(CV)    --> featureBody('!', CB), {addElemPart(CB, command{}, CV)}.
 query(CV)      --> featureBody('?', CB), {addElemPart(CB, query{}, CV)}.
 
 featureBody(E, CB) --> clseq(ICS),
+                       sseq,
                        sentBody(["system",
                                  "subsystem",
                                  "import", % Need 2nd word?
@@ -527,7 +555,7 @@ paragraph(P) --> sentence(S0), sequence(sentence, SS), parend(_),
                  { intercalate([S0|SS], " ", P) }.
 sentence(S) --> sentBody(A), optional(sentTerm(B), {B=""}), wordSep(_),
                 { string_concat(A,B,S) }.
-sentBody(B) --> sentWord(W0, _), sequence(nextSentWord, WS),
+sentBody(B) --> sseq, sentWord(W0, _), sequence(nextSentWord, WS),
                 optional(wordSep(X), {X=[]}),
                 { intercalate([W0|WS], " ", B) }.
 sentBody(Excl, B, P) --> sentWord(W0, P),
@@ -548,6 +576,7 @@ parend(C) --> clmatch_optional(C), [ token_l ], lseq.
 parend(C) --> optional(cmnt_only(C), {C=[]}).
 
 indexing(FailStrm, _{indexing:X}) -->
+    sseq,
     [ w(indexing,_,_) ], !,
     sseq, sequence(indexEntry, X),
     blockend(FailStrm).
