@@ -55,37 +55,12 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     !,
     add_var_ref(Var, Inputs, V),
     collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
-collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  % old
-    scenario_var(RV, Inputs, MainV, scenario(ScenarioV, mode)),
-    get_dict(variable_name, ScenarioV, SVName),
-    component_var(SVName, Inputs, _),
-    !,
-    % The RV references a specific scenario (RV/MainV) in a scenarios group
-    % (SVName), and there is a component definition for the SVName, so the
-    % ScenarioV is an integer state variable, where one of the values is RV.
-    % The output FRET requirement will need to reference the ScenarioV in the
-    % Responses portion (if it doesn't already) as well as cross-referencing
-    % the ScenarioV and the Req to each other in addition to cross referencing
-    % the MainV and the Req together.
-
-    % Update the Req to ensure it references the Scenario variable--if needed--by
-    % modifying the FRETtish English and re-parsing.
-    update_req_with_var(Inputs, ScenarioV, UpdInps),
-    % Update the MainV Variable with a reference to this Req
-    add_var_ref(MainV, UpdInps, MainVar),
-    % Update the ScenarioV Variable (if necessary) with a reference to this Req
-
-    (existing_var(SVName, VS, SV, VSNoV)
-    -> add_var_ref(SV, UpdInps, ScenarioVar), NextVS = VSNoV
-    ; add_var_ref(ScenarioV, UpdInps, ScenarioVar), NextVS = VS
-    ),
-    collect_req_vars(UpdInps, RVS, [MainVar,ScenarioVar|NextVS], OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     scenarios_var(RV, Inputs, Var),
     !,
     add_var_ref(Var, Inputs, V),
     collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
-collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  % new
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     scenario_var(RV, Inputs, MainV,
                  scenario(InitStateV, FinalStateV, internal_transition)), % ScenarioV,
     % ScenarioT)), The initial state variable uses the "scenarios" declared name;
@@ -142,28 +117,6 @@ add_var_ref_(Var, ReqID, UpdVar) :-
     ; put_dict(_{reqs: [ReqID|Reqs]}, Var, UpdVar)
     ).
 
-update_req_with_var(Inputs, Var, Inputs) :-
-    Inputs = inputs(_, FretReq, _),
-    get_dict(requirement, FretReq, Req),
-    get_dict(semantics, Req, Semantics),
-    get_dict(variables, Semantics, ReqVars),
-    get_dict(variable_name, Var, VName),
-    member(VName, ReqVars),
-    !.
-update_req_with_var(inputs(Defs, FretReq, SSL), Var, inputs(Defs, UpdReq, SSL)) :-
-    get_dict(requirement, FretReq, Req),
-    get_dict(fulltext, Req, OrigEnglish),
-    get_dict(variable_name, Var, VName),
-    (string_chars(OrigEnglish, Chars),
-     reverse(Chars, ['.'|RChars])
-    -> reverse(RChars, CS), string_chars(O, CS)
-    ; O = OrigEnglish
-    ),
-    format(atom(English), '~w & (~w >= 0).', [ O, VName ]),
-    get_dict(reqid, Req, RName),
-    format(atom(Context), 'Add variable ~w into FRET req ~w~n', [VName, RName]),
-    parse_fret_into_req(Defs, Context, Req, English, UpdReq).
-
 update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
                     inputs(Defs, UpdReq, SSL)) :-
     get_dict(requirement, FretReq, Req),
@@ -181,19 +134,16 @@ update_req_with_var_(Defs, Req, RV, hasvar, PostVar, UpdReq) :-
 update_req_with_var_(Defs, Req, RV, PreVar, hasvar, UpdReq) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
-    % Note: this does a crude search-and-replace in the text; if the frettish was
-    % parsed to an API this could be much more refined.
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(RV, PreVar, Pre, UpdPre),
     update_req_with_newfret(Defs, UpdPre, Post, Req, UpdReq).
 update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq) :-
     get_dict(fulltext, Req, OrigEnglish),
-    % Note: this does a crude search-and-replace in the text; if the frettish was
-    % parsed to an API this could be much more refined.
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(RV, PreVar, Pre, UpdPre),
     add_var_state_access(RV, PostVar, Post, UpdPost),
     update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq).
+
 update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq) :-
     format(atom(English), '~w shall ~w', [ UpdPre, UpdPost ]),
     get_dict(reqid, Req, RName),
@@ -218,11 +168,16 @@ req_accesses_var(Req, Var) :-
     member(VName, ReqVars).
 
 add_var_state_access(LclVName, StateVar, Phrase, Out) :-
+    % Note: this does a crude search-and-replace in the text; if the frettish was
+    % parsed to an API this could be much more refined.
     get_dict(variable_name, StateVar, N),
     format(atom(Repl), '(~w = ~w)', [N, LclVName]),
     subst(LclVName, Repl, Phrase, Out).
 
 % ----------
+
+% Search the Lando elements (recursively) to find a "component" declaration for
+% this name with the expected sub-elements.
 
 component_var(VName, inputs(_, _, SSLBody), CompVar) :-
     phrase(extract_fret_component_var("Default", "Default", VName, CompVar), SSLBody, _).
@@ -258,6 +213,10 @@ prolog:message(no_fret_var_info(VarName)) -->
     [ 'No FRET information for variable ~w~n' - [ VarName ] ].
 
 % ----------
+
+% Search the Lando elements (recursively) to find a "scenarios" declaration for
+% which this input name is the scenario's main name (in either initial or final
+% name).
 
 scenarios_var(VName, inputs(_, _, SSLBody), Var) :-
     phrase(extract_fret_scenarios_var("Default", "Default", VName, Var), SSLBody, _).
@@ -295,6 +254,9 @@ scenarios_final_var_name(InitName, FinalName) :-
     string_concat(InitName, "_final", FinalName).
 
 % ----------
+
+% Search the Lando elements (recursively) to find a "scenarios" declaration for
+% which this input name is one of the scenario names.
 
 scenario_var(VName, inputs(_, _, SSLBody), MainVar, ScenarioVar) :-
     phrase(extract_fret_scenario_var("Default", "Default", VName,
@@ -465,13 +427,6 @@ mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, Special, Var) :-
 prolog:message(special_usage_unknown(VName, Usage, Val)) -->
     [ 'Unknown ~w usage for special of ~w in variable ~w~n'
       - [ Usage, Val, VName ] ].
-
-var_modes([], _, []).
-var_modes([Scenario|Scenarios], ModeVal, [(ModeName, ModeDesc, ModeVal)|VModes]) :-
-    get_dict(id, Scenario, ModeName),
-    get_dict(text, Scenario, ModeDesc),
-    succ(ModeVal, NextModeVal),
-    var_modes(Scenarios, NextModeVal, VModes).
 
 fret_usage_type(Element, Usage, Type, ModeReqs) :-
     get_dict(features, Element, Features),
