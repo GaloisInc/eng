@@ -216,6 +216,8 @@ timing(_{ timing: "next", timingTextRange:Range}) -->
     { pos(SP, TP, P), range(P, Range) }.
 timing(_{ timing: "always", timingTextRange:Range}) -->
     lexeme(always, P), {range(P, Range)}.
+timing(_{ timing: "never", timingTextRange:Range}) -->
+    lexeme(never, P), {range(P, Range)}.
 timing(_{ timing: "always"}) --> [],
                                  { writeln('warning, defaulting to always timing: may not have understood timing phrase') }.
 
@@ -336,6 +338,7 @@ immediately(P) --> token("immediately", P).
 in(P) --> token("in", P).
 is(P) --> token("is", P).
 mode(P) --> token("mode", P).
+never(P) --> token("never", P).
 next(P) --> token("next", P).
 occurrence(P) --> token("occurrence", P).
 of(P) --> token("of", P).
