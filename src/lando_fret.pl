@@ -50,15 +50,15 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     !,
     add_var_ref(CompVar, Inputs, V),
     collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
-collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
-    scenario_var(RV, Inputs, MainV, ScenarioV),
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  % old
+    scenario_var(RV, Inputs, MainV, scenario(ScenarioV, mode)),
     get_dict(variable_name, ScenarioV, SVName),
     component_var(SVName, Inputs, _),
     !,
     % The RV references a specific scenario (RV/MainV) in a scenarios group
     % (SVName), and there is a component definition for the SVName, so the
-    % ScenarioV is an nteger state variable, where one of the values is RV.  The
-    % output FRET requirement will need to reference the ScenarioV in the
+    % ScenarioV is an integer state variable, where one of the values is RV.
+    % The output FRET requirement will need to reference the ScenarioV in the
     % Responses portion (if it doesn't already) as well as cross-referencing
     % the ScenarioV and the Req to each other in addition to cross referencing
     % the MainV and the Req together.
@@ -75,6 +75,50 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     ; add_var_ref(ScenarioV, UpdInps, ScenarioVar), NextVS = VS
     ),
     collect_req_vars(UpdInps, RVS, [MainVar,ScenarioVar|NextVS], OutReq, OutVS).
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
+    scenarios_var(RV, Inputs, Var),
+    !,
+    add_var_ref(Var, Inputs, V),
+    collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
+collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-  % new
+    scenario_var(RV, Inputs, MainV,
+                 scenario(InitStateV, FinalStateV, internal_transition)), % ScenarioV,
+    % ScenarioT)), The initial state variable uses the "scenarios" declared name;
+    % the FinalStateV name is derived from that. Thus it is only necessary to
+    % check InitStateV's name.
+    get_dict(variable_name, InitStateV, SVName),
+    \+ component_var(SVName, Inputs, _),
+    % Verify there's no explicit "component" declaration of this MainV
+    \+ component_var(RV, Inputs, _),
+    !,
+    % The RV references a specific scenario (RV/MainV) in a scenarios group
+    % (SVName), and there is no component declaration for RV or ScenarioV, so the
+    % ScenarioV is a PAIR of integer state variables (one for initial, one for
+    % final), where one of the values is RV, and RV is an internal variable
+    % enumeration value.  The output FRET requirement will need to reference the
+    % ScenarioV in the Scope, Conditions, or Responses portion (if it doesn't
+    % already) as well as cross-referencing the ScenarioV and the Req to each
+    % other in addition to cross referencing the MainV and the Req together.
+
+    % Update the Req to ensure it references the Scenario state initial and final
+    % variables--if needed--by modifying the FRETtish English and re-parsing.
+    update_req_with_var(Inputs, InitStateV, MidInps),
+    update_req_with_var(MidInps, FinalStateV, UpdInps),
+
+    % Update the initial state variable Variable (if necessary) with a reference
+    % to this Req.
+    (existing_var(SVName, VS, SV, VSNoV)
+    -> add_var_ref(SV, UpdInps, ISV), MidVS = VSNoV
+    ; add_var_ref(InitStateV, UpdInps, ISV), MidVS = VS
+    ),
+    % Update the final state variable Variable (if necessary) with a reference
+    % to this Req.
+    get_dict(variable_name, FinalStateV, FSVName),
+    (existing_var(FSVName, MidVS, ExistingFSV, FVSNoV)
+    -> add_var_ref(ExistingFSV, UpdInps, FSV), NextVS = FVSNoV
+    ; add_var_ref(FinalStateV, UpdInps, FSV), NextVS = MidVS
+    ),
+    collect_req_vars(UpdInps, RVS, [MainV,ISV,FSV|NextVS], OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     print_message(warning, no_fret_var_info(RV)),
     collect_req_vars(Inputs, RVS, VS, OutReq, OutVS).
@@ -153,8 +197,47 @@ prolog:message(no_fret_var_info(VarName)) -->
 
 % ----------
 
+scenarios_var(VName, inputs(_, _, SSLBody), Var) :-
+    phrase(extract_fret_scenarios_var("Default", "Default", VName, Var), SSLBody, _).
+
+extract_fret_scenarios_var(ProjName, _, VName, Var) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, SpecType),
+      member(SpecType, [ system, subsystem ]), %%%% <- selector
+      specElement_ref(SpecElement, SysName),
+      get_dict(body, SpecElement, SysBody),
+      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
+      phrase(extract_fret_scenarios_var(NewProjName, SysName, VName, Var), SysBody, _Remaining)
+    }.
+extract_fret_scenarios_var(ProjName, CompName, VName, Var) -->
+    [ SpecElement ],
+    { is_dict(SpecElement, scenarios), %%%% <- selector
+      scenarios_var_name(SpecElement, VName, Usage),
+      string_concat("scenarios state ", Usage, Expl),
+      mkVar(ProjName, CompName, VName, Expl, "integer", Usage, "", Var)
+    }.
+
+extract_fret_scenarios_var(ProjName, CompName, VName, Var) -->
+    [ _ ],
+    extract_fret_scenarios_var(ProjName, CompName, VName, Var).
+
+scenarios_var_name(SpecElement, VName, "Input") :-
+    get_dict(name, SpecElement, ScenariosName),
+    string_concat(VName, " Values", ScenariosName).
+scenarios_var_name(SpecElement, VName, "Output") :-
+    get_dict(name, SpecElement, ScenariosName),
+    string_concat(SName, " Values", ScenariosName),
+    scenarios_final_var_name(SName, VName).
+
+scenarios_final_var_name(InitName, FinalName) :-
+    string_concat(InitName, "_final", FinalName).
+
+% ----------
+
 scenario_var(VName, inputs(_, _, SSLBody), MainVar, ScenarioVar) :-
-    phrase(extract_fret_scenario_var("Default", "Default", VName, MainVar, ScenarioVar), SSLBody, _).
+    phrase(extract_fret_scenario_var("Default", "Default", VName,
+                                     MainVar, ScenarioVar),
+           SSLBody, _).
 
 extract_fret_scenario_var(ProjName, _, VName, MainVar, ScenarioVar) -->
     [ SpecElement ],
@@ -165,17 +248,33 @@ extract_fret_scenario_var(ProjName, _, VName, MainVar, ScenarioVar) -->
       (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
       phrase(extract_fret_scenario_var(NewProjName, SysName, VName, MainVar, ScenarioVar), SysBody, _Remaining)
     }.
-extract_fret_scenario_var(ProjName, CompName, VName, MainVar, ScenarioVar) -->
+extract_fret_scenario_var(ProjName, CompName, VName, MainVar,
+                          scenario(InitialVar, FinalVar, internal_transition)) -->
     [ SpecElement ],
     { is_dict(SpecElement, scenarios), %%%% <- selector
       get_dict(name, SpecElement, ScenarioName),
-      string_concat(ScenarioVarName, " Modes", ScenarioName),
+      string_concat(ScenarioVarName, " Values", ScenarioName), %%%% <- selector
+      get_dict(scenarios, SpecElement, Scenarios),
+      find_scenario_var(VName, Scenarios, 0, Desc, Value),
+      scenarios_final_var_name(ScenarioVarName, FinalVarName),
+      format(atom(VString), '~w ', [Value]), % don't output numerics, only strings
+      % n.b. deduplication is handled elsewhere
+      mkVar(ProjName, CompName, VName, Desc, "integer", "Internal", VString, MainVar),
+      mkVar(ProjName, CompName, ScenarioVarName, "Initial state", "integer", "Input", "", InitialVar),
+      mkVar(ProjName, CompName, FinalVarName, "Final state", "integer", "Output", "", FinalVar)
+    }.
+extract_fret_scenario_var(ProjName, CompName, VName, MainVar, scenario(Var, mode)) -->  %% Old
+    [ SpecElement ],
+    { is_dict(SpecElement, scenarios), %%%% <- selector
+      get_dict(name, SpecElement, ScenarioName),
+      string_concat(ScenarioVarName, " Modes", ScenarioName), %%%% <- selector
+      % !,
       get_dict(scenarios, SpecElement, Scenarios),
       find_scenario_var(VName, Scenarios, 0, Desc, Value),
       Expl = "State variable",
       format(atom(F), "~w = ~w", [ScenarioVarName, Value]),
       mkVar(ProjName, CompName, VName, Desc, "boolean", "Mode", F, MainVar),
-      mkVar(ProjName, CompName, ScenarioVarName, Expl, "integer", "Output", "", ScenarioVar)
+      mkVar(ProjName, CompName, ScenarioVarName, Expl, "integer", "Output", "", Var)
     }.
 extract_fret_scenario_var(ProjName, CompName, VName, MainVar, ScenarioVar) -->
     [ _ ],
@@ -234,9 +333,19 @@ prepend_valid_reqs([noreq|RS], Reqs, OutReqs) :-
 prepend_valid_reqs([R|RS], Reqs, [R|OutRS]) :-
     prepend_valid_reqs(RS, Reqs, OutRS).
 
-mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var) :-
+mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, Special, Var) :-
     format(atom(IDA), "~w~w~w", [ ProjName, FretCompName, VarName ]),
     atom_string(IDA, ID),
+    ( Usage == "Internal"
+    -> MR = "", AV = Special
+    ; (Usage == "Mode"
+      -> MR = Special, AV = ""
+      ; ( Special == ""
+        ; print_message(warning, special_usage_unknown(VarName, Usage, Special))
+        ),
+        MR = "", AV = ""
+      )
+    ),
     Var = _{ project: ProjName,
              component_name: FretCompName,
              variable_name: VarName,
@@ -244,8 +353,8 @@ mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var) :-
              idType: Usage,
              description: Expl,
              '_id': ID,
-             modeRequirement: ModeReqs,
-             assignment: "", % XXX
+             modeRequirement: MR,
+             assignment: AV,
              copilotAssignment: "",
              moduleName: "",
              modeldoc: false,
@@ -253,6 +362,10 @@ mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, ModeReqs, Var) :-
              modelComponent: "",
              completed: true
            }.
+
+prolog:message(special_usage_unknown(VName, Usage, Val)) -->
+    [ 'Unknown ~w usage for special of ~w in variable ~w~n'
+      - [ Usage, Val, VName ] ].
 
 var_modes([], _, []).
 var_modes([Scenario|Scenarios], ModeVal, [(ModeName, ModeDesc, ModeVal)|VModes]) :-

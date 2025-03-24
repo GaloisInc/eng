@@ -94,8 +94,55 @@ Conversion from Lando to FRET:
   * The explanation of the ~requirement~ will be used as the FRET justification
     text.
 
-  * Fret variables are indicated by a Lando ~component~, where the variable name
-    is the Lando ~abbrevName~ or first word of the name.
+  * A FRET ~scenarios~ with a one-word word followed by the word "Values" will be
+    assumed to describe the (mutually-exclusive) state values for a state.
+
+    FRET is used to specify transition systems, so the assumption is that the
+    input state and output state will be separate variables.  Thus, this tool
+    will create a pair of automatic FRET integer state variables (one "Input"
+    variable for the initial state, and one "Output" variable for the final
+    state).
+
+    The scenario names can be reference in FRETtish statements, and this Lando
+    extraction will generate an ~Internal~ variable for the integer value of each
+    named scenario.
+
+    #+begin_example
+    scenarios car_state Values
+
+    stopped
+    The car is not moving.
+
+    driving
+    The car is currently moving and being driven.
+
+    accelerating
+    The car is currently moving and increasing speed.
+
+    stopping
+    The car is currently moving and decreasing speed.
+
+    #+end_example
+
+    The FRETtish statement can simply refer to the scenario value and the
+    exported FRETtish to declare their equality to the initial or final state
+    variable, depending on where they appear (the scope or condition v.s. the
+    responses).  If the corresponding section alreaqdy references the associated
+    state variable, the exported FRETtish is unchange.
+
+    For example, the following statement would be passed to FRET unchanged:
+    #+begin_example
+    In (car_state = stopping) & brakes,
+    the Car shall at the next timepoint satisfy (car_state_final = stopped).
+    #+end_example
+
+    but the following statement would automatically be converted to the one above before being exported:
+    #+begin_example
+    > In stopping & brakes, the Car shall at the next timepoint satisfy stopped.
+    #+end_example
+
+  * General fret variables are indicated by a Lando ~component~, where the
+    variable name is the Lando ~abbrevName~ or first word of the name.
 
     * Usage :: The FRET use of variable is specified by a component constraint
       ~FRET <USAGE> var.~ where ~USAGE~ is one of: ~Input~, ~Output~, ~Mode~,
@@ -113,34 +160,6 @@ Conversion from Lando to FRET:
     FRET: boolean.
     Stop the car!
     
-    #+end_example
-
-  * A FRET ~scenarios~ whose name is the same as a ~component~ followed by "
-    Values" will create an automatic FRET state variable, whose scenario names
-    can be reference in FRETtish statements.  The Lando extraction will generate
-    a ~Mode~ variable for each named scenario, and it will automatically add a
-    reference to the state variable in the exported FRETtish (if needed).
-
-    #+begin_example
-    component car_state
-
-    FRET Output var.
-    FRET: integer.
-
-    scenarios car_state Mode
-
-    stopped
-    The car is not moving.
-
-    driving
-    The car is currently moving and being driven.
-
-    accelerating
-    The car is currently moving and increasing speed.
-
-    stopping
-    The car is currently moving and decreasing speed.
-
     #+end_example
 
 * Usage
