@@ -65,6 +65,32 @@ test(bool3_expr_extra_parens, [nondet]) :-
     emit_CoCoSpec(AST, CoCo),
     assertion(CoCo == "(shutdown_running or (startup and ZtoPre(not (startup))))").
 
+test(bool_expr_4, [nondet]) :-
+    Inp = "((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm))))",
+    parse_ltl(Inp, AST),
+    emit_CoCoSpec(AST, CoCo),
+    assertion(CoCo == "((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm))))").
+
+test(bool_expr_5, [nondet]) :-
+    Inp = "(O[<=2 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))))",
+    parse_ltl(Inp, AST),
+    emit_CoCoSpec(AST, CoCo),
+    assertion(CoCo == "OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm)))))").
+
+test(bool_expr_6, [nondet]) :-
+    Inp = "(O[=2 +1] alarm_enabled)",
+    parse_ltl(Inp, AST),
+    writeln(ltl_parsed),
+    emit_CoCoSpec(AST, CoCo),
+    assertion(CoCo == "OT(3, 3, alarm_enabled)").
+
+test(bool3_expr_unary_timed_bound, [nondet]) :-
+    Inp = "((H ((O[<=2 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm))))) -> ((H (! (alarm_enabled & disable_alarm))) | (! (alarm_disabled))))) & (H ((O[=2 +1] (((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))) & (! (alarm_disabled)))) -> (O[<2 +1] ((Z FALSE) | (alarm_disabled))))))",
+    parse_ltl(Inp, AST),
+    emit_CoCoSpec(AST, CoCo),
+    assertion(CoCo == "(H((OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm))))) => (H(not ((alarm_enabled and disable_alarm))) or not (alarm_disabled)))) and H((OT(3, 3, (((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm)))) and not (alarm_disabled))) => OT((3 - 1), 0, (ZtoPre(false) or alarm_disabled)))))").
+
+
 test(bool_expr_mid_term, [nondet]) :-
     Inp = "((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))
         ) -> ((shutdown_running) | (startup & (Z (! startup)))))",
@@ -88,7 +114,7 @@ test(upon_next_expr, [nondet]) :-
     assertion(AST == ltlH(implies(ltlY(and(and(boolid("not_y"), boolid("l")),
                                            ltlZ(not(and(boolid("not_y"),
                                                         boolid("l")))))),
-                                  or(and(boolid("m"), ge(id("i"), val('0'))),
+                                  or(and(boolid("m"), ge(id("i"), val(0))),
                                      not(ltlY(true)))))),
     emit_CoCoSpec(AST, CoCo),
     assertion(CoCo == CoCoOut).
