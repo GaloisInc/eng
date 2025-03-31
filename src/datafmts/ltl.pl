@@ -46,18 +46,18 @@ boolEx(E) --> boolTerm(T), boolExMore(T, E).
 boolTerm(true) --> lxm(w, "TRUE").
 boolTerm(false) --> lxm(w, "FALSE").
 
-boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
 boolTerm(ltlH_bound(B, E)) --> lxm(ltlH), lxm(bound, B), lxm(boolEx, E).
-boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
+boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
 boolTerm(ltlO_bound(B, E)) --> lxm(ltlO), lxm(bound, B), lxm(boolEx, E).
-boolTerm(ltlG(E)) --> lxm(ltlG), lxm(boolEx, E).
+boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
 boolTerm(ltlG_bound(B, E)) --> lxm(ltlG), lxm(bound, B), lxm(boolEx, E).
-boolTerm(ltlF(E)) --> lxm(ltlF), lxm(boolEx, E).
+boolTerm(ltlG(E)) --> lxm(ltlG), lxm(boolEx, E).
 boolTerm(ltlF_bound(B, E)) --> lxm(ltlF), lxm(bound, B), lxm(boolEx, E).
-boolTerm(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolEx, E).
+boolTerm(ltlF(E)) --> lxm(ltlF), lxm(boolEx, E).
 boolTerm(ltlBefore_bound(B, E)) --> lxm(ltlBefore), lxm(bound, B), lxm(boolEx, E).
-boolTerm(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolEx, E).
+boolTerm(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolEx, E).
 boolTerm(ltlAfter_bound(B, E)) --> lxm(ltlAfter), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolEx, E).
 
 boolTerm(ltlY(E)) --> lxm(ltlY), lxm(boolEx, E).
 boolTerm(ltlX(E)) --> lxm(ltlX), lxm(boolEx, E).
