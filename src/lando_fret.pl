@@ -545,12 +545,14 @@ fretment_semantics(Defs, Fretment, Semantics) :-
     get_dict(description, SemDefs, Desc0),
     replace_template_vars(Sem5, "<b><i>", "</i></b>", Desc0, Desc),
 
-    generate_formulae(SemDefs, Sem5, Sem6),
+    (generate_formulae(SemDefs, Sem5, Sem6)
+    -> put_dict(_{ diagramVariables: DV,
+                   description: Desc
+                 }, Sem6, Semantics)
+    ; print_message(error, no_formula()), fail
+    ).
 
-    put_dict(_{ diagramVariables: DV,
-                description: Desc
-              }, Sem6, Semantics).
-
+prolog:message(no_formula()) --> [ 'Could not generate formulae for frettish' ].
 
 req_semantics_defs(Defs, Inp, Semantics) :-
     get_dict(scope, Inp, S),
@@ -635,12 +637,32 @@ cvs_rsp(_, _, "").
 % --------------------
 
 generate_formulae(Defs, Inp, Out) :-
-    scope_mode_transform(Defs, Inp, O1),
-    regular_condition_transform(Defs, O1, O2),
-    post_condition_transform(Defs, O2, O3),
-    stop_condition_transform(Defs, O3, O4),
-    fetched_ft_pt_update(Defs, O4, O5),
-    Out = O5.
+    (scope_mode_transform(Defs, Inp, O1)
+    ; print_message(error, scope_transform_failed()), fail
+    ),
+    !,
+    (regular_condition_transform(Defs, O1, O2)
+    ; print_message(error, condition_transform_failed(regular)), fail
+    ),
+    !,
+    (post_condition_transform(Defs, O2, O3)
+    ; print_message(error, condition_transform_failed(post)), fail
+    ),
+    !,
+    (stop_condition_transform(Defs, O3, O4)
+    ; print_message(error, condition_transform_failed(stop)), fail
+    ),
+    !,
+    (fetched_ft_pt_update(Defs, O4, O5)
+    -> Out = O5
+    ; print_message(error, past_time_update_error()), fail
+    ).
+
+prolog:message(scope_transform_failed()) --> [ 'Cannot transform scope' ].
+prolog:message(condition_transform_failed(Condtype)) -->
+    [ 'Cannot transform ~w condition~n' - [ Condtype ] ].
+prolog:message(past_time_update_error()) -->
+    [ 'Cannot update past-time formula' ].
 
 scope_mode_transform(_Defs, Inp, Out) :-
     get_dict(scope, Inp, S),
