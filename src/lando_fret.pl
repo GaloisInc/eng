@@ -893,7 +893,7 @@ endSquare() --> [ ']' ].
 
 transform_to_AST(I, AST) :-
     subst('=>', '->', I, I1),
-    (parse_ltl(I1, AST)
+    (parse_ltl(I1, AST), !
     ; print_message(error, cannot_parse_ltl(I1)), fail
     ).
 
