@@ -788,31 +788,42 @@ last_is_FALSE(I, O) :- subst(' LAST ', 'FALSE', I, O).
 salt_to_smv(I, SMV) :-   % XXX: test this
     string_chars(I, CS),
     phrase(salt2smv(O), CS, R),
+    !,
     ( R == []
     -> string_chars(SMV, O)
     ; format('  SMV: ~w~n  REMAINDER: ~w~n', [ SMV, R ]),
       string_chars(SMV, O)
     ).
 
-salt2smv(SMV) --> [ '[', '<', '=' ], number(N), lxm(endSquarePlusOne),
+salt2smv(SMV) --> [ '[', '<', '=' ], lxm(numeric, N), lxm(endSquarePlusOne),
                   salt2smv(Rest),
-                  succ(N, M),
-                  format(atom(X), '[0,~w]~w~n', [M, Rest]), atom_chars(X, SMV).
-salt2smv(SMV) --> [ '[', '<', '=' ], number(N), lxm(endSquare),
+                  { succ(N, M),
+                    format(atom(X), '[0,~w]~w~n', [M, Rest]),
+                    atom_chars(X, SMV)
+                  }.
+salt2smv(SMV) --> [ '[', '<', '=' ], lxm(numeric, N), lxm(endSquare),
                   salt2smv(Rest),
-                  format(atom(X), '[0,~w]~w~n', [N, Rest]), atom_chars(X, SMV).
-salt2smv(SMV) --> [ '[', '<' ], number(N), lxm(endSquarePlusOne),
+                  { format(atom(X), '[0,~w]~w~n', [N, Rest]),
+                    atom_chars(X, SMV)
+                  }.
+salt2smv(SMV) --> [ '[', '<' ], lxm(numeric, N), lxm(endSquarePlusOne),
                   salt2smv(Rest),
-                  format(atom(X), '[0,~w]~w~n', [N, Rest]), atom_chars(X, SMV).
-salt2smv(SMV) --> [ '[', '<' ], number(N), lxm(endSquare),
+                  { format(atom(X), '[0,~w]~w~n', [N, Rest]),
+                    atom_chars(X, SMV)
+                  }.
+salt2smv(SMV) --> [ '[', '<' ], lxm(numeric, N), lxm(endSquare),
                   salt2smv(Rest),
                   succ(P, N),
-                  format(atom(X), '[0,~w]~w~n', [P, Rest]), atom_chars(X, SMV).
-salt2smv(SMV) --> [ '[', '=' ], number(N), lxm(endSquarePlusOne),
+                  { format(atom(X), '[0,~w]~w~n', [P, Rest]),
+                    atom_chars(X, SMV)
+                  }.
+salt2smv(SMV) --> [ '[', '=' ], lxm(numeric, N), lxm(endSquarePlusOne),
                   salt2smv(Rest),
-                  succ(N, M),
-                  format(atom(X), '[~w,~w]~w~n', [M, M, Rest]), atom_chars(X, SMV).
-salt2smv(SMV) --> [ '[', '=' ], number(N), lxm(endSquare),
+                  { succ(N, M),
+                    format(atom(X), '[~w,~w]~w~n', [M, M, Rest]),
+                    atom_chars(X, SMV)
+                  }.
+salt2smv(SMV) --> [ '[', '=' ], numeric(N), lxm(endSquare),
                   salt2smv(Rest),
                   format(atom(X), '[~w,~w]~w~n', [N, N, Rest]), atom_chars(X, SMV).
 salt2smv([S|MV]) --> [ S ], salt2smv(MV).
@@ -886,3 +897,26 @@ wchar(C) :- \+ char_type(C, space),
                           %% '{', '}', '^', '[', ']', %% XXX?
                           '$',
                           '/']).
+
+numeric([N|NS]) --> digit(N), numeric(NS).
+numeric(N) --> digit(N).
+digit(D) --> [ (C) ], { char_type(C, digit),
+                        atom_codes(C, [CV]),
+                        atom_codes('0', [ZV]),
+                        plus(ZV, D, CV)
+                      }.
+
+
+lxm(R) --> ws_, { ! }, lxm(R).
+lxm(R) --> call(R).
+
+lxm(R, P) --> ws_, { ! }, lxm(R, P).
+lxm(R, P) --> call(R, P).
+
+lxm(R, O, P) --> ws_, { ! }, lxm(R, O, P).
+lxm(R, O, P) --> call(R, O, P).
+
+lxm(R, O, U, P) --> ws_, { ! }, lxm(R, O, U, P).
+lxm(R, O, U, P) --> call(R, O, U, P).
+
+ws_() --> [C], { char_type(C, space) }.
