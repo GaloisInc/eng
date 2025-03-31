@@ -210,7 +210,8 @@ wchar(C) :- \+ char_type(C, space),
             % Exclude things that might be individual tokens needing to be
             % recognized elsewhere in the grammar.
             \+ member(C, ['(', ')', '.', '!', '?', ':', ',',
-                          %% '{', '}', '^', '[', ']', %% XXX?
+                          '{', '}', '^', '[', ']', %% XXX?
+                          '<', '>', '=',
                           '$',
                           '/']).
 
