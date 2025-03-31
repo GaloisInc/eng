@@ -221,6 +221,9 @@ digit(D) --> [ (D) ], { char_type(D, digit) }.
 
 % ----------------------------------------------------------------------
 
+optimize(add(val(X), val(Y)), val(V)) :- V is X + Y, !.
+optimize(X, X).
+
 past_optimize(and(E1, E2), and(E1O, E2O)) :-
     !, past_optimize(E1, E1O), past_optimize(E2, E2O).
 past_optimize(or(E1, E2), or(E1O, E2O)) :-
