@@ -25,7 +25,6 @@ arithTerm(neg(E)) --> minus(_), lxm(arith, E).
 %% ltl(mul(E, E)) --> lxm(ltl, E), lxm(mult), lxm(ltl, E).
 %% ltl(div(E, E)) --> lxm(ltl, E), lxm(div), lxm(ltl, E).
 %% ltl(mod(E, E)) --> lxm(ltl, E), lxm(mod), lxm(ltl, E).
-%% ltl(add(E, E)) --> lxm(ltl, E), lxm(plus), lxm(ltl, E).
 %% ltl(sub(E, E)) --> lxm(ltl, E), lxm(minus), lxm(ltl, E).
 %% ltl(negfloatnum(M,E)) --> lxm(minus), number(M), ['.'], number(E).
 %% ltl(floatnum(M,E)) --> lxm(number, M), ['.'], number(E).
@@ -38,6 +37,9 @@ arithTerm(id(I)) --> lxm(ident, I).
 %% %% ltl(E) --> boolEx(E).
 arithTerm(E) --> lxm(lp), lxm(arithEx, E), lxm(rp).
 arithExMore(LT, Expr) --> lxm(expt), arithTerm(E), arithExMore(expo(LT, E), Expr).
+arithExMore(LT, Expr) --> lxm(plus), arithTerm(E),
+                          { optimize(add(LT, E), OptE) },
+                          arithExMore(OptE, Expr).
 arithExMore(LT, LT) --> [].
 
 args([A|MA]) --> lxm(lp), ltl(A), moreArgs(MA), lxm(rp).
@@ -57,6 +59,7 @@ boolEx(E) --> boolTerm(T), boolExMore(T, E).
 boolTerm(true) --> lxm(w, "TRUE").
 boolTerm(false) --> lxm(w, "FALSE").
 boolTerm(boolid(I)) --> lxm(ident, I).
+
 boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
 boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
 boolTerm(ltlG(E)) --> lxm(ltlG), lxm(boolEx, E).
