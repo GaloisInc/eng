@@ -263,7 +263,8 @@ fmap(Op, ltlAfter(L), O) :- fmap(Op, L, OL), call(Op, ltlAfter(OL), O).
 fmap(Op, ltlY(L), O) :- fmap(Op, L, OL), call(Op, ltlY(OL), O).
 fmap(Op, ltlX(L), O) :- fmap(Op, L, OL), call(Op, ltlX(OL), O).
 fmap(Op, ltlZ(L), O) :- fmap(Op, L, OL), call(Op, ltlZ(OL), O).
-fmap(Op, ltlSI(L), O) :- fmap(Op, L, OL), call(Op, ltlSI(OL), O).
+fmap(Op, ltlSI(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
+                            call(Op, ltlSI(OL, OR), O).
 fmap(Op, ltlS(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
                            call(Op, ltlS(OL, OR), O).
 fmap(Op, ltlT(L), O) :- fmap(Op, L, OL), call(Op, ltlT(OL), O).
@@ -516,8 +517,11 @@ emit_CoCoSpec(lt(E1, E2), C) :- coco_infix("<", E1, E2, C), !.
 emit_CoCoSpec(le(E1, E2), C) :- coco_infix("<=", E1, E2, C), !.
 emit_CoCoSpec(gt(E1, E2), C) :- coco_infix(">", E1, E2, C), !.
 emit_CoCoSpec(ge(E1, E2), C) :- coco_infix(">=", E1, E2, C), !.
-emit_CoCoSpec(ltlS(E1, E2), C) :- coco_call("SI", E1, E2, C), !. % SinceInclusive
-emit_CoCoSpec(ltlSI(E1, E2), C) :- coco_call("SI", E1, E2, C), !. % SinceInclusive  % KWQ: Reversed (LTLASTSemantics.js)
+
+% Note: CoCoSpec reverses the arguments for: S, ST, SI, and SIT.  S(p,q) = q S p.
+% See LTLASTSemantics.js.
+emit_CoCoSpec(ltlS(E1, E2), C) :- coco_call("S", E2, E1, C), !. % Since
+emit_CoCoSpec(ltlSI(E1, E2), C) :- coco_call("SI", E2, E1, C), !. % SinceInclusive
 
 emit_CoCoSpec(range2(B, E), C) :- emit_CoCoSpec(B, BS),
                                   emit_CoCoSpec(E, ES),
