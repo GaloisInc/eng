@@ -1,4 +1,4 @@
-:- module(fret_kind2, [ fret_kind2/3,
+:- module(fret_kind2, [ fret_kind2/4,
                         normalize_kind2_var/2,
                         kind2_validate/5
                       ]).
@@ -15,17 +15,17 @@
 
 %% ----------------------------------------------------------------------
 
-fret_kind2(FretReqs, FretMents, Kind2Comps) :-
+fret_kind2(EnumVals, FretReqs, FretMents, Kind2Comps) :-
     get_dict(requirements, FretMents, Reqs),
     get_dict(variables, FretMents, Vars),
     !,
     connected_components(Reqs, FretReqs, 0, CComps),
-    fret_to_kind2(Vars, CComps, Kind2Comps).
+    fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps).
 
-fret_to_kind2(_, [], []).
-fret_to_kind2(Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
-    fret_to_kind2(Vars, CCs, K2s),
-    reqs_to_kind2(Vars, CompName, Reqs, CVars, Kind2),
+fret_to_kind2(_, _, [], []).
+fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
+    fret_to_kind2(EnumVals, Vars, CCs, K2s),
+    reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2),
     K2 = _{ compNum: N,
             compName: CompName,
             kind2: Kind2
@@ -88,6 +88,30 @@ req_timing_vars(RI, TimingVars) :-
 
 %% ----------------------------------------------------------------------
 
+enum_types(EnumsVals, Kind2Globals, VarTypes) :-
+    enum_types_(EnumsVals, 0, Kind2Globals, VarTypes).
+
+enum_types_([], _, [], []).
+enum_types_([(VN, EV)|EVS], N, [TypeDef|TypeDefs], [(VN, TypeName)|VNS]) :-
+    enum_names(EV, EVNames),
+    intercalate(EVNames, ", ", EVNMS),
+    format(atom(Y), 'E~w', [N]),
+    atom_string(Y, TypeName),
+    format(atom(X), 'type ~w = enum { ~w };', [ TypeName, EVNMS ]),
+    atom_string(X, TypeDef),
+    succ(N, M),
+    enum_types_(EVS, M, TypeDefs, VNS).
+
+
+enum_names([], []).
+enum_names([(N,_)|ENS], [N|NS]) :- enum_names(ENS, NS).  % assumes numeric order.. but is that really important?
+
+is_enum_val([(_,EN)|_], VName) :- enum_names(EN, ENames),
+                                  member(VName, ENames),
+                                  !.
+is_enum_val([_|ENS], VName) :- is_enum_val(ENS, VName), !.
+
+
 % All Internal and Mode variables should always be defined.  They may not be used
 % by the requirements in this CC, but they shouldn't hurt anything by being
 % defined.
@@ -96,59 +120,68 @@ req_timing_vars(RI, TimingVars) :-
 %%     implicit_vars_(Vars, Decls),
 %%     intercalate(Vars, "\n", Decls).
 
-implicit_vars([], []).
-implicit_vars([V|VS], [D|DS]) :-
+implicit_vars(_, [], []).
+implicit_vars(EnumVals, [V|VS], [D|DS]) :-
     get_dict(idType, V, "Internal"),
-    !,
     get_dict(variable_name, V, VarName),
+    \+ is_enum_val(EnumVals, VarName),
+    !,
     get_dict(dataType, V, VarType),
     convert_type(VarType, KindType),
     get_dict(assignment, V, ValStr),
     string_trim(ValStr, Val),
     format(atom(D), "var ~w : ~w = ~w;", [ VarName, KindType, Val ]),
-    implicit_vars(VS, DS).
+    implicit_vars(EnumVals, VS, DS).
 % TODO: similar to above, but for Mode idType, and Val is modeRequirement.
 % However, consider that Kind2 mode support is significantly more complex...
-implicit_vars([_|VS], DS) :- implicit_vars(VS, DS).
+implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
 
-
-input_vars(Vars, Decls) :- input_vars_(Vars, _, Decls).
-input_vars_([], _, []).
-input_vars_([V|VS], [Name|SeenNames], Out) :-
+input_vars(VTypes, Vars, Decls) :- input_vars_(VTypes, Vars, _, Decls).
+input_vars_(_, [], _, []).
+input_vars_(VTypes, [V|VS], [Name|SeenNames], Out) :-
     get_dict(idType, V, "Input"),  % filters out Internal, Mode, and Output vars
     !,
     get_dict(variable_name, V, Name),
-    get_dict(dataType, V, VarType),
+    get_var_type(VTypes, Name, V, VarType),
     convert_type(VarType, KindType),
     format(atom(Decl), '~w:~w', [Name, KindType]),
-    input_vars_(VS, SeenNames, DS),
+    input_vars_(VTypes, VS, SeenNames, DS),
     add_if_not_present(Name, Decl, SeenNames, DS, Out).
-input_vars_([_|VS], Seen, Out) :- input_vars_(VS, Seen, Out).
+input_vars_(VTypes, [_|VS], Seen, Out) :- input_vars_(VTypes, VS, Seen, Out).
 
 
-output_vars(Vars, OutNames, Decls) :- output_vars_(Vars, OutNames, _, Decls).
-output_vars_(_, [], _, []).
-output_vars_(Vars, [VN|VNS], [Name|SeenNames], Out) :-
+output_vars(VTypes, Vars, OutNames, Decls) :-
+    output_vars_(VTypes, Vars, OutNames, _, Decls).
+output_vars_(_, _, [], _, []).
+output_vars_(VTypes, Vars, [VN|VNS], [Name|SeenNames], Out) :-
     find_named_var(VN, Vars, V),
     get_dict(idType, V, "Output"),  % filters out Internal and Mode vars
     !,
     get_dict(variable_name, V, Name),
-    get_dict(dataType, V, VarType),
+    get_var_type(VTypes, Name, V, VarType),
     convert_type(VarType, KindType),
     format(atom(Decl), '~w:~w', [Name, KindType]),
-    output_vars_(Vars, VNS, SeenNames, DS),
+    output_vars_(VTypes, Vars, VNS, SeenNames, DS),
     add_if_not_present(Name, Decl, SeenNames, DS, Out).
-output_vars_(Vars, [_|VNS], Seen, Out) :- output_vars_(Vars, VNS, Seen, Out).
+output_vars_(VTypes, Vars, [_|VNS], Seen, Out) :-
+    output_vars_(VTypes, Vars, VNS, Seen, Out).
 
 find_named_var(Name, VS, V) :- member(V, VS), get_dict(variable_name, V, Name).
+
+get_var_type([(VName,VarType)|_], VName, _, VarType) :- !.
+get_var_type([(VNameBase,VarType)|_], VName, _, VarType) :-
+    string_concat(VNameBase, "_final", VName), !.
+get_var_type([_|VTS], VName, V, VarType) :- get_var_type(VTS, VName, V, VarType).
+get_var_type([], _, V, VarType) :- get_dict(dataType, V, VarType).
 
 add_if_not_present(_, Decl, [], DS, [Decl|DS]).
 add_if_not_present(Var, _, [Var|_], DS, DS) :- !.
 add_if_not_present(Var, Decl, [_|VS], DS, Out) :-
     add_if_not_present(Var, Decl, VS, DS, Out).
 
-convert_type("integer", "int").
-convert_type("boolean", "bool").
+convert_type("integer", "int") :- !.
+convert_type("boolean", "bool") :- !.
+convert_type(Other, Other).
 
 req_vars([], [], []).
 req_vars([R|RS], [G|GS], [D|DS]) :-
@@ -310,13 +343,16 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 
 %% ----------------------------------------------------------------------
 
-reqs_to_kind2(Vars, CompName, Reqs, CVars, Kind2) :-
-    input_vars(Vars, Kind2Input),
-    intercalate(Kind2Input, "; ", NodeArgs),
-    output_vars(Vars, CVars, Kind2Output),
-    intercalate(Kind2Output, "; ", NodeRet),
-    implicit_vars(Vars, Kind2Decls),
+reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
+    enum_types(EnumVals, Kind2Globals, VarTypes),
+    !,
+    intercalate(Kind2Globals, "\n", GlobalDecls),
+    implicit_vars(EnumVals, Vars, Kind2Decls),
     intercalate(Kind2Decls, "\n  ", NodeDecls),
+    input_vars(VarTypes, Vars, Kind2Input),
+    intercalate(Kind2Input, "; ", NodeArgs),
+    output_vars(VarTypes, Vars, CVars, Kind2Output),
+    intercalate(Kind2Output, "; ", NodeRet),
     req_vars(Reqs, Kind2Guarantees, Kind2ReqVars),
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
@@ -326,6 +362,7 @@ reqs_to_kind2(Vars, CompName, Reqs, CVars, Kind2) :-
                      NodeDecls,
                      NodeReqDecls,
                      NodeGuarantees,
+                     GlobalDecls,
                      Contracts)||
 | --Historically
 | node H(X:bool) returns (Y:bool);
@@ -463,6 +500,7 @@ reqs_to_kind2(Vars, CompName, Reqs, CVars, Kind2) :-
 |   Y = X;
 | tel
 |
+| {GlobalDecls}
 |
 | node imported {NodeName}Spec( {NodeArgs} ) returns ( {NodeRet} );
 | (*@contract

@@ -64,7 +64,8 @@ write_lando_fret(OutStrm, SSL) :-
 
 write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
     lando_to_fret(SSL, Reqs, FretProject),
-    fret_kind2(Reqs, FretProject, Kind2ConnComps),
+    enumerated_values(SSL, EnumVals),
+    fret_kind2(EnumVals, Reqs, FretProject, Kind2ConnComps),
     !,
     maplist(write_kind2(OutDir), Kind2ConnComps, OutFiles).
 
@@ -77,6 +78,34 @@ write_kind2(OutDir, Kind2Comp, Kind2FName) :-
     get_dict(kind2, Kind2Comp, Lustre),
     format(OutStrm, '~w~n', [Lustre]),
     close(OutStrm).
+
+enumerated_values(SSL, Enums) :- get_dict(body, SSL, Body),
+                                 enum_vals(Body, Enums).
+enum_vals([Elem|Elems], Enums) :-
+    get_dict(body, Elem, Body),
+    !,
+    enum_vals(Body, SubEnums),
+    enum_vals(Elems, NextEnums),
+    append(SubEnums, NextEnums, Enums).
+% n.b. "events" follow the same pattern as "scenarios", but the former are simple
+% booleans rather than being an enumeration of mutually-exclusive values like the
+% states represented by the latter, so there's no "enumeration" of events values.
+enum_vals([Elem|Elems], [(Name, EnumVals)|Enums]) :-
+    get_dict(scenarios, Elem, Events),
+    !,
+    get_dict(name, Elem, ScenarioName),
+    string_concat(Name, " Values", ScenarioName),
+    get_enumerated(Events, 0, EnumVals),
+    enum_vals(Elems, Enums).
+enum_vals([_|Elems], Enums) :-
+    enum_vals(Elems, Enums).
+enum_vals([], []).
+
+get_enumerated([], _, []).
+get_enumerated([Val|Vals], N, [(Name, N)|MoreEnumVals]) :-
+    succ(N, M),
+    get_dict(id, Val, Name),
+    get_enumerated(Vals, M, MoreEnumVals).
 
 %% ----------------------------------------------------------------------
 
