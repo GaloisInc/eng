@@ -32,10 +32,10 @@ arithTerm(neg(E)) --> minus(_), lxm(arith, E).
 %% ltl(num(N)) --> lxm(number, N).
 %% ltl(call(I, Args)) --> lxm(ident, I), args(Args).
 arithTerm(val(N)) --> lxm(num, N).
-arithTerm(id(I)) --> lxm(ident, I).
 %% ltl(E) --> boolExpr(E, Ls0, Ls).
 %% %% ltl(E) --> boolEx(E).
 arithTerm(E) --> lxm(lp), lxm(arithEx, E), lxm(rp).
+arithTerm(id(I)) --> lxm(ident, I).
 arithExMore(LT, Expr) --> lxm(expt), arithTerm(E), arithExMore(expo(LT, E), Expr).
 arithExMore(LT, Expr) --> lxm(plus), arithTerm(E),
                           { optimize(add(LT, E), OptE) },
@@ -58,7 +58,6 @@ boolEx(E) --> boolTerm(T), boolExMore(T, E).
 % boolTerm(boolcall(I,Args)) --> lxm(ident, I), args(Args). % intercepts others and recurses infinitely
 boolTerm(true) --> lxm(w, "TRUE").
 boolTerm(false) --> lxm(w, "FALSE").
-boolTerm(boolid(I)) --> lxm(ident, I).
 
 boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
 boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
@@ -79,6 +78,8 @@ boolTerm(gt(E1,E2)) --> lxm(arithEx, E1), lxm(gt), lxm(arithEx, E2).
 boolTerm(neq(E1,E2)) --> lxm(arithEx, E1), lxm(neq), lxm(arithEx, E2).
 boolTerm(next(E,E2)) --> lxm(next), boolEx(E), lxm(comma), boolEx(E2).
 boolTerm(prev(E,E2)) --> lxm(prev), boolEx(E), lxm(comma), boolEx(E2).
+boolTerm(boolid(I)) --> lxm(ident, I).
+
 boolExMore(LT, Expr) --> lxm(and), boolTerm(E), boolExMore(and(LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(or), boolTerm(E), boolExMore(or(LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(xor), boolTerm(E), boolExMore(xor(LT, E), Expr).
