@@ -113,14 +113,19 @@ boolExMore(LT, Expr) --> lxm(ltlV), boolTerm(E),
 boolExMore(LT, LT) --> [].
 
 
-bound(range2(B,E)) --> ['['], ltl(B), [','], ltl(E), [']'].
-bound(range1(B)) --> ['['], ltl(B), [']'].
-bound(salt_eq(E)) --> lxm(eq), lxm(ltl, E).
-bound(salt_le(E)) --> lxm(le), lxm(ltl, E).
-bound(salt_ge(E)) --> lxm(ge), lxm(ltl, E).
-bound(salt_lt(E)) --> lxm(lt), lxm(ltl, E).
-bound(salt_gt(E)) --> lxm(gt), lxm(ltl, E).
-bound(salt_neq(E)) --> lxm(eq), lxm(ltl, E).
+bound(Bnd) --> ['['], range(Bnd), ws_, [']'].
+bound(Bnd) --> ['['], range(Bnd), [']'].
+bound(Bnd) --> ['['], saltBound(Bnd), [']'].
+bound(Bnd) --> ['['], saltBound(Bnd), ws_, [']'].
+
+range(range2(B,E)) --> arithEx(B), [','], arithEx(E).
+range(range1(B)) --> arithEx(B).
+saltBound(salt_eq(E)) --> lxm(eq), lxm(arithEx, E).
+saltBound(salt_le(E)) --> lxm(le), lxm(arithEx, E).
+saltBound(salt_ge(E)) --> lxm(ge), lxm(arithEx, E).
+saltBound(salt_lt(E)) --> lxm(lt), lxm(arithEx, E).
+saltBound(salt_gt(E)) --> lxm(gt), lxm(arithEx, E).
+saltBound(salt_neq(E)) --> lxm(eq), lxm(arithEx, E).
 
 comma() --> [ ',' ].
 lp() --> [ '(' ].
