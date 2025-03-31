@@ -271,7 +271,9 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
     (Traces == [] ; print_message(warning, other_unrealizable_traces(Traces))),
     get_dict(streams, Trace, Streams),
     findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
-    append(Inputs, ContractNames, InterestingVars),
+    findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
+    append(Inputs, Outputs, InsOuts),
+    append(InsOuts, ContractNames, InterestingVars),
     !,
     show_stream_steps(InterestingVars, Streams),
     print_message(error, kind2_unrealizable(CSize, Names)).
@@ -289,6 +291,10 @@ show_kind2_satresult(_, R, Sts, Sts) :-
 
 trace_input(StreamEntry, Name) :-
     get_dict(class, StreamEntry, "input"),
+    get_dict(name, StreamEntry, Name).
+
+trace_output(StreamEntry, Name) :-
+    get_dict(class, StreamEntry, "output"),
     get_dict(name, StreamEntry, Name).
 
 show_stream_steps(Vars, Streams) :-
