@@ -785,7 +785,8 @@ last_is_FALSE(I, O) :- subst(' LAST ', 'FALSE', I, O).
 
 % --------------------
 
-salt_to_smv(I, SMV) :-   % XXX: test this
+salt_to_smv(I, I).
+salt_to_smv_DISABLED(I, SMV) :-   % XXX: test this
     string_chars(I, CS),
     phrase(salt2smv(O), CS, R),
     !,
