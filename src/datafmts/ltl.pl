@@ -60,14 +60,22 @@ boolTerm(true) --> lxm(w, "TRUE").
 boolTerm(false) --> lxm(w, "FALSE").
 
 boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
+boolTerm(ltlH_bound(B, E)) --> lxm(ltlH), lxm(bound, B), lxm(boolEx, E).
 boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
+boolTerm(ltlO_bound(B, E)) --> lxm(ltlO), lxm(bound, B), lxm(boolEx, E).
 boolTerm(ltlG(E)) --> lxm(ltlG), lxm(boolEx, E).
+boolTerm(ltlG_bound(B, E)) --> lxm(ltlG), lxm(bound, B), lxm(boolEx, E).
 boolTerm(ltlF(E)) --> lxm(ltlF), lxm(boolEx, E).
+boolTerm(ltlF_bound(B, E)) --> lxm(ltlF), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolEx, E).
+boolTerm(ltlBefore_bound(B, E)) --> lxm(ltlBefore), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolEx, E).
+boolTerm(ltlAfter_bound(B, E)) --> lxm(ltlAfter), lxm(bound, B), lxm(boolEx, E).
+
 boolTerm(ltlY(E)) --> lxm(ltlY), lxm(boolEx, E).
 boolTerm(ltlX(E)) --> lxm(ltlX), lxm(boolEx, E).
 boolTerm(ltlZ(E)) --> lxm(ltlZ), lxm(boolEx, E).
-boolTerm(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolEx, E).
-boolTerm(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolEx, E).
+
 boolTerm(not(E)) --> lxm(not), boolTerm(E).
 boolTerm(E) --> lxm(lp), lxm(boolEx, E), lxm(rp).
 boolTerm(eq(E1,E2)) --> lxm(arithEx, E1), lxm(eq), lxm(arithEx, E2).
@@ -244,9 +252,11 @@ emit_CoCoSpec(neg(E), C) :- emit_CoCoSpec(E, ES),
                             atom_string(CA, C).
 emit_CoCoSpec(ltlH(E), C) :- coco_call("H", E, C).  % Historically
 emit_CoCoSpec(ltlO(E), C) :- coco_call("O", E, C).  % Once
+emit_CoCoSpec(ltlO_bound(B, E), C) :- coco_call("OT", B, E, C).  % Once
 emit_CoCoSpec(ltlY(E), C) :- coco_call("YtoPre", E, C).  % PrevFalse
 emit_CoCoSpec(ltlZ(E), C) :- coco_call("ZtoPre", E, C).  % PrevTrue
 
+emit_CoCoSpec(add(E1, E2), C) :- coco_infix("+", E1, E2, C).
 emit_CoCoSpec(and(E1, E2), C) :- coco_infix("and", E1, E2, C).
 emit_CoCoSpec(or(E1, E2), C) :- coco_infix("or", E1, E2, C).
 emit_CoCoSpec(xor(E1, E2), C) :- coco_infix("xor", E1, E2, C).
@@ -259,6 +269,18 @@ emit_CoCoSpec(le(E1, E2), C) :- coco_infix("<=", E1, E2, C).
 emit_CoCoSpec(gt(E1, E2), C) :- coco_infix(">", E1, E2, C).
 emit_CoCoSpec(ge(E1, E2), C) :- coco_infix(">=", E1, E2, C).
 emit_CoCoSpec(binS(E1, E2), C) :- coco_call("SI", E1, E2, C). % SinceInclusive  % KWQ: Reversed (LTLASTSemantics.js)
+
+emit_CoCoSpec(salt_eq(B), C) :- emit_CoCoSpec(B, BS),
+                                format(atom(CA), "~w, ~w", [BS, BS]),
+                                atom_string(CA, C).
+emit_CoCoSpec(salt_le(B), C) :- emit_CoCoSpec(B, BS),
+                                format(atom(CA), "~w, 0", [BS]),
+                                atom_string(CA, C).
+emit_CoCoSpec(salt_lt(B), C) :- emit_CoCoSpec(B, BS),
+                                format(atom(CA), "(~w - 1), 0", [BS]),
+                                atom_string(CA, C).
+
+
 emit_CoCoSpec(X, _) :- format('No CoCo conversion for: ~w~n', [X]), fail.
 
 coco_call(F,A,C) :- emit_CoCoSpec(A,AS),
