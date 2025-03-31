@@ -63,13 +63,21 @@ collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(_, FretReq, _).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     component_var(RV, Inputs, CompVar),
     !,
-    add_var_ref(CompVar, Inputs, V),
-    collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
+    get_dict(variable_name, CompVar, VName),
+    (existing_var(VName, VS, CV, VSNoV)
+    -> add_var_ref(CV, Inputs, CSV), RemVS = VSNoV
+    ; add_var_ref(CompVar, Inputs, CSV), RemVS = VS
+    ),
+    collect_req_vars(Inputs, RVS, [CSV|RemVS], OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     events_var(RV, Inputs, Var),
     !,
-    add_var_ref(Var, Inputs, V),
-    collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
+    get_dict(variable_name, Var, VName),
+    (existing_var(VName, VS, EV, VSNoV)
+    -> add_var_ref(EV, Inputs, SV), RemVS = VSNoV
+    ; add_var_ref(Var, Inputs, SV), RemVS = VS
+    ),
+    collect_req_vars(Inputs, RVS, [SV|RemVS], OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     scenarios_var(RV, Inputs, Var),
     !,
