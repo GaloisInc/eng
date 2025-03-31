@@ -41,7 +41,9 @@ fret_to_kind2(Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
 connected_components([], _, _, []).
 connected_components([R|Reqs], FRInfo, N, [CC|CComps]) :-
     req_info(FRInfo, R, RInfo),
-    req_resp_vars(RInfo, Vars),
+    req_resp_vars(RInfo, RspVars),
+    req_timing_vars(RInfo, TimingVars),
+    append(RspVars, TimingVars, Vars),
     ccomp(FRInfo, N, R, Vars, Reqs, CC, RemReqs),
     succ(N, M),
     connected_components(RemReqs, FRInfo, M, CComps).
@@ -59,7 +61,9 @@ ccomp(FRInfo, N, Req, RespVars, [R|RS], comp(N, Name, [R|CReqs], CVars), RemReqs
     get_dict(component_name, ReqSemantics, CName),
     get_dict(component_name, RSemantics, CName),
     req_info(FRInfo, R, RInfo),
-    req_resp_vars(RInfo, Vars),
+    req_resp_vars(RInfo, RspVars),
+    req_timing_vars(RInfo, TimingVars),
+    append(RspVars, TimingVars, Vars),
     member(V, Vars),
     member(V, RespVars),
     % same component name, and overlap between R and Req response vars: R is in
@@ -79,6 +83,8 @@ req_info([_|RIS], R, RI) :-
 
 req_resp_vars(RI, RespVars) :-
     get_dict(fretment, RI, fretment(_, _, _, _, response_info(_, RespVars))).
+req_timing_vars(RI, TimingVars) :-
+    get_dict(fretment, RI, fretment(_, _, _, timing_info(_, TimingVars), _)).
 
 %% ----------------------------------------------------------------------
 
