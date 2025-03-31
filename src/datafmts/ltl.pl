@@ -255,6 +255,7 @@ emit_CoCoSpec(neg(E), C) :- emit_CoCoSpec(E, ES),
                             format(atom(CA), "-(~w)", [ES]),
                             atom_string(CA, C).
 emit_CoCoSpec(ltlH(E), C) :- coco_call("H", E, C).  % Historically
+emit_CoCoSpec(ltlH_bound(B,E), C) :- coco_call("HT", B, E, C).
 emit_CoCoSpec(ltlO(E), C) :- coco_call("O", E, C).  % Once
 emit_CoCoSpec(ltlO_bound(B, E), C) :- coco_call("OT", B, E, C).  % Once
 emit_CoCoSpec(ltlY(E), C) :- coco_call("YtoPre", E, C).  % PrevFalse
@@ -273,6 +274,11 @@ emit_CoCoSpec(le(E1, E2), C) :- coco_infix("<=", E1, E2, C).
 emit_CoCoSpec(gt(E1, E2), C) :- coco_infix(">", E1, E2, C).
 emit_CoCoSpec(ge(E1, E2), C) :- coco_infix(">=", E1, E2, C).
 emit_CoCoSpec(binS(E1, E2), C) :- coco_call("SI", E1, E2, C). % SinceInclusive  % KWQ: Reversed (LTLASTSemantics.js)
+
+emit_CoCoSpec(range2(B, E), C) :- emit_CoCoSpec(B, BS),
+                                  emit_CoCoSpec(E, ES),
+                                  format(atom(CA), "~w, ~w", [ ES, BS ]),
+                                  atom_string(CA, C).
 
 emit_CoCoSpec(salt_eq(B), C) :- emit_CoCoSpec(B, BS),
                                 format(atom(CA), "~w, ~w", [BS, BS]),

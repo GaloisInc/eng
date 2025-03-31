@@ -83,6 +83,14 @@ test(bool_expr_6, [nondet]) :-
     emit_CoCoSpec(AST, CoCo),
     assertion(CoCo == "OT(3, 3, alarm_enabled)").
 
+test(bool_expr_with_ltl_func, [nondet]) :-
+    Inp = "(H ((Y (awake & ((H[0,2] wet) & (H[0,1] (Y TRUE))))) -> ((noise = croaking) | (! (Y TRUE)))))",
+    CoCoSpec = "H((YtoPre((awake and (HT(2, 0, wet) and HT(1, 0, YtoPre(true))))) => ((noise = croaking) or not (YtoPre(true)))))",
+    parse_ltl(Inp, AST),
+    writeln(ltl_parsed),
+    emit_CoCoSpec(AST, CoCo),
+    assertion(CoCo == CoCoSpec).
+
 test(bool3_expr_unary_timed_bound, [nondet]) :-
     Inp = "((H ((O[<=2 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm))))) -> ((H (! (alarm_enabled & disable_alarm))) | (! (alarm_disabled))))) & (H ((O[=2 +1] (((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))) & (! (alarm_disabled)))) -> (O[<2 +1] ((Z FALSE) | (alarm_disabled))))))",
     parse_ltl(Inp, AST),
