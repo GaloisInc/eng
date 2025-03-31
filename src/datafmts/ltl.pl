@@ -214,9 +214,13 @@ wchar(C) :- \+ char_type(C, space),
                           '$',
                           '/']).
 
-num([N|NS]) --> digit(N), num(NS).
+num(V) --> digit(N), num(NS), V is (N * 10) + NS.
 num(N) --> digit(N).
-digit(D) --> [ (D) ], { char_type(D, digit) }.
+digit(D) --> [ (C) ], { char_type(C, digit),
+                        atom_codes(C, [CS]),
+                        atom_codes('0', [ZS]),
+                        plus(ZS, D, CS)
+                      }.
 
 
 % ----------------------------------------------------------------------
