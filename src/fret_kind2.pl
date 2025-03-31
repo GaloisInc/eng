@@ -259,9 +259,7 @@ trace_input(StreamEntry, Name) :-
     get_dict(name, StreamEntry, Name).
 
 show_stream_steps(Vars, Streams) :-
-    length(Vars, NVars),
-    succ(NVars, NCols),
-    make_format(NCols, Fmt),
+    make_format(["Step"|Vars], Fmt),
     format(Fmt, ["Step"|Vars]),
     !,
     show_stream_steps(Vars, Streams, Fmt, 0).
@@ -281,11 +279,13 @@ get_step_val([_|Streams], StepNum, Var, Val) :-
 
 get_valnum(StepVals, StepNum, Val) :- member([StepNum,Val], StepVals).
 
-make_format(0, '~78|~n') :- !.
-make_format(N, Fmt) :-
-    succ(P, N),
-    make_format(P, PFmt),
-    atom_concat('~t~w', PFmt, Fmt).
+make_format([], "~n") :- !.
+make_format([Var|Vars], Fmt) :-
+    string_length(Var, VL),
+    succ(VL, CW),
+    make_format(Vars, PFmt),
+    format(atom(X), '~w~d~w ~w', [ '~w~t~', CW, '+', PFmt ]),
+    atom_string(X, Fmt).
 
 prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
