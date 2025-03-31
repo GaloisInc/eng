@@ -1,4 +1,5 @@
 :- module(englib, [ enumerate/2,
+                    append_nub/3,
                     intercalate/3,
                     list_call/3,
                     show_type/2,
@@ -22,6 +23,11 @@ list_call(Op, [], Out) :- call(Op, Out).
 enumerate(I, O) :- enum_(0, I, O).
 enum_(_, [], []).
 enum_(N, [I|IS], [(N,I)|OS]) :- succ(N, M), enum_(M, IS, OS).
+
+% like append, but does not add duplicate entries, right biased
+append_nub([], ES, ES).
+append_nub([N|NS], ES, R) :-
+    append_nub(NS, ES, OS), (member(N, OS) -> R = OS ; R = [N|OS]).
 
 intercalate([], _, "").
 intercalate([E], _, E) :- string(E).
