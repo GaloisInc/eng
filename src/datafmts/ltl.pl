@@ -521,9 +521,11 @@ emit_CoCoSpec(gt(E1, E2), C) :- coco_infix(">", E1, E2, C), !.
 emit_CoCoSpec(ge(E1, E2), C) :- coco_infix(">=", E1, E2, C), !.
 
 % Note: CoCoSpec reverses the arguments for: S, ST, SI, and SIT.  S(p,q) = q S p.
-% See LTLASTSemantics.js.
-emit_CoCoSpec(ltlS(E1, E2), C) :- coco_call("S", E2, E1, C), !. % Since
-emit_CoCoSpec(ltlSI(E1, E2), C) :- coco_call("SI", E2, E1, C), !. % SinceInclusive
+% See LTLASTSemantics.js.  ALSO, don't add a space between the comma and the
+% second argument to match what FRET emits.  This is inconsequential except for
+% string comparisons of the emitted CoCoSpec.
+emit_CoCoSpec(ltlS(E1, E2), C) :- coco_call("S", E2, E1, nospace, C), !. % Since
+emit_CoCoSpec(ltlSI(E1, E2), C) :- coco_call("SI", E2, E1, nospace, C), !. % SinceInclusive
 
 emit_CoCoSpec(range2(B, E), C) :- emit_CoCoSpec(B, BS),
                                   emit_CoCoSpec(E, ES),
@@ -546,6 +548,10 @@ emit_CoCoSpec(X, _) :- format('No CoCo conversion for: ~w~n', [X]), fail.
 coco_call(F,A,C) :- emit_CoCoSpec(A,AS),
                     format(atom(CA), "~w(~w)", [F,AS]),
                     atom_string(CA, C).
+coco_call(F,A,B,nospace,C) :- emit_CoCoSpec(A,AS),
+                              emit_CoCoSpec(B,BS),
+                              format(atom(CA), "~w(~w,~w)", [F,AS,BS]),
+                              atom_string(CA, C).
 coco_call(F,A,B,C) :- emit_CoCoSpec(A,AS),
                       emit_CoCoSpec(B,BS),
                       format(atom(CA), "~w(~w, ~w)", [F,AS,BS]),
