@@ -19,13 +19,14 @@ fret_kind2(EnumVals, FretReqs, FretMents, Kind2Comps) :-
     get_dict(requirements, FretMents, Reqs),
     get_dict(variables, FretMents, Vars),
     !,
-    connected_components(Reqs, FretReqs, 0, CComps),
+    connected_components(Reqs, Vars, 0, CComps),
     fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps).
 
 fret_to_kind2(_, _, [], []).
 fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
     fret_to_kind2(EnumVals, Vars, CCs, K2s),
-    reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2),
+    format(atom(CName), '~w_~w', [ CompName, N ]),
+    reqs_to_kind2(EnumVals, Vars, CName, Reqs, CVars, Kind2),
     K2 = _{ compNum: N,
             compName: CompName,
             kind2: Kind2
@@ -34,57 +35,53 @@ fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
 %% ----------------------------------------------------------------------
 
 %% Group input requirements into "connected components".  The kind2 analysis is
-%% done with past-time LTL, so requirements are connected if they share variable
-%% references in the responses.  This will return a list of the CC's (Connected
-%% Components) that can be created from the provided requirements.
+%% done with past-time LTL, so requirements are connected if they share output
+%% variable references in the responses.  This will return a list of the CC's
+%% (Connected Components) that can be created from the provided requirements.
 
 connected_components([], _, _, []).
-connected_components([R|Reqs], FRInfo, N, [CC|CComps]) :-
-    req_info(FRInfo, R, RInfo),
-    req_resp_vars(RInfo, RspVars),
-    req_timing_vars(RInfo, TimingVars),
-    append(RspVars, TimingVars, Vars),
-    ccomp(FRInfo, N, R, Vars, Reqs, CC, RemReqs),
+connected_components([R|Reqs], Vars, N, [CC|CComps]) :-
+    req_out_varnames(Vars, R, OutVNames),
+    conncomp(Vars, N, R, OutVNames, Reqs, CC, RemReqs),
     succ(N, M),
-    connected_components(RemReqs, FRInfo, M, CComps).
+    connected_components(RemReqs, Vars, M, CComps).
 
-ccomp(_, N, Req, RespVars, [], comp(N, CName, [Req], RespVars), []) :-
-    % n.b. the collected RespVars are returned as the set of applicable output
-    % vars for this CC.  This could be reconstructed by getting the set of all
-    % vars from the Reqs in the CC and filtering by idType="Output", but since
-    % they've already been collected here...
+conncomp(_, N, Req, OutVNames, [], comp(N, CName, [Req], OutVNames), []) :-
     get_dict(semantics, Req, ReqSemantics),
     get_dict(component_name, ReqSemantics, CName).
-ccomp(FRInfo, N, Req, RespVars, [R|RS], comp(N, Name, [R|CReqs], CVars), RemReqs) :-
+conncomp(Vars, N, Req, OutVNames, [R|RS], comp(N, CName, [R|CReqs], CVars), RemReqs) :-
     get_dict(semantics, Req, ReqSemantics),
     get_dict(semantics, R, RSemantics),
     get_dict(component_name, ReqSemantics, CName),
     get_dict(component_name, RSemantics, CName),
-    req_info(FRInfo, R, RInfo),
-    req_resp_vars(RInfo, RspVars),
-    req_timing_vars(RInfo, TimingVars),
-    append(RspVars, TimingVars, Vars),
-    member(V, Vars),
-    member(V, RespVars),
+    req_out_varnames(Vars, R, ROutVNames),
+    member(V, OutVNames),
+    member(V, ROutVNames),
     % same component name, and overlap between R and Req response vars: R is in
     % this component
     !,
-    append(Vars, RespVars, TTLVars), % KWQ: nub?
-    ccomp(FRInfo, N, Req, TTLVars, RS, comp(N, Name, CReqs, CVars), RemReqs).
-ccomp(FRInfo, N, Req, RespVars, [R|RS], CC, [R|RemReqs]) :-
-    ccomp(FRInfo, N, Req, RespVars, RS, CC, RemReqs).
+    append_nub(OutVNames, ROutVNames, AllOutVNames),
+    conncomp(Vars, N, Req, AllOutVNames, RS,
+             comp(N, CName, CReqs, CVars), RemReqs).
+conncomp(Vars, N, Req, OutVNames, [R|RS], CC, [R|RemReqs]) :-
+    conncomp(Vars, N, Req, OutVNames, RS, CC, RemReqs).
 
-req_info([RI|_], R, RI) :-
-    get_dict(requirement, RI, RIR),
-    get_dict(reqid, R, RID),
-    get_dict(reqid, RIR, RID).
-req_info([_|RIS], R, RI) :-
-    req_info(RIS, R, RI).
+req_out_varnames(Vars, Req, VS) :-
+    get_dict(semantics, Req, ReqSem),
+    get_dict(variables, ReqSem, ReqVars),
+    out_varnames(Vars, ReqVars, VS).
 
-req_resp_vars(RI, RespVars) :-
-    get_dict(fretment, RI, fretment(_, _, _, _, response_info(_, RespVars))).
-req_timing_vars(RI, TimingVars) :-
-    get_dict(fretment, RI, fretment(_, _, _, timing_info(_, TimingVars), _)).
+out_varnames(_, [], []).
+out_varnames(Vars, [V|VS], [V|VNMS]) :-
+    out_varname(Vars, V),
+    !,
+    out_varnames(Vars, VS, VNMS).
+out_varnames(Vars, [_|VS], VNMS) :- out_varnames(Vars, VS, VNMS).
+
+out_varname([V|_], VName) :- get_dict(variable_name, V, VName),
+                             !,
+                             get_dict(idType, V, "Output").
+out_varname([_|VS], VName) :- out_varname(VS, VName).
 
 %% ----------------------------------------------------------------------
 
