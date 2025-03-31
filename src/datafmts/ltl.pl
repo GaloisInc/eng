@@ -200,10 +200,12 @@ lxm(R, O, U, P) --> call(R, O, U, P).
 
 ws_() --> [C], { char_type(C, space) }.
 
-w(W) --> [C], { wchar(C) }, w_(CS), { string_chars(W, [C|CS]) }.
+w(W) --> [C], { wchar1(C) }, w_(CS), { string_chars(W, [C|CS]) }.
 w_([C|CS]) --> [C], { wchar(C) }, !, w_(CS).
 w_([]) --> [].
 
+wchar1(C) :- wchar(C),
+             \+ member(C, ['1','2','3','4','5','6','7','8','9','0']).
 wchar(C) :- \+ char_type(C, space),
             % Exclude things that might be individual tokens needing to be
             % recognized elsewhere in the grammar.
