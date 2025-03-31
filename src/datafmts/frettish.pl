@@ -224,6 +224,9 @@ component(_{ component: Comp,
 
 timing(_{ timing: "always", timingTextRange:Range}, []) -->
     lexeme(always, P), {range(P, Range)}.
+timing(_{ timing: "after", duration: Duration, timingTextRange:Range}, []) -->
+    lexeme(after, SP), duration_lower(Duration, LP),
+    { pos(SP, LP, P), range(P, Range) }.
 timing(_{ timing: "before", stop_condition: Cond, timingTextRange:Range}, Vars) -->
     lexeme(before, SP), bool_expr(Cond, Vars, LP),
     { pos(SP, LP, P), range(P, Range) }.
@@ -265,6 +268,7 @@ timing(_{ timing: "within", duration: Duration, timingTextRange:Range}, []) -->
 timing(_{ timing: "always"}) --> [],
                                  { writeln('warning, defaulting to always timing: may not have understood timing phrase') }.
 
+duration_lower(D, P) --> duration_upper(D, P).
 duration_upper(D, P) --> lexeme(number, Dur, SP),
                           lexeme(timeunit, LP),
                          { pos(SP, LP, P),
