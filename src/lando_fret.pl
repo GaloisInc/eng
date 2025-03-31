@@ -789,8 +789,7 @@ fetched_ft_pt_update(Defs, Inp, Out) :-
     salt_to_smv(TPET, PSMV),
     transform_to_AST(PSMV, PASTRaw),
     xform_past_optimize(PASTRaw, PAST),
-    ast_to_LTL(PSMV, % KWQ: PAST,
-               PLTL),
+    ast_to_LTL(PAST, PLTL),
     ltl_ast_to_CoCo(PAST, PCOCO),
 
     get_dict(ftExpanded, Defs, FTE),
@@ -905,11 +904,33 @@ ltl_ast_to_CoCo(I, O) :- emit_CoCoSpec(I, O).
 
 % --------------------
 
-xform_past_temporal_unbounded(I, I).  % TODO
+xform_past_temporal_unbounded(I, I).  % TODO (only for scope mode)
 xform_future_temporal_unbounded(I, I). % TODO
-xform_past_temporal(I, I).  % TODO
+
+xform_past_temporal(I, O) :-  % provided/returns string
+    parse_ltl(I, AST),
+    fmap(lando_fret:xpt, AST, XAST),
+    !,
+    emit_ltl(XAST, O).
+xpt(boolcall("persisted", [val(V),A2]),
+    and(ltlH_bound(salt_le(val(V)), A2),
+        ltlH_bound(salt_lt(val(V)), not(boolid("$Left$"))))).
+xpt(boolcall("occurred", [val(V),A2]),
+    and(ltlS(not(boolid("$Left$")), A2),
+        ltlO_bound(salt_le(val(V)), A2))).
+xpt(boolcall("preBool", [Init, P]),
+    or(and(not(ltlY(true)), Init),
+       and(not(not(ltlY(true))), ltlY(P)))).
+xpt(boolcall("prevOcc", [P, Q]),
+    or(boolid("$Left$"),
+       ltlY(implies(ltlS(and(not(boolid("$Left$")), not(P)), P),
+                    ltlS(and(not(boolid("$Left$")), not(P)), and(P, Q)))))).
+xpt(E, E).
+
 xform_future_temporal(I, I). % TODO
-xform_past_optimize(I, O) :- past_optimize(I, O).
+
+xform_past_optimize(I, I). % provided/returns AST; already done by ltl_parse
+
 xform_future_optimize(I, I).  % TODO xform.transform(X, xform.optimizeFT)
 
 conjunction([], "").

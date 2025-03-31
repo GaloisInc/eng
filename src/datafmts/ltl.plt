@@ -95,9 +95,15 @@ test(bool_expr_6, [nondet]) :-
 
 test(bool_expr_with_ltl_func, [nondet]) :-
     Inp = "(H ((Y (awake & ((H[0,2] wet) & (H[0,1] (Y TRUE))))) -> ((noise = croaking) | (! (Y TRUE)))))",
-    CoCoSpec = "H((YtoPre((awake and (HT(2, 0, wet) and HT(1, 0, YtoPre(true))))) => ((noise = croaking) or not (YtoPre(true)))))",
-    parse_ltl(Inp, AST),
+    % n.b. (! (Y TRUE)) is optimized to (Z FALSE)
+    CoCoSpec = "H((YtoPre((awake and (HT(2, 0, wet) and HT(1, 0, YtoPre(true))))) => ((noise = croaking) or ZtoPre(false))))",
+    parse_ltl(Inp, AST0),
     !,
+    emit_ltl(AST0, Inp2),
+    % n.b. cannot compare Inp and Inp2: parentheses and other optimizations
+    parse_ltl(Inp2, AST),
+    !,
+    assertion(AST0 == AST),
     writeln(ltl_parsed),
     emit_CoCoSpec(AST, CoCo),
     same_string(CoCo, CoCoSpec).
@@ -134,14 +140,15 @@ test(upon_next_expr, [nondet]) :-
     %% Upon not_y and l the a shall at the next timepoint satisfy m & i >= 0.
     %% Inp is ptExpanded_fetched with var replacements
     Inp = "(H ((Y ((not_y & l) & (Z (! (not_y & l))))) -> ((m & (i >= 0)) | (! (Y TRUE)))))",
-    CoCoExp = "H((YtoPre(((not_y and l) and ZtoPre(not ((not_y and l))))) => ((m and (i >= 0)) or not (YtoPre(true)))))",
+    % n.b. (! (Y TRUE)) is optimized to (Z FALSE)
+    CoCoExp = "H((YtoPre(((not_y and l) and ZtoPre(not ((not_y and l))))) => ((m and (i >= 0)) or ZtoPre(false))))",
     parse_ltl(Inp, AST),
     !,
     assertion(AST == ltlH(implies(ltlY(and(and(boolid("not_y"), boolid("l")),
                                            ltlZ(not(and(boolid("not_y"),
                                                         boolid("l")))))),
                                   or(and(boolid("m"), ge(id("i"), val(0))),
-                                     not(ltlY(true)))))),
+                                     ltlZ(false))))),
     emit_CoCoSpec(AST, CoCo),
     same_string(CoCo, CoCoExp).
 
