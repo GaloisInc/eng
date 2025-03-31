@@ -286,6 +286,38 @@ test(stage_change_scope_invert_before, [nondet]) :-
 
 %% capture above 3 in FRET, then validate frettish can parse.  Then return to scope.  And finally condition exprs.
 
+test(with_ltl_predicate, [nondet]) :-
+    Inp = "whenever awake & persisted(2, wet) the frog shall at the next timepoint satisfy (noise = croaking)",
+    parse_fret("test", Inp, FretMent),
+    FretMent = fretment(scope_info(SFret, SVars),
+                        condition_info(CFret, CVars),
+                        component_info(Comp),
+                        timing_info(Timing, TVars),
+                        response_info(Responses, RespVars)),
+    get_dict(scope, SFret, Scope),
+    get_dict(type, Scope, SType),
+    assertion(SType == null),
+    assertion(SVars == []),
+    get_dict(condition, CFret, Condition),
+    get_dict(qualifier_word, CFret, Qualifier),
+    get_dict(pre_condition, CFret, PreCond),
+    get_dict(regular_condition, CFret, RegCond),
+    assertion(Condition == "noTrigger"),
+    assertion(Qualifier == "whenever"),
+    assertion(PreCond == "(awake & persisted(2, wet))"),
+    assertion(RegCond == "(awake & persisted(2, wet))"),
+    assertion(CVars == ["awake", "wet"]),
+    get_dict(component_name, Comp, CompName),
+    assertion(CompName == "frog"),
+    get_dict(timing, Timing, Tmng),
+    assertion(Tmng == "next"),
+    assertion(TVars == []),
+    get_dict(response, Responses, Rspns),
+    get_dict(post_condition, Responses, PostCond),
+    assertion(Rspns == "satisfaction"),
+    assertion(PostCond == "((noise = croaking))"),
+    assertion(RespVars == [ "noise", "croaking" ]).
+
 %% Then do system pre/post
 
 %%                    CI

@@ -325,7 +325,6 @@ bool_term(V, Vars, P) --> lexeme(if, IP), bool_expr(Cnd, CVars, _CP),
                             pos(IP, TP, P)
                           }.
 bool_term(V, [], P) --> lexeme(num, V, P).
-bool_term(V, [V], P) --> lexeme(word, V, P).
 bool_term(V, Vars, P) --> lexeme(not_, LP),
                           bool_term(NV, Vars, NP),
                           { format(atom(X), '(! ~w)', [NV]), atom_string(X, V) },
@@ -335,7 +334,16 @@ bool_term(V, Vars, P) --> lexeme(lparen, LP),
                           { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
                           lexeme(rparen, RP),
                           { pos(LP, RP, P) }.
-% KWQ: ~ XOR -> => <-> <=> "IF be THEN be" "AT THE (PREVIOUS|NEXT) OCCURRENCE OF be, be", "ID(args,...)"
+bool_term(V, VS, P) --> lexeme(word, I, SP),
+                        lexeme(lparen, _), args(AV, VS), lexeme(rparen, RP),
+                        {
+                            format(atom(X), '~w(~w)', [I, AV]),
+                            atom_string(X, V),
+                            pos(SP, RP, P)
+                        }.
+bool_term(V, [V], P) --> lexeme(word, V, P).
+
+% KWQ: ~ XOR -> => <-> <=> "IF be THEN be" "AT THE (PREVIOUS|NEXT) OCCURRENCE OF be, be"
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
     bool_exprMoreBin(LT, LV, LP, and_, "&", V, Vars, P).
 bool_exprMore(LT, LV, LP, V, Vars, P) -->
@@ -350,6 +358,17 @@ bool_exprMoreBin(LT, LV, LP, Matcher, Op, V, Vars, P) -->
 %%     lexeme(Matcher, _), numeric_expr..., relational_op..., numeric_expr..., % if not requiring parens for these
 %%     { binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) },
 %%     bool_exprMore(XS, XV, XP, V, Vars, P).
+
+args(A, AV) --> arg(FA, FAV), lexeme(comma, _), args(MA, MAV),
+                { format(atom(X), "~w, ~w", [FA, MA]),
+                  atom_string(X, A),
+                  append(FAV, MAV, AV)
+                }.
+args(A, AV) --> arg(A, AV).
+args("", []) --> [].
+
+arg(A, AV) --> bool_expr(A, AV, _).
+arg(A, AV) --> numeric_expr(A, AV, _).
 
 numeric_expr(E, Vars, P) --> numeric_term(LT, LV, LP),
                              numeric_exprMore(LT, LV, LP, E, Vars, P).
@@ -437,6 +456,7 @@ within(P) --> token("within", P).
 
 lparen(span(P,P)) --> [(P,'(')].
 rparen(span(P,P)) --> [(P,')')].
+comma(span(P,P)) --> [(P,',')].
 gteq_(span(P,P)) --> [(P,'>'), (_, '=')].
 lteq_(span(P,P)) --> [(P,'<'), (_, '=')].
 gt_(span(P,P)) --> [(P,'>')].
