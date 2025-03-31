@@ -104,7 +104,13 @@ test(bool_expr_with_ltl_func, [nondet]) :-
 
 test(bool3_expr_unary_timed_bound, [nondet]) :-
     Inp = "((H ((O[<=2 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm))))) -> ((H (! (alarm_enabled & disable_alarm))) | (! (alarm_disabled))))) & (H ((O[=2 +1] (((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))) & (! (alarm_disabled)))) -> (O[<2 +1] ((Z FALSE) | (alarm_disabled))))))",
-    parse_ltl(Inp, AST),
+    parse_ltl(Inp, AST0),
+    !,
+    emit_ltl(AST0, Inp2),
+    % n.b. cannot compare Inp and Inp2: parentheses and other optimizations
+    parse_ltl(Inp2, AST),
+    !,
+    assertion(AST0 == AST),
     emit_CoCoSpec(AST, CoCo),
     same_string(CoCo, "(H((OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm))))) => (H(not ((alarm_enabled and disable_alarm))) or not (alarm_disabled)))) and H((OT(3, 3, (((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm)))) and not (alarm_disabled))) => OT((3 - 1), 0, (ZtoPre(false) or alarm_disabled)))))").
 
@@ -144,7 +150,13 @@ test(in_upon_next_expr, [nondet]) :-
     %% Inp is ptExpanded_fetched with var replacements
     Inp = "((H (((! startup) & (Y startup)) -> (Y (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) S (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) & (startup & (Z (! startup)))))))) & (((! ((! startup) & (Y startup))) S ((! ((! startup) & (Y startup))) & (startup & (Z (! startup))))) -> (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) S (((Y ((shutdown_requested) & ((Y (! (shutdown_requested))) | (startup & (Z (! startup)))))) -> ((shutdown_running) | (startup & (Z (! startup))))) & (startup & (Z (! startup)))))))",
     CoCoExp = "(H(((not (startup) and YtoPre(startup)) => YtoPre(SI((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))), ((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))) and (startup and ZtoPre(not (startup)))))))) and (SI(not ((not (startup) and YtoPre(startup))), (not ((not (startup) and YtoPre(startup))) and (startup and ZtoPre(not (startup))))) => SI((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))), ((YtoPre((shutdown_requested and (YtoPre(not (shutdown_requested)) or (startup and ZtoPre(not (startup)))))) => (shutdown_running or (startup and ZtoPre(not (startup))))) and (startup and ZtoPre(not (startup)))))))",
-    parse_ltl(Inp, AST),
+    parse_ltl(Inp, AST0),
+    !,
+    emit_ltl(AST0, Inp2),
+    % n.b. cannot compare Inp and Inp2: parentheses and other optimizations
+    parse_ltl(Inp2, AST),
+    !,
+    assertion(AST0 == AST),
     % Not validing AST itself: it's rather large, and there's not significant
     % value to doing so.
     emit_CoCoSpec(AST, CoCo),
