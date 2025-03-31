@@ -162,19 +162,19 @@ next() --> lxm(w, "at"), lxm(w, "the"), lxm(w, "next"),
            lxm(w, "occurrence"), lxm(w, "of").
 prev() --> lxm(w, "at"), lxm(w, "the"), lxm(w, "previous"),
            lxm(w, "occurrence"), lxm(w, "of").
-ltlH() --> [ 'H' ], ws_.
+ltlH() --> [ 'H' ].
 ltlO() --> [ 'O' ].
 ltlG() --> [ 'G' ].
 ltlF() --> [ 'F' ].
 ltlSI() --> [ 'S', 'I' ].
 ltlS() --> [ 'S' ].
-ltlT() --> [ 'T' ], ws_.
+ltlT() --> [ 'T' ].
 ltlUI() --> [ 'U', 'I' ].
 ltlU() --> [ 'U' ].
 ltlV() --> [ 'V' ].
-ltlY() --> [ 'Y' ], ws_.
+ltlY() --> [ 'Y' ].
 ltlX() --> [ 'X' ].
-ltlZ() --> [ 'Z' ], ws_.
+ltlZ() --> [ 'Z' ].
 ltlBefore() --> [ '<', '|' ].
 ltlAfter() --> [ '|', '>' ].
 
