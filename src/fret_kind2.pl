@@ -133,18 +133,21 @@ implicit_vars(EnumVals, [V|VS], [D|DS]) :-
 % However, consider that Kind2 mode support is significantly more complex...
 implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
 
-input_vars(VTypes, Vars, Decls) :- input_vars_(VTypes, Vars, _, Decls).
-input_vars_(_, [], _, []).
-input_vars_(VTypes, [V|VS], [Name|SeenNames], Out) :-
+input_vars(VTypes, Reqs, Vars, Decls) :-
+    input_vars_(VTypes, Reqs, Vars, _, Decls).
+input_vars_(_, _, [], _, []).
+input_vars_(VTypes, Reqs, [V|VS], [Name|SeenNames], Out) :-
     get_dict(idType, V, "Input"),  % filters out Internal, Mode, and Output vars
-    !,
     get_dict(variable_name, V, Name),
+    is_req_var(Name, Reqs),
+    !,
     get_var_type(VTypes, Name, V, VarType),
     convert_type(VarType, KindType),
     format(atom(Decl), '~w:~w', [Name, KindType]),
-    input_vars_(VTypes, VS, SeenNames, DS),
+    input_vars_(VTypes, Reqs, VS, SeenNames, DS),
     add_if_not_present(Name, Decl, SeenNames, DS, Out).
-input_vars_(VTypes, [_|VS], Seen, Out) :- input_vars_(VTypes, VS, Seen, Out).
+input_vars_(VTypes, Reqs, [_|VS], Seen, Out) :-
+    input_vars_(VTypes, Reqs, VS, Seen, Out).
 
 
 output_vars(VTypes, Vars, OutNames, Decls) :-
@@ -180,8 +183,8 @@ convert_type("integer", "int") :- !.
 convert_type("boolean", "bool") :- !.
 convert_type(Other, Other).
 
-req_vars([], [], []).
-req_vars([R|RS], [G|GS], [D|DS]) :-
+req_internalvars([], [], []).
+req_internalvars([R|RS], [G|GS], [D|DS]) :-
     get_dict(reqid, R, RID),
     normalize_kind2_var(RID, V),
     get_dict(fulltext, R, FT),
@@ -189,7 +192,14 @@ req_vars([R|RS], [G|GS], [D|DS]) :-
     get_dict('CoCoSpecCode', Sem, E),
     format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, E ]),
     format(atom(G), 'guarantee "~w" ~w;', [RID, V]),
-    req_vars(RS, GS, DS).
+    req_internalvars(RS, GS, DS).
+
+is_req_var(VName, Reqs) :-
+    member(Req, Reqs),
+    get_dict(semantics, Req, ReqSem),
+    get_dict(variables, ReqSem, Vars),
+    member(VName, Vars),
+    !.
 
 normalize_kind2_var(Inp, Out) :-
     subst('-', '_', Inp, Out).
@@ -352,21 +362,21 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
     intercalate(Kind2Globals, "\n", GlobalDecls),
     implicit_vars(EnumVals, Vars, Kind2Decls),
     intercalate(Kind2Decls, "\n  ", NodeDecls),
-    input_vars(VarTypes, Vars, Kind2Input),
-    intercalate(Kind2Input, "; ", NodeArgs),
+    input_vars(VarTypes, Reqs, Vars, Kind2Input),
+    reverse(Kind2Input, RKind2Input),
+    intercalate(RKind2Input, "; ", NodeArgs),
     output_vars(VarTypes, Vars, CVars, Kind2Output),
     intercalate(Kind2Output, "; ", NodeRet),
-    req_vars(Reqs, Kind2Guarantees, Kind2ReqVars),
+    req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars),
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
 
-    [NodeName, Contracts] = [ CompName, "Contracts here..." ],
+    [NodeName] = [ CompName ],
     Kind2 = {|string(NodeName, NodeArgs, NodeRet,
                      NodeDecls,
                      NodeReqDecls,
                      NodeGuarantees,
-                     GlobalDecls,
-                     Contracts)||
+                     GlobalDecls)||
 | --Historically
 | node H(X:bool) returns (Y:bool);
 | let
