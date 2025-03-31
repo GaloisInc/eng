@@ -148,24 +148,33 @@ add_var_ref_(Var, ReqID, UpdVar) :-
 update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
                     inputs(Defs, UpdReq, SSL)) :-
     get_dict(requirement, FretReq, Req),
-    req_needs_var(Req, InitialSV, PreVar),
-    req_needs_var(Req, FinalSV, PostVar),
-    update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq).
+    % If the user referenced a var in the original, then assume they have
+    % responsibility for the proper format, otherwise we add a "SV = " to the RV
+    % instances in the fret and then re-parse.
+    req_needs_var(FretReq, Req, InitialSV, PreVar),
+    req_needs_var(FretReq, Req, FinalSV, PostVar),
+    update_req_with_var_(Defs, Req, RV, PreVar, PostVar, OutReq, VarAdds),
+    (get_dict(added_vars, FretReq, AddedVars) ; AddedVars = []),
+    append(AddedVars, VarAdds, VAS),
+    (OutReq == no_update
+    -> put_dict(_{added_vars:VAS}, FretReq, UpdReq)
+    ; put_dict(_{added_vars:VAS}, OutReq, UpdReq)
+    ).
 
-update_req_with_var_(_, Req, _, hasvar, hasvar, Req) :- !.
-update_req_with_var_(Defs, Req, RV, hasvar, PostVar, UpdReq) :-
+update_req_with_var_(_, _, _, hasvar, hasvar, no_update, []) :- !.
+update_req_with_var_(Defs, Req, RV, hasvar, PostVar, UpdReq, [PostVar]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(RV, PostVar, Post, UpdPost),
     update_req_with_newfret(Defs, Pre, UpdPost, Req, UpdReq).
-update_req_with_var_(Defs, Req, RV, PreVar, hasvar, UpdReq) :-
+update_req_with_var_(Defs, Req, RV, PreVar, hasvar, UpdReq, [PreVar]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(RV, PreVar, Pre, UpdPre),
     update_req_with_newfret(Defs, UpdPre, Post, Req, UpdReq).
-update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq) :-
+update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar]) :-
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(RV, PreVar, Pre, UpdPre),
@@ -185,10 +194,13 @@ split_frettish(Frettish, PreCond, PostCond) :-
     append(PreCondCS, SS, AShall),
     append(AShall, PostCondCS, CS),
     string_chars(PreCond, PreCondCS),
-    string_chars(PostCond, PostCondCS).
+    string_chars(PostCond, PostCondCS),
+    !.
 
-req_needs_var(Req, Var, hasvar) :- req_accesses_var(Req, Var), !.
-req_needs_var(_, Var, Var).
+req_needs_var(FretReq, _, Var, Var) :- get_dict(added_vars, FretReq, Vars),
+                                       member(Var, Vars), !.
+req_needs_var(_, Req, Var, hasvar) :- req_accesses_var(Req, Var), !.
+req_needs_var(_, _, Var, Var).
 
 req_accesses_var(Req, Var) :-
     get_dict(semantics, Req, Semantics),
