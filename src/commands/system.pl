@@ -3,7 +3,6 @@
 % n.b. the module name cannot be "system" because that is reserved in SWI Prolog.
 
 :- use_module(library(apply)).
-:- use_module(library(http/json)).
 :- use_module(library(lists)).
 :- use_module(library(strings)).
 :- use_module('../englib').
@@ -196,132 +195,11 @@ validate_lando_fret_cc(Context, OutFile, Status) :-
     file_name_extension(OutBase, 'lus', OutFile),
     string_concat(OutBase, "_result", ResultBase),
     file_name_extension(ResultBase, 'json', ResultFile),
-    do_exec(Context, "kind2 lando fret validation",
-            [ 'InpFile' = OutFile, 'OutDir' = OutD, 'JSONFile' = ResultFile ],
-            [ "pwd",
-              "kind2 -json --enable CONTRACTCK --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
-              % --lus_strict
-            ], [], ".", Sts),
-    ( process_kind2_results(ResultFile, Sts, Status)
-    ; Status = Sts
-    ).
-
-process_kind2_results(ResultFile, Sts, Status) :-
-    open(ResultFile, read, ResultStrm),
-    json_read_dict(ResultStrm, Results),
-    show_kind2_results(Results, Sts, Status).
-
-show_kind2_results([], Status, Status).
-show_kind2_results([O|OS], Sts, Status) :-
-    get_dict(objectType, O, OType),
-    show_kind2_results(O, OType, Sts, Sts2),
-    show_kind2_results(OS, Sts2, Status).
-
-show_kind2_results(_, "kind2Options", Sts, Sts) :- !. % ignored
-show_kind2_results(_, "analysisStart", Sts, Sts) :- !. % ignored
-show_kind2_results(_, "analysisStop", Sts, Sts) :- !. % ignored
-show_kind2_results(O, "log", Sts, Status) :-
-    !,
-    get_dict(level, O, Level),
-    show_kind2_log(O, Level, Sts, Status).
-show_kind2_results(O, "realizabilityCheck", Sts, Status) :-
-    !,
-    get_dict(result, O, Result),
-    show_kind2_result(O, Result, Sts, Status).
-show_kind2_results(_, OType, Sts, BadSts) :-
-    print_message(warning, unrecognized_kind2_result_type(OType)),
-    succ(Sts, BadSts).
-
-show_kind2_log(O, "error", Sts, BadSts) :-
-    !,
-    succ(Sts, BadSts),
-    get_dict(source, O, Source),
-    get_dict(file, O, File),
-    get_dict(line, O, Line),
-    get_dict(column, O, Col),
-    get_dict(value, O, Msg),
-    print_message(error, kind2_log_error(Source, File, Line, Col, Msg)).
-show_kind2_log(_, _, Sts, Sts).  % All other log levels ignored
-
-show_kind2_result(O, "realizable", Sts, Sts) :-
-    !,
-    get_dict(runtime, O, RT),
-    get_dict(value, RT, Time),
-    get_dict(unit, RT, Unit),
-    print_message(success, kind2_realizable(Time, Unit)). % which CC?
-show_kind2_result(O, "unrealizable", Sts, Sts) :-
-    !,
-    get_dict(conflictingSet, O, Conflicts),
-    get_dict(size, Conflicts, CSize),
-    get_dict(nodes, Conflicts, [Node|Nodes]),
-    (Nodes == [] ; print_message(warning, other_unrealizable_nodes(Nodes))),
-    get_dict(elements, Node, Elems),
-    maplist(get_dict(name), Elems, Names),
-    maplist(normalize_kind2_var, Names, ContractNames),
-    get_dict(deadlockingTrace, O, [Trace|Traces]),
-    (Traces == [] ; print_message(warning, other_unrealizable_traces(Traces))),
-    get_dict(streams, Trace, Streams),
-    findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
-    append(Inputs, ContractNames, InterestingVars),
-    !,
-    show_stream_steps(InterestingVars, Streams),
-    print_message(error, kind2_unrealizable(CSize, Names)).
-show_kind2_result(_, R, Sts, Sts) :-
-    print_message(error, unknown_kind2_result(R)).
-
-trace_input(StreamEntry, Name) :-
-    get_dict(class, StreamEntry, "input"),
-    get_dict(name, StreamEntry, Name).
-
-show_stream_steps(Vars, Streams) :-
-    length(Vars, NVars),
-    succ(NVars, NCols),
-    make_format(NCols, Fmt),
-    format(Fmt, ["Step"|Vars]),
-    !,
-    show_stream_steps(Vars, Streams, Fmt, 0).
-show_stream_steps(Vars, Streams, Fmt, StepNum) :-
-    maplist(get_step_val(Streams, StepNum), Vars, Vals),
-    format(Fmt, [StepNum|Vals]),
-    !,
-    succ(StepNum, NextStepNum),
-    (show_stream_steps(Vars, Streams, Fmt, NextStepNum); true).
-
-get_step_val([S|_], StepNum, Var, Val) :-
-    get_dict(name, S, Var),
-    get_dict(instantValues, S, Vals),
-    get_valnum(Vals, StepNum, Val).
-get_step_val([_|Streams], StepNum, Var, Val) :-
-    get_step_val(Streams, StepNum, Var, Val).
-
-get_valnum(StepVals, StepNum, Val) :- member([StepNum,Val], StepVals).
-
-make_format(0, '~78|~n') :- !.
-make_format(N, Fmt) :-
-    succ(P, N),
-    make_format(P, PFmt),
-    atom_concat('~t~w', PFmt, Fmt).
-
+    kind2_validate(Context, OutFile, OutD, ResultFile, Status).
 
 show_lando_validation_error(Spec, SpecFile, Err) :-
     print_message(error, lando_validation_error(Spec, SpecFile, Err)).
 
-prolog:message(kind2_realizable(Time, Unit)) -->
-    [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
-prolog:message(kind2_unrealizable(Num, Names)) -->
-    [ 'UNREALIZABLE, ~w conflicts: ~w' - [ Num, Names ] ].
-prolog:message(other_unrealizable_nodes(Nodes)) -->
-    [ 'additional nodes not handled: ~w' - [ Nodes ] ].
-prolog:message(other_unrealizable_traces(Traces)) -->
-    [ 'additional traces not handled: ~w' - [ Traces ] ].
-prolog:message(other_unrealizable_streams(Streams)) -->
-    [ 'additional streams not handled: ~w' - [ Streams ] ].
-prolog:message(unknown_kind2_result(R)) -->
-    [ 'Unknown kind2 result: ~w~n' - [ R ] ].
-prolog:message(unrecognized_kind2_result_type(OType)) -->
-    [ 'Unrecognized result type: ~w~n' - [OType] ].
-prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
-    [ '~w:~w:~w: ~w error: ~w~n' - [ File, Line, Col, Source, Msg ] ].
 prolog:message(invalid_parse(Format, Spec, SpecFile)) -->
     [ 'Validation Error: unable to parse ~w format~n  [~w = ~w]~n' -
       [ Format, SpecFile, Spec ] ].
