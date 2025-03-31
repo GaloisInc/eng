@@ -322,6 +322,8 @@ optimize(sub(val(X), val(Y)), val(V)) :- V is X - Y, !.
 optimize(not(ltlY(true)), ltlZ(false)) :- !.
 optimize(not(ltlZ(false)), ltlY(true)) :- !.
 optimize(not(not(E)), E) :- !.
+optimize(ltlS(L,and(L,R)), ltlSI(L,R)) :- !.
+optimize(ltlS(L,and(R,L)), ltlSI(L,R)) :- !.
 optimize(X, X).
 
 %% past_optimize(and(E1, E2), and(E1O, E2O)) :-
