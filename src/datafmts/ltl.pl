@@ -46,17 +46,17 @@ boolEx(E) --> boolTerm(T), boolExMore(T, E).
 boolTerm(true) --> lxm(w, "TRUE").
 boolTerm(false) --> lxm(w, "FALSE").
 
-boolTerm(ltlH_bound(B, E)) --> lxm(ltlH), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlH_bound(B, E)) --> ['H'], bound(B), lxm(boolEx, E).
 boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
-boolTerm(ltlO_bound(B, E)) --> lxm(ltlO), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlO_bound(B, E)) --> ['O'], bound(B), lxm(boolEx, E).
 boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
-boolTerm(ltlG_bound(B, E)) --> lxm(ltlG), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlG_bound(B, E)) --> ['G'], bound(B), lxm(boolEx, E).
 boolTerm(ltlG(E)) --> lxm(ltlG), lxm(boolEx, E).
-boolTerm(ltlF_bound(B, E)) --> lxm(ltlF), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlF_bound(B, E)) --> ['F'], bound(B), lxm(boolEx, E).
 boolTerm(ltlF(E)) --> lxm(ltlF), lxm(boolEx, E).
-boolTerm(ltlBefore_bound(B, E)) --> lxm(ltlBefore), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlBefore_bound(B, E)) --> lxm(ltlBefore), bound(B), lxm(boolEx, E).
 boolTerm(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolEx, E).
-boolTerm(ltlAfter_bound(B, E)) --> lxm(ltlAfter), lxm(bound, B), lxm(boolEx, E).
+boolTerm(ltlAfter_bound(B, E)) --> lxm(ltlAfter), bound(B), lxm(boolEx, E).
 boolTerm(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolEx, E).
 
 boolTerm(ltlY(E)) --> lxm(ltlY), lxm(boolEx, E).
@@ -90,27 +90,27 @@ boolExMore(LT, Expr) --> lxm(xor), boolTerm(E), boolExMore(xor(LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(implies), boolTerm(E), boolExMore(implies(LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(equiv), boolTerm(E), boolExMore(equiv(LT, E), Expr).
 
-boolExMore(LT, Expr) --> lxm(ltlSI), lxm(bound, B), boolTerm(E),
+boolExMore(LT, Expr) --> ['S', 'I'], bound(B), boolTerm(E),
                          boolExMore(binSI_bound(B, LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(ltlSI), boolTerm(E),
                          boolExMore(binSI(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlS), lxm(bound, B), boolTerm(E),
+boolExMore(LT, Expr) --> ['S'], bound(B), boolTerm(E),
                          boolExMore(binS_bound(B, LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(ltlS), boolTerm(E),
                          boolExMore(binS(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlT), lxm(bound, B), boolTerm(E),
+boolExMore(LT, Expr) --> ['T'], bound(B), boolTerm(E),
                          boolExMore(binT_bound(B, LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(ltlT), boolTerm(E),
                          boolExMore(binT(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlUI), lxm(bound, B), boolTerm(E),
+boolExMore(LT, Expr) --> ['U', 'I'], bound(B), boolTerm(E),
                          boolExMore(binUI_bound(B, LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(ltlUI), boolTerm(E),
                          boolExMore(binUI(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlU), lxm(bound, B), boolTerm(E),
+boolExMore(LT, Expr) --> ['U'], bound(B), boolTerm(E),
                          boolExMore(binU_bound(B, LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(ltlU), boolTerm(E),
                          boolExMore(binU(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlV), lxm(bound, B), boolTerm(E),
+boolExMore(LT, Expr) --> ['V'], bound(B), boolTerm(E),
                          boolExMore(binV_bound(B, LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(ltlV), boolTerm(E),
                          boolExMore(binV(LT, E), Expr).
@@ -162,19 +162,21 @@ next() --> lxm(w, "at"), lxm(w, "the"), lxm(w, "next"),
            lxm(w, "occurrence"), lxm(w, "of").
 prev() --> lxm(w, "at"), lxm(w, "the"), lxm(w, "previous"),
            lxm(w, "occurrence"), lxm(w, "of").
-ltlH() --> [ 'H' ].
-ltlO() --> [ 'O' ].
-ltlG() --> [ 'G' ].
-ltlF() --> [ 'F' ].
-ltlSI() --> [ 'S', 'I' ].
-ltlS() --> [ 'S' ].
-ltlT() --> [ 'T' ].
-ltlUI() --> [ 'U', 'I' ].
-ltlU() --> [ 'U' ].
-ltlV() --> [ 'V' ].
-ltlY() --> [ 'Y' ].
-ltlX() --> [ 'X' ].
-ltlZ() --> [ 'Z' ].
+% n.b. temporal operators are normally followed by whitespace to differentiate
+% between them and a user variable (e.g. "Hot" should not be parsed as "H ot")
+ltlH() --> [ 'H' ], ws_.
+ltlO() --> [ 'O' ], ws_.
+ltlG() --> [ 'G' ], ws_.
+ltlF() --> [ 'F' ], ws_.
+ltlSI() --> [ 'S', 'I' ], ws_.
+ltlS() --> [ 'S' ], ws_.
+ltlT() --> [ 'T' ], ws_.
+ltlUI() --> [ 'U', 'I' ], ws_.
+ltlU() --> [ 'U' ], ws_.
+ltlV() --> [ 'V' ], ws_.
+ltlY() --> [ 'Y' ], ws_.
+ltlX() --> [ 'X' ], ws_.
+ltlZ() --> [ 'Z' ], ws_.
 ltlBefore() --> [ '<', '|' ].
 ltlAfter() --> [ '|', '>' ].
 
