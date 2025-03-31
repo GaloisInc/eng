@@ -30,11 +30,11 @@ arithTerm(neg(E)) --> minus(_), lxm(arith, E).
 %% ltl(floatnum(M,E)) --> lxm(number, M), ['.'], number(E).
 %% ltl(negnum(N)) --> lxm(minus), number(N).
 %% ltl(num(N)) --> lxm(number, N).
-%% ltl(call(I, Args)) --> lxm(ident, I), args(Args).
 arithTerm(val(N)) --> lxm(num, N).
 %% ltl(E) --> boolExpr(E, Ls0, Ls).
 %% %% ltl(E) --> boolEx(E).
 arithTerm(E) --> lxm(lp), lxm(arithEx, E), lxm(rp).
+arithTerm(call(I, Args)) --> lxm(ident, I), lp, opArgs(Args), lxm(rp).
 arithTerm(id(I)) --> lxm(ident, I).
 arithExMore(LT, Expr) --> lxm(expt), arithTerm(E), arithExMore(expo(LT, E), Expr).
 arithExMore(LT, Expr) --> lxm(plus), arithTerm(E),
@@ -42,20 +42,7 @@ arithExMore(LT, Expr) --> lxm(plus), arithTerm(E),
                           arithExMore(OptE, Expr).
 arithExMore(LT, LT) --> [].
 
-args([A|MA]) --> lxm(lp), ltl(A), moreArgs(MA), lxm(rp).
-%% args([A|MA]) --> lxm(lp), boolExpr(A, Ls0, Ls), moreArgs(MA), lxm(rp).
-args([A|MA]) --> lxm(lp), boolEx(A), moreArgs(MA), lxm(rp).
-args([A]) --> lxm(lp), ltl(A), lxm(rp).
-%% args([A]) --> lxm(lp), boolExpr(A, Ls0, Ls), lxm(rp).
-args([A]) --> lxm(lp), boolEx(A), lxm(rp).
-
-moreArgs([A|MA]) --> [','], ltl(A), moreArgs(MA).
-moreArgs([A|MA]) --> [','], boolEx(A), moreArgs(MA).
-moreArgs([A]) --> [','], ltl(A).
-moreArgs([A]) --> [','], boolEx(A).
-
 boolEx(E) --> boolTerm(T), boolExMore(T, E).
-% boolTerm(boolcall(I,Args)) --> lxm(ident, I), args(Args). % intercepts others and recurses infinitely
 boolTerm(true) --> lxm(w, "TRUE").
 boolTerm(false) --> lxm(w, "FALSE").
 
@@ -86,7 +73,16 @@ boolTerm(gt(E1,E2)) --> lxm(arithEx, E1), lxm(gt), lxm(arithEx, E2).
 boolTerm(neq(E1,E2)) --> lxm(arithEx, E1), lxm(neq), lxm(arithEx, E2).
 boolTerm(next(E,E2)) --> lxm(next), boolEx(E), lxm(comma), boolEx(E2).
 boolTerm(prev(E,E2)) --> lxm(prev), boolEx(E), lxm(comma), boolEx(E2).
+boolTerm(boolcall(I,Args)) --> lxm(ident, I), lp, opArgs(Args), lxm(rp).
 boolTerm(boolid(I)) --> lxm(ident, I).
+
+opArgs([Arg|Args]) --> oneArg(Arg), lxm(comma), opArgs(Args).
+opArgs([Arg]) --> oneArg(Arg).
+opArgs([]) --> [].
+
+oneArg(A) --> boolEx(A).
+oneArg(A) --> arithEx(A).
+
 
 boolExMore(LT, Expr) --> lxm(and), boolTerm(E), boolExMore(and(LT, E), Expr).
 boolExMore(LT, Expr) --> lxm(or), boolTerm(E), boolExMore(or(LT, E), Expr).

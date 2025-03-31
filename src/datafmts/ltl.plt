@@ -80,7 +80,6 @@ test(bool_expr_5, [nondet]) :-
 test(bool_expr_6, [nondet]) :-
     Inp = "(O[=2 +1] alarm_enabled)",
     parse_ltl(Inp, AST),
-    writeln(ltl_parsed),
     emit_CoCoSpec(AST, CoCo),
     assertion(CoCo == "OT(3, 3, alarm_enabled)").
 
