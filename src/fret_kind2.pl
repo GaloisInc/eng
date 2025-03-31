@@ -200,6 +200,10 @@ show_kind2_results(O, "realizabilityCheck", Sts, Status) :-
     !,
     get_dict(result, O, Result),
     show_kind2_result(O, Result, Sts, Status).
+show_kind2_results(O, "satisfiabilityCheck", Sts, Status) :-
+    !,
+    get_dict(result, O, Result),
+    show_kind2_satresult(O, Result, Sts, Status).
 show_kind2_results(_, OType, Sts, BadSts) :-
     print_message(warning, unrecognized_kind2_result_type(OType)),
     succ(Sts, BadSts).
@@ -241,6 +245,15 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
 show_kind2_result(_, R, Sts, Sts) :-
     print_message(error, unknown_kind2_result(R)).
 
+show_kind2_satresult(O, "satisfiable", Sts, Sts) :-
+    !,
+    get_dict(runtime, O, RT),
+    get_dict(value, RT, Time),
+    get_dict(unit, RT, Unit),
+    print_message(success, kind2_satisfiable(Time, Unit)). % which CC?
+show_kind2_satresult(_, R, Sts, Sts) :-
+    print_message(error, unknown_kind2_satresult(R)).
+
 trace_input(StreamEntry, Name) :-
     get_dict(class, StreamEntry, "input"),
     get_dict(name, StreamEntry, Name).
@@ -276,6 +289,8 @@ make_format(N, Fmt) :-
 
 prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
+prolog:message(kind2_satisfiable(Time, Unit)) -->
+    [ 'Satisfiable (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_unrealizable(Num, Names)) -->
     [ 'UNREALIZABLE, ~w conflicts: ~w' - [ Num, Names ] ].
 prolog:message(other_unrealizable_nodes(Nodes)) -->
@@ -285,7 +300,9 @@ prolog:message(other_unrealizable_traces(Traces)) -->
 prolog:message(other_unrealizable_streams(Streams)) -->
     [ 'additional streams not handled: ~w' - [ Streams ] ].
 prolog:message(unknown_kind2_result(R)) -->
-    [ 'Unknown kind2 result: ~w~n' - [ R ] ].
+    [ 'Unknown kind2 realizability result: ~w~n' - [ R ] ].
+prolog:message(unknown_kind2_satresult(R)) -->
+    [ 'Unknown kind2 satisfiability result: ~w~n' - [ R ] ].
 prolog:message(unrecognized_kind2_result_type(OType)) -->
     [ 'Unrecognized result type: ~w~n' - [OType] ].
 prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
