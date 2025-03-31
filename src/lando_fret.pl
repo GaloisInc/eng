@@ -10,19 +10,34 @@
 lando_to_fret(LandoSSL, FretRequirements, FretMents) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
-    phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, _, _), Body, Remaining),
-    !,
-    fret_results(SemanticDefs, Body, Remaining, Reqs, FretRequirements, FretVariables),
-    fretOut(FretRequirements, OutRequirements),
-    FretMents = fret{ requirements: OutRequirements,
-                      variables: FretVariables
-                    }.
+    (phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, _, _, Status),
+            Body, Remaining)
+    -> ( fret_results(SemanticDefs, Body, Remaining, Status, Reqs,
+                      FretRequirements, FretVariables),
+         fretOut(FretRequirements, OutRequirements),
+         FretMents = fret{ requirements: OutRequirements,
+                           variables: FretVariables
+                         }
+       )
+    ; print_message(error, fret_conversion_failed()), fail
+    ).
 
-fret_results(Defs, SSLBody, [], InpReqs, OutReqs, OutVars) :-
+prolog:message(fret_conversion_failed()) --> [ 'Failed to convert Lando to FRET' ].
+prolog:message(fret_conversion_errors(_Cnt)) --> [ 'FRET extractions failed' ].
+prolog:message(fret_extra(Extra)) -->
+    { length(Extra, L) },
+    [ 'Unexpected extra ~w not converted to Fret: ~w' - [L, Extra] ].
+
+fret_results(Defs, SSLBody, [], 0, InpReqs, OutReqs, OutVars) :-
     !,
     collect_vars(Defs, SSLBody, InpReqs, [], OutReqs, OutVars).
-fret_results(_, _, Remaining, _, _, _) :-
-    format('Unexpected extra not converted to Fret: ~w~n', [Remaining]),
+fret_results(_, _, [], Status, _, _, _) :-
+    !,
+    print_message(error, fret_conversion_errors(Status)),
+    fail.
+fret_results(_, _, Remaining, _, _, _, _) :-
+    !,
+    print_message(error, fret_extra(Remaining)),
     fail.
 
 fretOut([], []).
@@ -153,6 +168,7 @@ update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq) :-
     format(atom(English), '~w shall ~w', [ UpdPre, UpdPost ]),
     get_dict(reqid, Req, RName),
     format(atom(Context), 'Add state references into FRET req ~w~n', [RName]),
+    !,
     parse_fret_into_req(Defs, Context, Req, English, UpdReq).
 
 split_frettish(Frettish, PreCond, PostCond) :-
@@ -212,10 +228,10 @@ extract_fret_component_var(ProjName, CompName, VName, Var) -->
     extract_fret_component_var(ProjName, CompName, VName, Var).
 
 prolog:message(no_fret_var_info(ElementType, VarName)) -->
-    [ 'Found ~w for ~w but there is no FRET specification~n'
+    [ 'Found ~w for ~w but there is no FRET specification'
       - [ ElementType, VarName ] ].
 prolog:message(no_fret_var_info(VarName)) -->
-    [ 'No FRET information for variable ~w~n' - [ VarName ] ].
+    [ 'No FRET information for variable ~w' - [ VarName ] ].
 
 % ----------
 
@@ -361,37 +377,45 @@ get_semantics_defs(Defs) :-
     open('res://lando_fret:fret_semantics', read, Strm),
     json_read_dict(Strm, Defs).
 
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
     [ SpecElement ],
     { is_dict(SpecElement, SpecType),
-      member(SpecType, [ system, subsystem ]), %%%% <- selector
-      !,
-      specElement_ref(SpecElement, SysName),
+      member(SpecType, [ system, subsystem ]) %%%% <- selector
+    },
+    !,
+    { specElement_ref(SpecElement, SysName),
       get_dict(body, SpecElement, SysBody),
       (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret(NewProjName, SysName, Defs, SysReqs, SysVars, SysModes), SysBody, _Remaining)
+      phrase(extract_fret(NewProjName, SysName, Defs,
+                          SysReqs, SysVars, SysModes, Sts), SysBody, Remaining)
     },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextVars, NextModes),
+    extract_fret(ProjName, FretCompName, Defs,
+                 NextReqs, NextVars, NextModes, NextSts),
     { append(SysReqs, NextReqs, Reqs),
       append(SysVars, NextVars, Vars),  % KWQ TODO normalize vars
-      append(SysModes, NextModes, Modes)
+      append(SysModes, NextModes, Modes),
+      length(Remaining, UnExtractedCnt),
+      Status is Sts + NextSts + UnExtractedCnt
     }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
     [ SpecElement ],
-    { is_dict(SpecElement, requirement), %%%% <- selector
-      !,
-      specElement_ref(SpecElement, Name),
+    { is_dict(SpecElement, requirement) }, %%%% <- selector
+    !,
+    { specElement_ref(SpecElement, Name),
       get_dict(explanation, SpecElement, Expl),
       get_dict(uid, SpecElement, UID),
       get_dict(indexing, SpecElement, Indexing),
-      make_fret_reqs(Defs, ProjName, FretCompName, Name, Expl, UID, 0, Indexing, ThisReqs)
+      make_fret_reqs(Defs, ProjName, FretCompName, Name, Expl, UID,
+                     0, Indexing, ThisReqs, Sts)
     },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, Vars, Modes),
-    { prepend_valid_reqs(ThisReqs, NextReqs, Reqs) }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes) -->
+    extract_fret(ProjName, FretCompName, Defs, NextReqs, Vars, Modes, NextSts),
+    { prepend_valid_reqs(ThisReqs, NextReqs, Reqs),
+      Status is Sts + NextSts
+    }.
+extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
     [ _ ],  % skip other elements
-    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes).
-extract_fret(_, _, _, [], [], []) --> [].
+    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status).
+extract_fret(_, _, _, [], [], [], 0) --> [].
 
 prepend_valid_reqs([], Reqs, Reqs).
 prepend_valid_reqs([noreq|RS], Reqs, OutReqs) :-
@@ -430,7 +454,7 @@ mkVar(ProjName, FretCompName, VarName, Expl, Type, Usage, Special, Var) :-
            }.
 
 prolog:message(special_usage_unknown(VName, Usage, Val)) -->
-    [ 'Unknown ~w usage for special of ~w in variable ~w~n'
+    [ 'Unknown ~w usage for special of ~w in variable ~w'
       - [ Usage, Val, VName ] ].
 
 fret_usage_type(Element, Usage, Type, ModeReqs) :-
@@ -467,16 +491,23 @@ fret_var_type_(Feature, Type) :-
     string_concat("FRET : ", FT, T),
     string_concat(Type, ".", FT).
 
-make_fret_reqs(_, _, _, _, _, _, _, [], []).
-make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [Index|IXS], [Req|Reqs]) :-
+make_fret_reqs(_, _, _, _, _, _, _, [], [], 0).
+make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+               Num, [Index|IXS], [Req|Reqs], Sts) :-
     get_dict(key, Index, "FRET"),
-    !,
-    parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num,
-                        Index, Req),
+    (parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num,
+                         Index, Req)
+    -> Cnt = 0
+    ; Cnt = 1
+    ),
     succ(Num, NextNum),
-    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, NextNum, IXS, Reqs).
-make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, [_|IXS], Reqs) :-
-    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID, Num, IXS, Reqs).
+    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+                   NextNum, IXS, Reqs, NextSts),
+    Sts is Cnt + NextSts.
+make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+               Num, [_|IXS], Reqs, Sts) :-
+    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+                   Num, IXS, Reqs, Sts).
 
 
 parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
@@ -500,17 +531,19 @@ parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Re
                            comments: "",
                            '_id': ReqID
                          },
+    !,
     parse_fret_into_req(Defs, Context, ReqBase, English, Req).
 parse_fret_into_req(Defs, Context, ReqBase, English, Req) :-
     parse_fret(Context, English, FretMent),
     !,
-    ( fretment_semantics(Defs, FretMent, FretReq)
+    ( fretment_semantics(Defs, FretMent, FretReq), !
     -> put_dict(_{fulltext: English, semantics: FretReq}, ReqBase, Requirement),
        Req = _{requirement:Requirement, fretment:FretMent}
-    ; print_message(error, no_semantics(Context, English, FretMent))
+    ; print_message(error, no_semantics(Context, English, FretMent)), fail
     ).
 parse_fret_into_req(_, Context, _, English, noreq) :-
     print_message(error, bad_frettish(Context, English)).
+
 
 prolog:message(no_semantics(Context, English, FretMent)) -->
     [ 'Unable to determine semantics for ~w: ~w~n   :: ~w~n'
@@ -660,7 +693,7 @@ generate_formulae(Defs, Inp, Out) :-
 
 prolog:message(scope_transform_failed()) --> [ 'Cannot transform scope' ].
 prolog:message(condition_transform_failed(Condtype)) -->
-    [ 'Cannot transform ~w condition~n' - [ Condtype ] ].
+    [ 'Cannot transform ~w condition' - [ Condtype ] ].
 prolog:message(past_time_update_error()) -->
     [ 'Cannot update past-time formula' ].
 
@@ -860,7 +893,11 @@ endSquare() --> [ ']' ].
 
 transform_to_AST(I, AST) :-
     subst('=>', '->', I, I1),
-    parse_ltl(I1, AST).
+    (parse_ltl(I1, AST)
+    ; print_message(error, cannot_parse_ltl(I1)), fail
+    ).
+
+prolog:message(cannot_parse_ltl(I)) --> [ 'Unable to parse LTL: ~w' - [I] ].
 
 ast_to_LTL(I, O) :- emit_ltl(I, O).
 
