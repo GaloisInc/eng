@@ -19,6 +19,7 @@ exec_spec_help(Indent, Info) :-
 | exec = SHELL COMMAND(S) TO RUN WITH Args
 | exec = ANOTHER SHELL COMMAND
 | in dir = DIRECTORY
+| nix shell pkgs = ...
 | env vars =
 |   VARNAME = VARVALUE
 |   ...
@@ -58,6 +59,11 @@ exec_subcmd_help(Cmd, Info) :-
 |       ...
 |
 | All entries are optional.
+|
+| In addition to the above substitution (and alternatively), the optional
+| "nix shell pkgs" may be specified, which will cause the "exec" to be
+| performed in a nix (nixos.org) shell with the specified nix packages
+| available; if the "nix" command is not available, this line is ignored.
 |
 | If provided, environment variables will be set and the current directory will
 | be set to "in dir" before the "Exec" is run. The "exec", "in dir", and
@@ -120,13 +126,30 @@ exec_from_spec_at(Context, ArgMap, RootPath, ExecCmds, Result) :-
     exec_from_spec_at_dir(RootPath, ExecDir),
     maplist(atom_string, RootPath, SP),
     intercalate(SP, ".", Ref),
-    do_exec(Context, Ref, ArgMap, ExecCmds, VS, ExecDir, Result).
+    exec_with_shell_wrapper(Context, RootPath, ExecCmds, ActualCmds),
+    do_exec(Context, Ref, ArgMap, ActualCmds, VS, ExecDir, Result).
 
 exec_from_spec_at_dir(RootPath, ExecDir) :-
     append(RootPath, 'in dir', DirPath),
     list_call(eng:eng, DirPath, ExecDir),
     !.
 exec_from_spec_at_dir(_, curdir).
+
+exec_with_shell_wrapper(Context, RootPath, ExecCmds, UpdExecCmds) :-
+    append(RootPath, ['nix shell pkgs'], NixShellKey),
+    findall(E, list_call(eng:eng, NixShellKey, E), ES),
+    (ES == [] -> UpdExecCmds = ExecCmds
+    ; in_nix_shell_with(Context, ES, ExecCmds, UpdExecCmds)
+    ).
+
+in_nix_shell_with(Context, Pkgs, ExecCmds, UpdExecCmds) :-
+    catch(absolute_file_name(path(nix), Path, [access(execute)]), _, fail),
+    dir_runproc(Context, "nix tool check", Path, ["--version"], curdir, _Out),
+    !,
+    intercalate(Pkgs, " ", PkgArgs),
+    maplist([E,O]>>format(atom(O), "~w shell ~w --command bash -c '~w'",
+                          [ Path, PkgArgs, E ]), ExecCmds, UpdExecCmds).
+in_nix_shell_with(_, _, ExecCmds, ExecCmds). % no nix tool available
 
 
 %% ----------------------------------------------------------------------
