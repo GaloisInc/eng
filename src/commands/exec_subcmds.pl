@@ -121,7 +121,7 @@ exec_from_spec_at(Context, ArgMap, RootPath, Result) :-
     ).
 
 exec_from_spec_at(Context, ArgMap, RootPath, ExecCmds, Result) :-
-    append(RootPath, 'env vars', EnvPath),
+    append(RootPath, ['env vars'], EnvPath),
     findall(V, list_call(eng:eng, EnvPath, V), VS),
     exec_from_spec_at_dir(RootPath, ExecDir),
     maplist(atom_string, RootPath, SP),
@@ -130,7 +130,7 @@ exec_from_spec_at(Context, ArgMap, RootPath, ExecCmds, Result) :-
     do_exec(Context, Ref, ArgMap, ActualCmds, VS, ExecDir, Result).
 
 exec_from_spec_at_dir(RootPath, ExecDir) :-
-    append(RootPath, 'in dir', DirPath),
+    append(RootPath, ['in dir'], DirPath),
     list_call(eng:eng, DirPath, ExecDir),
     !.
 exec_from_spec_at_dir(_, curdir).
