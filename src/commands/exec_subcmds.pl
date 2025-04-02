@@ -92,16 +92,8 @@ exec_subcmd_each(Context, Cmd, SubCmd, Args, Sts) :-
     sum_list(AllSts, Sts).
 
 exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, Sts) :-
-    get_subcmd_execs(Cmd, SubCmd, Descr, Execs, EnvVars, InDir),
     subcmd_args_argmap(Args, ArgMap),
-    print_message(informational, running_exec_subcmd(Cmd, SubCmd, Descr)),
-    format(atom(Ref), '~w ~w command', [ Cmd, SubCmd ]),
-    do_exec(Context, Ref, ArgMap, Execs, EnvVars, InDir, Sts).
-
-get_subcmd_execs(Cmd, SubCmd, Descr, Execs, EnvVars, InDir) :-
-    (eng:eng(Cmd, subcmd, SubCmd, Descr, 'in dir', InDir), !; InDir = curdir),
-    findall(E, eng:eng(Cmd, subcmd, SubCmd, Descr, exec, E), Execs),
-    findall((N,V), eng:eng(Cmd, subcmd, SubCmd, Descr, 'env vars', N, V), EnvVars).
+    exec_from_spec_at(Context, ArgMap, [Cmd, subcmd, SubCmd, Descr], Sts).
 
 subcmd_args_argmap(Args, [ 'Args' = ArgStr ]) :-
     maplist([E,O]>>format(atom(O), "\"~w\"", [E]), Args, QuotedArgs),
