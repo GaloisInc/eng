@@ -29,21 +29,25 @@ lando(LandoSource, [], Sts) :-
 lando(LandoSource, ['to-json', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     open(OutFile, write, OutStrm),
-    write_lando_json(OutStrm, SSL).
+    write_lando_json(OutStrm, SSL),
+    print_message(informational, wrote_lando_as("JSON", LandoSource, OutFile)).
 
 lando(LandoSource, ['to-markdown', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     open(OutFile, write, OutStrm),
-    write_lando_markdown(OutStrm, SSL).
+    write_lando_markdown(OutStrm, SSL),
+    print_message(informational, wrote_lando_as("Markdown", LandoSource, OutFile)).
 
 lando(LandoSource, ['to-fret', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     open(OutFile, write, OutStrm),
-    write_lando_fret(OutStrm, SSL).
+    write_lando_fret(OutStrm, SSL),
+    print_message(informational, wrote_lando_as("FRET", LandoSource, OutFile)).
 
 lando(LandoSource, ['to-fret-kind2', OutDir], 0) :-
     parse_lando_file(LandoSource, SSL),
-    write_lando_fret_kind2(OutDir, SSL).
+    write_lando_fret_kind2(OutDir, SSL),
+    print_message(informational, wrote_lando_as("Kind2", LandoSource, OutDir, dir)).
 
 lando(LandoSource, _, 1) :-
     \+ parse_lando_file(LandoSource, _),
@@ -52,6 +56,10 @@ lando(LandoSource, _, 1) :-
 lando(_, [], 1).  % failure if none of the above work
 
 prolog:message(parse_failure(S)) --> [ 'Failed to parse ~w Lando file.' - [S] ].
+prolog:message(wrote_lando_as(FType, _SrcFName, OutFName)) -->
+    [ 'Wrote ~w file ~w' - [ FType, OutFName ] ].
+prolog:message(wrote_lando_as(FType, _SrcFName, OutDir, dir)) -->
+    [ 'Wrote ~w files into directory ~w' - [ FType, OutDir ] ].
 
 %% ----------------------------------------------------------------------
 
