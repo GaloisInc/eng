@@ -4,6 +4,7 @@
 :- use_module(library(http/http_client)).
 :- use_module(library(http/http_json)).
 :- use_module(library(url)).
+:- use_module(library(yall)).
 :- use_module("../englib").
 :- use_module('exec_subcmds').
 
@@ -36,6 +37,11 @@ vctl_help(Info) :-
 |    vctl =
 |      darcs =
 |        complement = COMPLEMENT_REPO_PATHS
+|      subproject =
+|        NAME =
+|          into = PATH
+|          repo = REPO_URL
+|          rev = BRANCH|TAG|REF
 |
 | In normal operations, the vctl command uses the repository information in
 | the current working directory and needs no additional configuration.  At
@@ -46,6 +52,18 @@ vctl_help(Info) :-
 | be supplied along with the --complement flag; this is useful for filtering
 | out patches from the upstream repository that should not be considered for
 | pulling into the local repository by moving them to the complement repository.
+|
+| The subproject is used to specify one or more dependencies for the current
+| project.  This information is used in various ways, including: checking out
+| the subproject locally for building, tracking dependent versions, etc.  The
+| repo is required, into should be a relative directory (default: subproj/NAME)
+| and rev is a specific commit reference in the target repo:
+|    git: plain tag, branch, or patch
+|    darcs: the match pattern or tag:X, hash:X, patch:X, or match:X
+|
+| The REPO_URL should be in a format recognized by a VCS tool.  The special
+| prefix syntax "{SIBLING}/" followed by a repo name indicates that the name
+| should be found at the same location (i.e. next to) the current repository.
 |
 | Frequently, a Personal Access Token (PAT) is needed to access private
 | repositories or to avoid rate limiting.  A PAT can be set in an EQIL
@@ -61,6 +79,10 @@ vctl_help(Info) :-
 vctl_help("status", "show status of local directory (workspace).").
 vctl_help("push", "push local changes upstream.").
 vctl_help("pull", "pull changes from upstream to local.").
+vctl_help("subproj", "display sub-projects (dependencies).") :-
+    eng:key(vctl, subproject).
+vctl_help("subproj clone", "clone a dependency to a local sub-project.") :-
+    eng:key(vctl, subproject).
 vctl_help(SubCmd, Help) :- eng:key(vctl, subcmd, SubCmd, Help).
 
 vctl_cmd(Context, [status|Args], Sts) :-
@@ -72,6 +94,35 @@ vctl_cmd(Context, [push|Args], Sts) :-
 vctl_cmd(Context, [pull|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_pull(Context, VCTool, Args, Sts).
+
+vctl_cmd(Context, [subproj], 0) :-
+    vcs_tool(Context, VCTool), !,
+    findall((S,L), eng:eng(vctl, subproject, S, into, L), SL),
+    maplist(vctl_subproj_show(Context, VCTool), SL, SP),
+    sum_list(SP, TSP),
+    length(SL, NSL),
+    format('Subprojects: ~w known, ~w present~n', [ NSL, TSP ]).
+
+vctl_cmd(_, [subproj,clone], 1) :-
+    findall(S, eng:key(vctl, subproject, S), []),
+    print_message(error, no_subprojects()),
+    !.
+vctl_cmd(_, [subproj,clone], 1) :-
+    findall(S, eng:key(vctl, subproject, S), SS),
+    writeln('Please specify one or more subprojects to clone:'),
+    maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
+    intercalate(OS, '~n', OSS),
+    writeln(OSS),
+    writeln('  * ALL').
+vctl_cmd(Context, [subproj,clone,'ALL'], Sts) :-
+    vcs_tool(Context, VCTool), !,
+    findall(E, (vctl_subproj_clone(Context, VCTool, _, E)), AllSts),
+    sum_list(AllSts, Sts).
+vctl_cmd(Context, [subproj,clone|Args], Sts) :-
+    vcs_tool(Context, VCTool), !,
+    findall(E, (member(N, Args), vctl_subproj_clone(Context, VCTool, N, E)), AllSts),
+    sum_list(AllSts, Sts).
+
 vctl_cmd(_, [Cmd|_], 1) :-
     member(Cmd, [ status, push ]), !,
     print_message(error, vcs_tool_undefined).
@@ -314,8 +365,175 @@ vctl_pull(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
 % ----------------------------------------------------------------------
+% vctl subproj helpers
+
+% Get the preface to use for printing information about the named subproj
+vctl_subproj_preface(Name, Preface) :-
+    format(atom(Preface), '#__ ~w:: ', [Name]).
+
+% Returns remote address: darcsremote(String), gitremote(parse_http URL, Auth),
+% miscremote(String), or rmtNotSpecified.
+vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
+    eng:eng(vctl, subproject, Name, repo, Repo),
+    string_concat("{SIBLING}/", RepoName, Repo),
+    !,
+    vctl_repo_remote_addr(VCTool, RepoRemote),
+    vctl_repo_addr_new_repo(RepoRemote, RepoName, Rmt).
+vctl_subproj_remote_repo(_VCTool, Name, Rmt) :-
+    eng:eng(vctl, subproject, Name, repo, miscremote(Rmt)), !.
+vctl_subproj_remote_repo(_VCTool, _Name, rmtNotSpecified).
+
+vctl_repo_remote_addr(git(_, forge(URL, Auth)), gitremote(URL, Auth)) :- !.
+vctl_repo_remote_addr(darcs(VCSDir, _), darcsremote(Remote)) :-
+    darcs_remote_repo(VCSDir, Remote), !.
+vctl_repo_remote_addr(darcs(VCSDir), darcsremote(Remote)) :-
+    darcs_remote_repo(VCSDir, Remote), !.
+vctl_repo_remote_addr(VCTool, _) :-
+    print_message(error, no_repo_remote(VCTool)),
+    fail.
+
+vctl_repo_addr_new_repo(gitremote(URL, Auth), RepoName, gitremote(NewURL, Auth)) :-
+    member(path(Path), URL),
+    split_string(Path, "/", "", [Project, _OldRepoName]),
+    intercalate([Project, RepoName], "/", NewPath),
+    replace_url_path(URL, NewPath, NewURL).
+vctl_repo_addr_new_repo(darcsremote(URL), RepoName, darcsremote(NewURL)) :-
+    split_string(URL, "/", "", Parts),
+    reverse(Parts, [_|RBase]),
+    reverse([RepoName|RBase], NewParts),
+    intercalate(NewParts, "/", NewURL).
+
+% Convert a vctl_subproj_remote_repo return into a printable string
+vctl_subproj_remote_repo_str(rmtNotSpecified, "UNKNOWN") :- !.
+vctl_subproj_remote_repo_str(darcsremote(S), R) :-
+    string_concat("darcs ", S, R), !.
+vctl_subproj_remote_repo_str(gitremote(URL, _), R) :-
+    parse_http(URL, S),
+    string_concat("git ", S, R), !.
+vctl_subproj_remote_repo_str(miscremote(S), S) :- !.
+vctl_subproj_remote_repo_str(Rmt, R) :- format(atom(R), '?? ~w', [Rmt]).
+
+% Get the remote revision.  This may be specified via EQIL or may come from some
+% other source (e.g. cabal.project, flake.lock, etc.).
+vctl_subproj_remote_rev(Name, Rev) :-
+    eng:eng(vctl, subproject, Name, rev, Rev).
+
+% ----------------------------------------------------------------------
+
+vctl_subproj_show(context(_, TopDir), VCTool, (Name, IntoDir), IsPresent) :-
+    working_directory(_, TopDir),
+    (exists_directory(IntoDir)
+    -> IsPresent = 1, I=IntoDir
+    ; IsPresent = 0,
+      vctl_subproj_remote_repo(VCTool, Name, RmtAddr),
+      vctl_subproj_remote_repo_str(RmtAddr, Rmt),
+      (vctl_subproj_remote_rev(Name, Rev) ; Rev = ""),
+      format(atom(I), "[currently @ ~w ~w]", [Rmt, Rev])
+    ),
+    vctl_subproj_preface(Name, Pfc),
+    format('~w~w~n', [ Pfc, I ]).
+
+% ----------------------------------------------------------------------
+
+vctl_subproj_clone(Context, VCTool, DepName, CloneSts) :-
+    eng:key(vctl, subproject, DepName),
+    !,
+    (eng:eng(vctl, subproject, DepName, into, TgtDir), ! ;
+     format(atom(TgtDir), 'subproj/~w', [DepName])
+    ),
+    file_directory_name(TgtDir, TgtParentDir),
+    ensure_dir_exists(Context, TgtParentDir),
+    vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts).
+vctl_subproj_clone(context(EngDir, _TopDir), _, DepName, 1) :-
+    print_message(error, unknown_subproject(EngDir, DepName)).
+
+ensure_dir_exists(context(_, TopDir), TgtDir) :-
+    format(atom(D), '~w/~w', [ TopDir, TgtDir ]),
+    (exists_directory(D), ! ; make_directory(D)).
+
+vctl_subproj_clone_into(_, _, DepName, TgtDir, 1) :-
+    exists_directory(TgtDir),
+    !,
+    print_message(info, clone_target_exists(TgtDir, DepName)).
+vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts) :-
+    vctl_subproj_remote_repo(VCTool, DepName, RmtRepo),
+    (vctl_subproj_remote_rev(DepName, Rev), ! ; Rev = head),
+    vctl_clone(Context, RmtRepo, Rev, TgtDir, CloneSts).
+
+vctl_clone(context(EngDir, TopDir), darcsremote(Repo), head, TgtDir, 0) :-
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo ],
+            [ 'darcs clone {RepoAddr} {TgtDir}' ],
+            [], TopDir, 0), !.
+vctl_clone(Context, darcsremote(Repo), Rev, TgtDir, Sts) :-
+    split_string(Rev, ":", "", [T,V]),
+    !,
+    darcs_clone(Context, Repo, T, V, TgtDir, Sts).
+vctl_clone(Context, darcsremote(Repo), Rev, TgtDir, Sts) :-
+    !,
+    darcs_clone(Context, Repo, "match", Rev, TgtDir, Sts).
+vctl_clone(context(EngDir, TopDir), gitremote(URL, _), head, TgtDir, 0) :-
+    parse_url(Repo, URL),
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo ],
+            [ 'git clone {RepoAddr} {TgtDir}' ],
+            [], TopDir, 0), !.
+vctl_clone(context(EngDir, TopDir), gitremote(URL, _), Rev, TgtDir, 0) :-
+    parse_url(Repo, URL),
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = Rev ],
+            [ 'git clone {RepoAddr} {TgtDir}',
+              'git checkout -C {TgtDir} {Ref}'
+            ],
+            [], TopDir, 0), !.
+vctl_clone(_, Repo, _, TgtDir, 1) :-
+    print_message(error, cannot_clone(Repo, TgtDir)).
+
+
+darcs_clone(context(EngDir, TopDir), Repo, "tag", SelVal, TgtDir, Sts) :-
+    !,
+    format(atom(X), '-t ~w', [SelVal]),
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
+            [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
+            [], TopDir, Sts).
+darcs_clone(context(EngDir, TopDir), Repo, "hash", SelVal, TgtDir, Sts) :-
+    !,
+    format(atom(X), '-to-hash=~w', [SelVal]),
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
+            [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
+            [], TopDir, Sts).
+darcs_clone(context(EngDir, TopDir), Repo, "patch", SelVal, TgtDir, Sts) :-
+    !,
+    format(atom(X), '-to-patch=~w', [SelVal]),
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
+            [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
+            [], TopDir, Sts).
+darcs_clone(context(EngDir, TopDir), Repo, "match", SelVal, TgtDir, Sts) :-
+    !,
+    format(atom(X), '-to-match=~w', [SelVal]),
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
+            [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
+            [], TopDir, Sts).
+darcs_clone(_, _, Sel, SelVal, _, 1) :-
+    print_message(error, unknown_darcs_revtype(Sel, SelVal)).
+
+% ----------------------------------------------------------------------
 
 prolog:message(unknown_vcs_tool(Tool)) -->
     [ 'Unknown VCS tool: ~w.  Unable to perform action' - [ Tool ] ].
 prolog:message(vcs_tool_undefined) -->
     [ 'Unable to determine the VCS tool to use (e.g. git, darcs)' ].
+prolog:message(unknown_subproject(EngDir, ProjName)) -->
+    [ 'VCTL sub-project "~w" not defined in ~w files.' - [ ProjName, EngDir ] ].
+prolog:message(clone_target_exists(TgtDir, FromLoc)) -->
+    [ 'Cannot clone ~w into ~w: target directory already exists' - [ FromLoc, TgtDir ] ].
+prolog:message(cannot_clone(Repo, TgtDir)) -->
+    [ 'Failed to clone ~w into ~w' - [ Repo, TgtDir ] ].
+prolog:message(no_repo_remote(VCTool)) --> ['No remote repo for ~w' - [VCTool]].
+prolog:message(no_subprojects()) --> [ 'No subprojects are defined.' ].
+prolog:message(unknown_darcs_revtype(Spec, Val)) -->
+    [ 'Unknown revision specification type "~w" for: ~w' - [ Spec, Val ]].
