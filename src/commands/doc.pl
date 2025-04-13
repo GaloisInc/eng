@@ -1,4 +1,4 @@
-:- module(doc, [ doc_cmd/3, doc_focus/1, doc_help/1, doc_help/2 ]).
+:- module(doc, [ doc_cmd/2, doc_cmd/3, doc_focus/1, doc_help/1, doc_help/2 ]).
 
 :- use_module(library(apply)).
 :- use_module(library(filesex)).
@@ -49,12 +49,6 @@ doc_cmd(_, [info,Doc|_Args], 0) :- ( doc_info(Doc), !
                                    ; print_message(error, doc_not_found(Doc))
                                    ).
 
-doc_cmd(_, [lando], 1) :- writeln({|string||
-| Please specify the lando file and optionally the lando operation to perform.
-|}
-                       ).
-doc_cmd(_, [lando,SrcFile|LandoOp], Sts) :- lando(SrcFile, LandoOp, Sts).
-
 doc_cmd(_, [show], 1) :- print_message(error, specify_doc_id).
 doc_cmd(Context, [show,Doc|_Args], Sts) :-
     eng:eng(doc, Doc, location, Loc),
@@ -72,6 +66,15 @@ doc_cmd(_, [show,Doc|_Args], 1) :-
 
 doc_cmd(_, [Cmd|_], 1) :-
     print_message(error, invalid_doc_subcmd(Cmd)).
+
+% Commands that do not use Context
+
+doc_cmd([lando], 1) :- writeln({|string||
+| Please specify the lando file and optionally the lando operation to perform.
+|}
+                       ).
+doc_cmd([lando,SrcFile|LandoOp], Sts) :- !, lando(SrcFile, LandoOp, Sts).
+
 
 
 %% ----------------------------------------
