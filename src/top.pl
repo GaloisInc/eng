@@ -4,7 +4,7 @@ main :- load_eng, run_eng_cmd
         ; show_help, halt(0).
 
 run_eng_cmd :-
-    ingest_engfiles(Context),
+    ingest_engfiles(Context, Refs),
     current_prolog_flag(argv, [Cmd|CmdArgs]),
     (call_eng_cmd(Context, Cmd, CmdArgs, Sts), halt(Sts)
     ; show_help(Cmd), halt(1)).

@@ -8,7 +8,7 @@
                   call_eng_cmd/4,
                   eng_cmd_help/2,
                   engfile_dir/1,
-                  ingest_engfiles/1
+                  ingest_engfiles/2
                 ]).
 
 :- use_module(library(apply)).
@@ -144,16 +144,18 @@ ingest_engfiles(context(EngDir, TopDir)) :-
     find_engfile_dir(Dir, EngDir),
     file_directory_name(EngDir, TopDir),
     directory_files(EngDir, Files),
-    ingest_files(EngDir, Files), !,
-    ingest_user_engfiles.
-ingest_engfiles(context(EngDir, TopDir)) :-
-    ingest_user_engfiles,
+    ingest_files(EngDir, Files, Refs1),
+    !,
+    ingest_user_engfiles(Refs2),
+    append(Refs1, Refs2, Refs).
+ingest_engfiles(context(EngDir, TopDir), Refs) :-
+    ingest_user_engfiles(Refs),
     engfile_dir(EngDir),
     file_directory_name(EngDir, TopDir),
     % exists_directory failed in the previous proposition.
     format('No eng files found (~w directory).~n', [ EngDir ]).
 
-ingest_user_engfiles :-
+ingest_user_engfiles(Refs) :-
     absolute_file_name("~/.config/eng", UserConfigDir,
                        [ access(read),
                          file_type(directory),
@@ -161,23 +163,23 @@ ingest_user_engfiles :-
                          expand(true) ]),
     exists_directory(UserConfigDir), !,
     directory_files(UserConfigDir, Files),
-    ingest_files(UserConfigDir, Files).
-ingest_user_engfiles.
+    ingest_files(UserConfigDir, Files, Refs).
+ingest_user_engfiles([]).
 
-ingest_files(Dir, Files) :-
+ingest_files(Dir, Files, Refs) :-
     % Backtracks through each File: for that File, all the possible ingestion
     % methods are tried, and ultimately they all signal failure to cause
     % backtracking to the next file.
     member(File, Files),
     directory_file_path(Dir, File, FilePath),
-    ingest_file(FilePath).
-ingest_files(_, _).  %% When all backtracking above has been finished, return
-                     %% success from here.
+    ingest_file(FilePath, Refs).
+ingest_files(_, _, []).  %% When all backtracking above has been finished, return
+                         %% success from here.
 
-ingest_file(File) :- process_eng_file(File, true), !, fail.
-ingest_file(_) :- fail.
+ingest_file(File, Refs) :- process_eng_file(File, Refs, true), !, fail.
+%% ingest_file(_) :- fail.
 
-process_eng_file(File, true) :-
+process_eng_file(File, Refs, true) :-
     % Process files with an .eng extension that aren't hidden files (start with a
     % period).
     file_name_extension(_, ".eng", File),
@@ -188,13 +190,13 @@ process_eng_file(File, true) :-
     print_message(informational, reading_eng_file(File)),
     parse_eng_eqil(File, Contents, Parsed),
     ( normalize_eqil(Parsed, Normalized), !,
-      reprocess_eng_file(File, Normalized)
-    ; (assert_eqil(Parsed), !
-      ; print_message(error, eqil_nesting_too_deep(File))
+      reprocess_eng_file(File, Normalized, Refs)
+    ; (assert_eqil(Parsed, Refs), !
+      ; print_message(error, eqil_nesting_too_deep(File)), Refs = []
       )
     ).
 
-reprocess_eng_file(File, Updated_EQIL) :-
+reprocess_eng_file(File, Updated_EQIL, Refs) :-
     !,
     emit_eqil(Updated_EQIL, OutText),
     string_concat(File, ".new", NewFile),
@@ -204,8 +206,8 @@ reprocess_eng_file(File, Updated_EQIL) :-
     rename_file(NewFile, File),
     print_message(informational, rewrote_eng_file(File)), !,
     parse_eng_eqil(File, OutText, Parsed),
-    ( assert_eqil(Parsed), !
-    ; print_message(error, eqil_nesting_too_deep(File))
+    ( assert_eqil(Parsed, Refs), !
+    ; print_message(error, eqil_nesting_too_deep(File)), Refs = []
     ).
 
 prolog:message(reading_eng_file(File)) -->

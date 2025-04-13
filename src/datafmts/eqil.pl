@@ -1,6 +1,6 @@
 :- module(eqil, [ parse_eng_eqil/3,
                   normalize_eqil/2,
-                  assert_eqil/1,
+                  assert_eqil/2,
                   emit_eqil/2
                 ]).
 
@@ -43,16 +43,25 @@ parse_eng_eqil(FName, FContents, Result) :-
 %% Note that the values have initial and trailing blanks removed (but not
 %% internal blanks).
 
-assert_eqil([]).
-assert_eqil([eqil(Keys, [])|CCS]) :-
-    keyseq(Keys, Keychain), !, assert_eng(Keychain), assert_eqil(CCS).
-assert_eqil([eqil(Keys, [""])|CCS]) :-
-    keyseq(Keys, Keychain), !, assert_eng(Keychain), assert_eqil(CCS).
-assert_eqil([eqil(Keys, Val)|CCS]) :-
+assert_eqil([], []).
+assert_eqil([eqil(Keys, [])|CCS], Refs) :-
+    keyseq(Keys, Keychain),
+    !,
+    assert_eng(Keychain, Refs1),
+    assert_eqil(CCS, Refs2),
+    append(Refs1, Refs2, Refs).
+assert_eqil([eqil(Keys, [""])|CCS], Refs) :-
+    keyseq(Keys, Keychain),
+    !,
+    assert_eng(Keychain, Refs1),
+    assert_eqil(CCS, Refs2),
+    append(Refs1, Refs2, Refs).
+assert_eqil([eqil(Keys, Val)|CCS], Refs) :-
     keyseq(Keys, Keychain),
     vals_as_val(Val, V),
-    assert_eng(Keychain, V),
-    assert_eqil(CCS).
+    assert_eng(Keychain, V, Refs1),
+    assert_eqil(CCS, Refs2),
+    append(Refs1, Refs2, Refs).
 
 show_warnings(_, []).
 show_warnings(In, Unparsed) :-
