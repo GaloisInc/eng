@@ -161,13 +161,13 @@ prolog:message(using_pat(H)) --> [ "Using PAT to access ~w~n" - [ H ] ].
 % ----------------------------------------------------------------------
 %% VCTL status command
 
-vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :- !,
+vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
     do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} status -s',
               'git -C {VCSDir} fetch --dry-run origin -q'
             ],
             [], TopDir, Sts).
-vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :- !,
+vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
     vctl_status(Context, git(VCSDir), Args, Sts),
     directory_file_path(VCSDir, ".git", GitDir),
     directory_file_path(GitDir, "FETCH_HEAD", FHFile),
@@ -188,33 +188,17 @@ vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :- !,
     format('build status = ~w~n', [ BldStatus ]).
 
 vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
-    eng:key(vctl, darcs, complement),
-    !,
-    directory_file_path(VCSDir, "_darcs", DarcsDir),
-    directory_file_path(DarcsDir, "prefs", PrefsDir),
-    directory_file_path(PrefsDir, "defaultrepo", DefRepoFile),
-    read_file_to_string(DefRepoFile, DefRepoStr, []),
-    string_trim(DefRepoStr, DefRepo),
-    eng:eng(vctl, darcs, complement, ComplRepo),
-    format(atom(PullCmd),
-           'darcs pull --repodir=~w -q --dry-run --complement ~w ~w',
-           [VCSDir, DefRepo, ComplRepo]),
+    darcs_pull_args(VCSDir, ExtraArgs),
+    format(atom(PullCmd), 'darcs pull --repodir=~w -q --dry-run ~w',
+           [VCSDir, ExtraArgs]),
     do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
             [ PullCmd,
               'darcs push --repodir={VCSDir} -q --dry-run',
               'darcs w --repodir={VCSDir} -l'
             ],
             [], TopDir, Sts).
-vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
-    !,
-    do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
-            [ 'darcs pull --repodir={VCSDir} -q --dry-run',
-              'darcs push --repodir={VCSDir} -q --dry-run',
-              'darcs w --repodir={VCSDir} -l'
-            ],
-            [], TopDir, Sts).
 
-vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :- !,
+vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     vctl_status(Context, GitTool, Args, GSts),
     vctl_status(Context, darcs(DarcsDir), Args, DSts),
     sum_list([DSts, GSts], Sts).
@@ -257,6 +241,22 @@ git_build_status_url(URL, Fetch_SHA, StatusURL) :-
     parse_url(StatusURLS, StatusURLQ),
     atom_string(StatusURL, StatusURLS).
 
+darcs_remote_repo(VCSDir, RepoAddr) :-
+    directory_file_path(VCSDir, "_darcs", DarcsDir),
+    directory_file_path(DarcsDir, "prefs", PrefsDir),
+    directory_file_path(PrefsDir, "defaultrepo", DefRepoFile),
+    read_file_to_string(DefRepoFile, DefRepoStr, []),
+    string_trim(DefRepoStr, RepoAddr).
+
+darcs_pull_args(VCSDir, ExtraArgs) :-
+    eng:key(vctl, darcs, complement),
+    !,
+    darcs_remote_repo(VCSDir, DefRepo),
+    eng:eng(vctl, darcs, complement, ComplRepo),
+    format(atom(ExtraArgs), '--complement ~w ~w', [DefRepo, ComplRepo]).
+darcs_pull_args(_, "").
+
+
 % ----------------------------------------------------------------------
 
 vctl_push(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
@@ -298,26 +298,11 @@ vctl_pull(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
     vctl_pull(Context, git(VCSDir), Args, Sts).
 
 vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
-    eng:key(vctl, darcs, complement),
-    !,
-    directory_file_path(VCSDir, "_darcs", DarcsDir),
-    directory_file_path(DarcsDir, "prefs", PrefsDir),
-    directory_file_path(PrefsDir, "defaultrepo", DefRepoFile),
-    read_file_to_string(DefRepoFile, DefRepoStr, []),
-    string_trim(DefRepoStr, DefRepo),
-    eng:eng(vctl, darcs, complement, ComplRepo),
-    format(atom(PullCmd),
-           'darcs pull --repodir=~w -q --complement ~w ~w',
-           [VCSDir, DefRepo, ComplRepo]),
+    darcs_pull_args(VCSDir, ExtraArgs),
+    format(atom(PullCmd), 'darcs pull --repodir=~w -q ~w',
+           [VCSDir, ExtraArgs]),
     do_exec(context(EngDir, TopDir), 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
             [ PullCmd ], [], TopDir, Sts).
-
-vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
-    !,
-    do_exec(context(EngDir, TopDir), 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
-            [ 'darcs pull --repodir={VCSDir}'
-            ],
-            [], TopDir, Sts).
 
 vctl_pull(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     !,
