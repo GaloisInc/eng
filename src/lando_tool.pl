@@ -28,24 +28,28 @@ lando(LandoSource, [], Sts) :-
 
 lando(LandoSource, ['to-json', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
+    !,
     open(OutFile, write, OutStrm),
     write_lando_json(OutStrm, SSL),
     print_message(informational, wrote_lando_as("JSON", LandoSource, OutFile)).
 
 lando(LandoSource, ['to-markdown', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
+    !,
     open(OutFile, write, OutStrm),
     write_lando_markdown(OutStrm, SSL),
     print_message(informational, wrote_lando_as("Markdown", LandoSource, OutFile)).
 
 lando(LandoSource, ['to-fret', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
+    !,
     open(OutFile, write, OutStrm),
     write_lando_fret(OutStrm, SSL),
     print_message(informational, wrote_lando_as("FRET", LandoSource, OutFile)).
 
 lando(LandoSource, ['to-fret-kind2', OutDir], 0) :-
     parse_lando_file(LandoSource, SSL),
+    !,
     write_lando_fret_kind2(OutDir, SSL),
     print_message(informational, wrote_lando_as("Kind2", LandoSource, OutDir, dir)).
 
