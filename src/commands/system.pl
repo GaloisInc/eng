@@ -66,8 +66,7 @@ system_cmd(Context, ['gen', 'ALL'], Result) :-
 system_cmd(Context, ['gen'|Specs], Result) :-
     process_system_specs(Context, generate_system_spec, Specs, Result).
 
-system_cmd(_, [Cmd|_], 1) :-
-    print_message(error, invalid_system_subcmd(Cmd)).
+system_cmd(Context, [Cmd|_], invalid_subcmd(system, Context, Cmd)).
 
 % ----------------------------------------------------------------------
 
@@ -84,10 +83,6 @@ process_system_specs(Context, Op, Specs, Result) :-
     findall(R, (member(Spec, Specs), call(Op, Context, Spec, R)), Results),
     sum_list(Results, Result).
 
-prolog:message(invalid_system_subcmd(Cmd)) -->
-    [ 'Invalid "system" subcommand: ~w~n' - [ Cmd ] ],
-    { known_subcommands(system, CS) },
-    [ 'Valid sub-commands: ~w~n' - [ CS ] ].
 prolog:message(specify_ssl_id) -->
     [ 'Please specify the system specification to process (or "ALL")~n' - [] ].
 prolog:message(invalid_system_spec(Spec)) -->

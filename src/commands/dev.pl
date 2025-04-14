@@ -77,10 +77,7 @@ dev_cmd(Context, [Cmd|Args], Sts) :-
     ( member('--help', Args), dev_subcmd_help(Cmd), Sts = 0
     ; dev_subcmd_do(Context, Cmd, Args, Sts)
     ).
-dev_cmd(_, [Cmd|_], 1) :-
-    print_message(error, invalid_subcmd(dev, Cmd)).
-dev_cmd(_, [], 1) :-
-    print_message(error, no_defined_subcmds(dev)).
+dev_cmd(Context, [Cmd|_], invalid_subcmd(dev, Context, Cmd)).
 
 
 subcmd_help(Cmd, CmdHelp) :-

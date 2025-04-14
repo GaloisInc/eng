@@ -64,8 +64,7 @@ doc_cmd(_, [show,Doc|_Args], 1) :-
 doc_cmd(_, [show,Doc|_Args], 1) :-
     print_message(error, doc_not_found(Doc)).
 
-doc_cmd(_, [Cmd|_], 1) :-
-    print_message(error, invalid_doc_subcmd(Cmd)).
+doc_cmd(Context, [Cmd|_], invalid_subcmd(doc, Context, Cmd)).
 
 % Commands that do not use Context
 
@@ -120,10 +119,6 @@ summarize_each(Doc, Elem) :-
     fail.  % next...
 
 
-prolog:message(invalid_doc_subcmd(Cmd)) -->
-    [ 'Invalid "doc" sub-command: ~w~n' - [ Cmd ] ],
-    { known_subcommands(doc, CS) },
-    [ 'Valid sub-commands: ~w~n' - [ CS ] ].
 prolog:message(specify_doc_id) -->
     [ 'Please specify the document to show information for (see `eng doc list`)~n' - [] ].
 prolog:message(no_doc_loc(Doc)) -->

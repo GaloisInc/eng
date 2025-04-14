@@ -29,7 +29,4 @@ run_help(SubCmd, Help) :- eng:key(run, subcmd, SubCmd, Help).
 
 run_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, run, Cmd, Args, Sts).
-run_cmd(_, [Cmd|_], 1) :-
-    print_message(error, invalid_subcmd(run, Cmd)).
-run_cmd(_, [], 1) :-
-    print_message(error, no_defined_subcmds(run)).
+run_cmd(Context, [Cmd|_], invalid_subcmd(run, Context, Cmd)).

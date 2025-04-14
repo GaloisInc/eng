@@ -128,10 +128,7 @@ vctl_cmd(_, [Cmd|_], 1) :-
     print_message(error, vcs_tool_undefined).
 vctl_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, vctl, Cmd, Args, Sts).
-vctl_cmd(_, [Cmd|_], 1) :-
-    print_message(error, invalid_subcmd(vctl, Cmd)).
-vctl_cmd(_, [], 1) :-
-    print_message(error, no_defined_subcmds(vctl)).
+vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
 
 % ----------------------------------------------------------------------
 %% Determine the VCS tool used for this project working directory.

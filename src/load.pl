@@ -8,7 +8,9 @@
                   call_eng_cmd/4,
                   eng_cmd_help/2,
                   engfile_dir/1,
-                  ingest_engfiles/2
+                  ingest_user_engfiles/1,
+                  ingest_engfiles/2,
+                  erase_refs/1
                 ]).
 
 :- use_module(library(apply)).
@@ -218,7 +220,11 @@ prolog:message(eqil_nesting_too_deep(File)) -->
     [ 'Could not express ~w: maximum key nesting level depth exceeded ' - [File] ].
 prolog:message(no_defined_subcmds(Cmd)) -->
     [ 'No currently user-defined "~w" sub-commands' - [ Cmd ] ].
-prolog:message(invalid_subcmd(Cmd, SubCmd)) -->
-    [ 'Invalid "~w" sub-command: ~w~n' - [ Cmd, SubCmd ] ],
-    { known_subcommands(Cmd, CS) },
+prolog:message(invalid_subcmd(Cmd, context(EngDir, TopDir), SubCmd)) -->
+    [ 'Invalid "~w" sub-command in ~w: ~w~n' - [ Cmd, TopDir, SubCmd ] ],
+    {
+        ingest_engfiles(context(EngDir, TopDir), Refs),
+        known_subcommands(Cmd, CS),
+        erase_refs(Refs)
+    },
     [ 'Valid sub-commands: ~w~n' - [ CS ] ].
