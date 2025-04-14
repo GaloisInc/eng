@@ -60,10 +60,10 @@ lando(LandoSource, _, 1) :-
 lando(_, [], 1).  % failure if none of the above work
 
 prolog:message(parse_failure(S)) --> [ 'Failed to parse ~w Lando file.' - [S] ].
-prolog:message(wrote_lando_as(FType, _SrcFName, OutFName)) -->
-    [ 'Wrote ~w file ~w' - [ FType, OutFName ] ].
-prolog:message(wrote_lando_as(FType, _SrcFName, OutDir, dir)) -->
-    [ 'Wrote ~w files into directory ~w' - [ FType, OutDir ] ].
+prolog:message(wrote_lando_as(FType, Src, OutFName)) -->
+    ['Wrote "~w" lando spec to ~w: ~w' - [Src, FType, OutFName]].
+prolog:message(wrote_lando_as(FType, Src, OutDir, dir)) -->
+    ['Wrote "~w" lando spec ~w files into: ~w' - [Src, FType, OutDir]].
 
 %% ----------------------------------------------------------------------
 
