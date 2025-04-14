@@ -260,10 +260,7 @@ vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
             [], TopDir, Sts).
 vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
     vctl_status(Context, git(VCSDir), Args, Sts),
-    directory_file_path(VCSDir, ".git", GitDir),
-    directory_file_path(GitDir, "FETCH_HEAD", FHFile),
-    read_file_to_string(FHFile, FHData, []),
-    split_string(FHData, "\t ", "", [Fetch_SHA|_]),
+    git_remote_head(Context, VCSDir, Fetch_SHA),
     git_build_status_url(URL, Fetch_SHA, StatusURL),
     http_get(StatusURL, Data, [json_object(dict)|Auth]),
     (get_dict(status, Data, BldStatus)  % Gitlab
@@ -296,6 +293,20 @@ vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
 
 vctl_status(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
+
+git_remote_head(_, VCSDir, RmtHeadSHA) :-
+    directory_file_path(VCSDir, ".git", GitDir),
+    directory_file_path(GitDir, "FETCH_HEAD", FHFile),
+    exists_file(FHFile),
+    !,
+    read_file_to_string(FHFile, FHData, []),
+    split_string(FHData, "\t ", "", [RmtHeadSHA|_]).
+git_remote_head(Context, VCSDir, RmtHead) :-
+    do_exec(Context, 'vcs remote head', [ 'VCSDir' = VCSDir ],
+            capture([git, '-C', VCSDir, 'show-ref' ]),
+            [], curdir, StdOut),
+    member(L, StdOut),
+    split_string(L, "\t ", "", [RmtHead, "refs/remotes/origin/HEAD"]).
 
 git_build_status_url(URL, _Fetch_SHA, StatusURL) :-
     member(host(H), URL),
