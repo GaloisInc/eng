@@ -245,7 +245,7 @@ replace_url_host([], H, [host(H)]).
 replace_url_host([host(_)|XS], H, URL) :- !, replace_url_host(XS, H, URL).
 replace_url_host([X|XS], H, [X|URL]) :- replace_url_host(XS, H, URL).
 
-prolog:message(using_pat(H)) --> [ "Using PAT to access ~w~n" - [ H ] ].
+prolog:message(using_pat(H)) --> [ "Using PAT to access ~w" - [ H ] ].
 
 % ----------------------------------------------------------------------
 %% VCTL status command
