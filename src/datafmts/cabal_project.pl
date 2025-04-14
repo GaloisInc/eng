@@ -1,21 +1,19 @@
 :- module(cabal_project, [ write_cabal_project/2 ]).
 
+:- use_module(library(filesex)).
 :- use_module(library(url)).
 :- use_module("../englib").
 :- use_module("../commands/versionctl").
 
 write_cabal_project(VCTool, InDir) :-
     absolute_file_name(InDir, TgtDir),
+    working_directory(OldDir, TgtDir),
+    relative_file_name(OldDir, TgtDir, RelPath),
     directory_file_path(TgtDir, "cabal.project", CProj),
-    (exists_file(CProj) -> writeln(cabal_project_exists) ; writeln(cabal_project_missing)),
     get_repos(Repos),
-    format('Repos: ~w~n', [Repos]),
-    get_local_repos(Repos, Locals),
-    format('Local: ~w~n', [Locals]),
+    get_local_repos(RelPath, Repos, Locals),
     get_remote_repos(VCTool, Repos, Remotes),
-    format('Remote: ~w~n', [Remotes]),
     get_extra(Extra),
-    format('Extra:~n~w~n', [Extra]),
     write_projfile(CProj, Repos, Locals, Remotes, Extra),
     print_message(informational, wrote_cabal_project(CProj)).
 
@@ -25,9 +23,17 @@ prolog:message(wrote_cabal_project(ProjFile)) -->
 get_repos(KnownRepos) :-
     findall(N, eng:key(vctl, subproject, N), KnownRepos).
 
-get_local_repos(KnownRepos, Locals) :-
+get_local_repos(RelPath, KnownRepos, Locals) :-
+    setof(X, get_local_repos_(RelPath, KnownRepos, X), LocalsList),
+    append(LocalsList, Locals).
+get_local_repos_(_, KnownRepos, Locals) :-
     setof((N,Dir), (member(N, KnownRepos),
                     vctl_subproj_local_dir(N, Dir),
+                    exists_directory(Dir)), Locals).
+get_local_repos_(RelPath, KnownRepos, Locals) :-
+    setof((N,Dir), (member(N, KnownRepos),
+                    vctl_subproj_local_dir(N, RDir),
+                    directory_file_path(RelPath, RDir, Dir),
                     exists_directory(Dir)), Locals).
 
 get_remote_repos(VCTool, KnownRepos, Remotes) :-
