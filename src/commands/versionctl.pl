@@ -83,7 +83,6 @@ vctl_help("subproj", "display sub-projects (dependencies).") :-
     eng:key(vctl, subproject).
 vctl_help("subproj clone", "clone a dependency to a local sub-project.") :-
     eng:key(vctl, subproject).
-vctl_help(SubCmd, Help) :- eng:key(vctl, subcmd, SubCmd, Help).
 
 vctl_cmd(Context, [status|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
