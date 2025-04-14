@@ -181,11 +181,24 @@ do_exec(Context, Ref, ArgMap, C, EnvVars, InDir, Sts) :-
 do_exec(Context, Ref, ArgMap, capture(C), EnvVars, InDir, Sts) :-
     do_exec_single(Context, Ref, ArgMap, capture(C), EnvVars, InDir, Sts).
 
-do_exec_single(Context, Ref, ArgMap, capture([Cmd|Args]), EnvVars, InDir, StdOut) :- !,
+do_exec_single(Context, Ref, ArgMap, capture([Cmd|Args]), EnvVars, InDir, StdOut) :-
+    !,
     set_env_vars(Context, EnvVars),
     subst_exec(Cmd, E),
     maplist(prep_args(ArgMap), Args, EArgs),
     dir_runproc(Context, Ref, E, EArgs, InDir, StdOut).
+do_exec_single(Context, Ref, ArgMap, [Cmd|Args], EnvVars, InDir, Sts) :-
+    !,
+    set_env_vars(Context, EnvVars),
+    subst_exec(Cmd, E),
+    maplist(prep_args(ArgMap), Args, EArgs),
+    (InDir == curdir -> PCtl = []; PCtl = [cwd(InDir)]),
+    intercalate([Cmd|Args], " ", FullExec),
+    print_message(informational, running_exec(FullExec)),
+    catch((process_create(path(E), EArgs, PCtl), Sts = 0),
+          _,
+          (print_message(error, exec_failure(Ref, FullExec, 1)), Sts = 1)
+         ).
 do_exec_single(Context, Ref, ArgMap, ShellCmd, EnvVars, InDir, Sts) :-
     set_env_vars(Context, EnvVars),
     subst_exec(ShellCmd, ExecCmd),
