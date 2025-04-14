@@ -271,8 +271,9 @@ dir_shell(context(EngDir, TopDir), Ref, FullExec, InDir, ExecSts) :-
 
 dir_runproc(_, _, Exe, Args, curdir, StdOut) :-
     %% format('Run ~w with ~w~n', [Exe, Args]),
+    !,
     setup_call_cleanup(
-        process_create(Exe, Args, [stdout(pipe(Out))]),
+        process_create(path(Exe), Args, [stdout(pipe(Out))]),
         read_lines(Out, StdOut),
         close(Out)).
 dir_runproc(context(EngDir, TopDir), _Ref, Exe, Args, InDir, StdOut) :-
