@@ -36,6 +36,8 @@ run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
     ingest_engfiles(Context, Refs),
     call_eng_cmd(Context, Cmd, CmdArgs, Sts),
     erase_refs(Refs).
+run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
+    call_eng_cmd(Cmd, CmdArgs, Sts).
 
 show_help(NoCmd) :-
     print_message(error, cmd_not_found(NoCmd)),

@@ -6,6 +6,7 @@
                   known_subcommands/2,
                   known_subcommand_info/2,
                   call_eng_cmd/4,
+                  call_eng_cmd/3,
                   eng_cmd_help/2,
                   engfile_dir/1,
                   ingest_user_engfiles/1,
@@ -99,24 +100,42 @@ show_subcmd_focus(Cmd, SubCmd, OutStr) :-
     ),
     format(atom(OutStr), '     ~w ~`.t~18+ ~w~72|', [ SubCmd, CmdHelp ]).
 
+call_eng_cmd(Cmd, [], 1) :-
+    % If Cmd was not given arguments and this is a command that expects a
+    % sub-command, provide the user with help on the available sub-commands.
+    known_subcommands(Cmd, Sub),
+    \+ Sub == [], !,
+    known_subcommand_help(Cmd).
+
+call_eng_cmd(Cmd, CmdArgs, Sts) :-
+    string_concat(Cmd, "_cmd", CmdOp),
+    atom_string(CmdPred, CmdOp),
+    ( current_predicate(CmdPred, G), head_name_arity(G, CmdPred, 2), !
+    ; %% print_message(error, cmd_not_impl(Cmd)),
+      fail),
+    call(CmdPred, CmdArgs, Sts).
+
 call_eng_cmd(_, Cmd, [], 1) :-
     % If Cmd was not given arguments and this is a command that expects a
     % sub-command, provide the user with help on the available sub-commands.
     known_subcommands(Cmd, Sub),
     \+ Sub == [], !,
+    known_subcommand_help(Cmd).
+
+call_eng_cmd(Context, Cmd, CmdArgs, Sts) :-
+    string_concat(Cmd, "_cmd", CmdOp),
+    atom_string(CmdPred, CmdOp),
+    ( current_predicate(CmdPred, G), head_name_arity(G, CmdPred, 3), !
+    ; %% print_message(error, cmd_not_impl(Cmd)),
+      fail),
+    call(CmdPred, Context, CmdArgs, Sts).
+
+known_subcommand_help(Cmd) :-
     format('Please specify one of the ~w engineering sub-commands to perform:~n',
           [ Cmd ]),
     known_subcommand_info(Info, Cmd), !,
     intercalate(Info, "\n", OutStr),
     writeln(OutStr).
-
-call_eng_cmd(Context, Cmd, CmdArgs, Sts) :-
-    string_concat(Cmd, "_cmd", CmdOp),
-    atom_string(CmdPred, CmdOp),
-    ( current_predicate(CmdPred, _), !
-    ; %% print_message(error, cmd_not_impl(Cmd)),
-      fail),
-    call(CmdPred, Context, CmdArgs, Sts).
 
 eng_cmd_help(Cmd, HelpInfo) :-
     string_concat(Cmd, "_help", S),
