@@ -115,26 +115,30 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
 
     % Update the initial state variable Variable (if necessary) with a reference
     % to this Req.
-    (existing_var(SVName, VS, SV, VSNoV)
-    -> add_var_ref(SV, UpdInps, ISV), MidVS = VSNoV
-    ; add_var_ref(InitStateV, UpdInps, ISV), MidVS = VS
-    ),
     % Update the final state variable Variable (if necessary) with a reference
     % to this Req.
-    get_dict(variable_name, FinalStateV, FSVName),
-    (existing_var(FSVName, MidVS, ExistingFSV, FVSNoV)
-    -> add_var_ref(ExistingFSV, UpdInps, FSV), NextVS = FVSNoV
-    ; add_var_ref(FinalStateV, UpdInps, FSV), NextVS = MidVS
-    ),
+    add_upd_vars(UpdInps, VS, [InitStateV,FinalStateV], NextVS),
     % Don't duplicate the state variable
     get_dict(variable_name, MainV, MainVName),
     (existing_var(MainVName, NextVS, _, _)
-    ->  collect_req_vars(UpdInps, RVS, [ISV,FSV|NextVS], OutReq, OutVS)
-    ; collect_req_vars(UpdInps, RVS, [MainV,ISV,FSV|NextVS], OutReq, OutVS)
+    ->  collect_req_vars(UpdInps, RVS, NextVS, OutReq, OutVS)
+    ; collect_req_vars(UpdInps, RVS, [MainV|NextVS], OutReq, OutVS)
     ).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     print_message(warning, no_fret_var_info(RV)),
     collect_req_vars(Inputs, RVS, VS, OutReq, OutVS).
+
+add_upd_vars(_, CurVars, [], CurVars).
+add_upd_vars(UpdInps, CurVars, [V|VS], UpdVars) :-
+    add_upd_var(UpdInps, CurVars, V, NewVars),
+    add_upd_vars(UpdInps, NewVars, VS, UpdVars).
+
+add_upd_var(UpdInps, CurVars, V, [UpdV|NewVars]) :-
+    get_dict(variable_name, V, N),
+    (existing_var(N, CurVars, ExistingV, VSNoV)
+    -> add_var_ref(ExistingV, UpdInps, UpdV), NewVars = VSNoV
+    ; add_var_ref(V, UpdInps, UpdV), NewVars = CurVars
+    ).
 
 existing_var(VName, [Var|VS], Var, VS) :- get_dict(variable_name, Var, VName).
 existing_var(VName, [V|Vars], Var, [V|VSNoV]) :-
