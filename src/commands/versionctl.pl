@@ -446,14 +446,24 @@ ensure_dir_exists(context(_, TopDir), TgtDir) :-
     format(atom(D), '~w/~w', [ TopDir, TgtDir ]),
     (exists_directory(D), ! ; make_directory(D)).
 
-vctl_subproj_clone_into(_, _, DepName, TgtDir, 1) :-
+vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, 1) :-
     exists_directory(TgtDir),
     !,
-    print_message(info, clone_target_exists(TgtDir, DepName)).
+    print_message(info, clone_target_exists(TgtDir, DepName)),
+    vctl_post_clone(Context, VCTool, TgtDir).
 vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts) :-
     vctl_subproj_remote_repo(VCTool, DepName, RmtRepo),
     (vctl_subproj_remote_rev(DepName, Rev), ! ; Rev = head),
-    vctl_clone(Context, RmtRepo, Rev, TgtDir, CloneSts).
+    vctl_clone(Context, RmtRepo, Rev, TgtDir, CloneSts),
+    (CloneSts == 0
+    -> vctl_post_clone(Context, VCTool, TgtDir)
+    ; true).
+
+vctl_post_clone(context(_, TopDir), VCTool, _TgtDir) :-
+    eng:eng(vctl, 'post clone', OpStr), !,
+    atom_string(Op, OpStr),
+    call(Op, VCTool, TopDir).
+vctl_post_clone(_, _, _).
 
 vctl_clone(context(EngDir, TopDir), darcsremote(Repo), head, TgtDir, 0) :-
     do_exec(context(EngDir, TopDir), 'vcs clone',
