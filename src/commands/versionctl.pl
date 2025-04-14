@@ -369,12 +369,22 @@ vctl_push(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
 
 vctl_push(Context, darcs(DarcsDir, GitTool), Args, Sts) :- !,
     vctl_push(Context, darcs(DarcsDir), Args, DSts),
-    format('Darcs pushes will need dgsync to add to git'),
-    vctl_push(Context, GitTool, Args, GSts),
-    sum_list([DSts, GSts], Sts).
+    (DSts == 0
+    -> dgsync(Context, GitTool, Sts)
+    ; Sts = DSts
+    ).
 
 vctl_push(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
+
+dgsync(Context, git(VCSDir), Sts) :- dgsync(Context, indir(VCSDir), Sts).
+dgsync(Context, git(VCSDir, _), Sts) :- dgsync(Context, indir(VCSDir), Sts).
+dgsync(Context, indir(VCSDir), Sts) :-
+    (eng:eng(vctl, dgsync, signature, Sig)
+    -> Cmd = [ "dgsync", '-s', Sig, VCSDir ]
+    ; Cmd = [ "dgsync", VCSDir ]
+    ),
+    do_exec(Context, 'dgsync', [], [Cmd], [], curdir, Sts).
 
 % ----------------------------------------------------------------------
 
@@ -397,7 +407,7 @@ vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
 
 vctl_pull(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     !,
-    vctl_pull(Context, GitTool, Args, GSts),
+    dgsync(Context, GitTool, GSts),
     vctl_pull(Context, darcs(DarcsDir), Args, DSts),
     sum_list([DSts, GSts], Sts).
 
