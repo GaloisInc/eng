@@ -44,12 +44,11 @@ doc_help(lando, "Run Lando requirements engineering operations").
 
 doc_cmd(_, [list|_Args], 0) :- writeln('Known documents:'), show_doc(_) ; true.
 
-doc_cmd(_, [info], 1) :- print_message(error, specify_doc_id).
-doc_cmd(_, [info,Doc|_Args], 0) :- ( doc_info(Doc), !
-                                   ; print_message(error, doc_not_found(Doc))
-                                   ).
+doc_cmd(_, [info], specify_doc_id) :- !.
+doc_cmd(_, [info,Doc|_Args], 0) :- doc_info(Doc), !.
+doc_cmd(_, [info,Doc|_Args], doc_not_found(Doc)) :- !.
 
-doc_cmd(_, [show], 1) :- print_message(error, specify_doc_id).
+doc_cmd(_, [show], specify_doc_id) :- !.
 doc_cmd(Context, [show,Doc|_Args], Sts) :-
     eng:eng(doc, Doc, location, Loc),
     !,
@@ -57,14 +56,12 @@ doc_cmd(Context, [show,Doc|_Args], Sts) :-
     format(atom(InDir), "{TopDir}/~w", DocDir),
     format(atom(Cmd), 'less ~w~n', DocFile),
     do_exec(Context, "Document display", {}, [Cmd], [], InDir, Sts).
-doc_cmd(_, [show,Doc|_Args], 1) :-
+doc_cmd(_, [show,Doc|_Args], no_doc_loc(Doc)) :-
     eng:key(doc, Doc),
-    !,
-    print_message(error, no_doc_loc(Doc)).
-doc_cmd(_, [show,Doc|_Args], 1) :-
-    print_message(error, doc_not_found(Doc)).
+    !.
+doc_cmd(_, [show,Doc|_Args], doc_not_found(Doc)) :- !.
 
-doc_cmd(Context, [Cmd|_], invalid_subcmd(doc, Context, Cmd)).
+doc_cmd(_, [Cmd|_], invalid_subcmd(doc, Cmd)) :- !.
 
 % Commands that do not use Context
 

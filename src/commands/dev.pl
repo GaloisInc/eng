@@ -76,7 +76,7 @@ dev_cmd(Context, [Cmd|Args], Sts) :-
     eng:key(dev, subcmd, Cmd), !,
     ( member('--help', Args), dev_subcmd_help(Cmd), Sts = 0
     ; dev_subcmd_do(Context, Cmd, Args, Sts)
-    ).
+    ), !.
 dev_cmd(Context, [Cmd|_], invalid_subcmd(dev, Context, Cmd)).
 
 
@@ -87,7 +87,7 @@ subcmd_help(Cmd, CmdHelp) :-
     ; \+ is_list(H), split_string(H, "\n", "", [CmdHelp|_])
     ).
 subcmd_help(test, "Runs tests for this project") :-
-    eng:key(dev, subcmd, test, testcase, _).
+    eng:key(dev, subcmd, test, testcase, _), !.
 
 
 dev_subcmd_help(Cmd) :-
@@ -105,8 +105,7 @@ dev_subcmd_do(Context, test, Args, Sts) :-
     ).
 dev_subcmd_do(Context, Cmd, Args, Sts) :-
     exec_subcmd_do(Context, dev, Cmd, Args, Sts), !.
-dev_subcmd_do(_, Cmd, _Args, 1) :-
-    print_message(error, unknown_dev_subcmd_do(Cmd)), fail.
+dev_subcmd_do(_, Cmd, _Args, unknown_dev_subcmd_do(Cmd)).
 
 
 %% ----------------------------------------------------------------------

@@ -54,19 +54,19 @@ system_known_specification_types([ "lando" ]).
 system_cmd(_, ['list'|_], 0) :-
     writeln('Known system specifications:'), show_system_specs(_); true.
 
-system_cmd(_, ['validate'], 1) :- print_message(error, specify_ssl_id).
+system_cmd(_, ['validate'], specify_ssl_id) :- !.
 system_cmd(Context, ['validate', 'ALL'], Result) :-
-    process_system_specs(Context, validate_system_spec, Result).
+    process_system_specs(Context, validate_system_spec, Result), !.
 system_cmd(Context, ['validate'|Specs], Result) :-
-    process_system_specs(Context, validate_system_spec, Specs, Result).
+    process_system_specs(Context, validate_system_spec, Specs, Result), !.
 
-system_cmd(_, ['gen'], 1) :- print_message(error, specify_ssl_id).
+system_cmd(_, ['gen'], specify_ssl_id) :- !.
 system_cmd(Context, ['gen', 'ALL'], Result) :-
-    process_system_specs(Context, generate_system_spec, Result).
+    process_system_specs(Context, generate_system_spec, Result), !.
 system_cmd(Context, ['gen'|Specs], Result) :-
-    process_system_specs(Context, generate_system_spec, Specs, Result).
+    process_system_specs(Context, generate_system_spec, Specs, Result), !.
 
-system_cmd(Context, [Cmd|_], invalid_subcmd(system, Context, Cmd)).
+system_cmd(_, [Cmd|_], invalid_subcmd(system, Cmd)).
 
 % ----------------------------------------------------------------------
 
@@ -74,14 +74,12 @@ process_system_specs(Context, Op, Result) :-
     Context = context(_, TopDir),
     working_directory(_, TopDir),
     (setof(S, eng:key(system, spec, S), Specs); Specs = []),
-    maplist(call(Op, Context), Specs, Results),
-    sum_list(Results, Result).
+    maplist(call(Op, Context), Specs, Result).
 
 process_system_specs(Context, Op, Specs, Result) :-
     Context = context(_, TopDir),
     working_directory(_, TopDir),
-    findall(R, (member(Spec, Specs), call(Op, Context, Spec, R)), Results),
-    sum_list(Results, Result).
+    findall(R, (member(Spec, Specs), call(Op, Context, Spec, R)), Result).
 
 prolog:message(specify_ssl_id) -->
     [ 'Please specify the system specification to process (or "ALL")~n' - [] ].
@@ -104,8 +102,7 @@ find_spec(Input, Spec) :- atom_string(Input, InpStr),
 with_spec_format_and_file(InputSpec, Op, R) :-
     find_spec(InputSpec, Spec), !,
     with_spec_format_and_file_(Spec, Op, R).
-with_spec_format_and_file(Spec, _, 1) :-
-    print_message(error, unknown_spec(Spec)).
+with_spec_format_and_file(Spec, _, unknown_spec(Spec)).
 
 with_spec_format_and_file_(Spec, Op, R) :-
     eng:eng(system, spec, Spec, format, Format), !,
@@ -117,8 +114,7 @@ with_spec_format_and_file_(Spec, Op, Format, R) :-
     system_known_specification_types(Known),
     member(Format, Known), !,
     with_spec_format_and_file_(Spec, Op, Format, known, R).
-with_spec_format_and_file_(Spec, _, Format, 1) :-
-    print_message(error, unknown_spec_format(Spec, Format)).
+with_spec_format_and_file_(Spec, _, Format, unknown_spec_format(Spec, Format)).
 
 with_spec_format_and_file_(Spec, Op, Format, known, R) :-
     eng:eng(system, spec, Spec, file, SpecFile), !,
@@ -127,7 +123,6 @@ with_spec_format_and_file_(Spec, Op, Format, known, R) :-
     ).
 with_spec_format_and_file_(Spec, _, _, _, 1) :-
     print_message(error, no_spec_file(Spec)).
-
 
 % ----------------------------------------------------------------------
 
@@ -222,7 +217,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     open(OutFile, write, OutStrm),
     ( write_lando_json(OutStrm, SSL)
     -> Result = 0,
-       print_message(information, wrote_file(Spec, OutFile, "json"))
+       print_message(information, wrote_lando_as("JSON", Spec, OutFile))
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutFile, "json"))
     ).
@@ -232,7 +227,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     open(OutFile, write, OutStrm),
     (write_lando_markdown(OutStrm, SSL)
     -> Result = 0,
-       print_message(information, wrote_file(Spec, OutFile, "markdown"))
+       print_message(information, wrote_lando_as("Markdown", Spec, OutFile))
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutFile, "markdown"))
     ).
@@ -243,7 +238,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     !,
     (write_lando_fret(OutStrm, SSL)
     -> Result = 0,
-       print_message(information, wrote_file(Spec, OutFile, "fret"))
+       print_message(information, wrote_lando_as("FRET", Spec, OutFile))
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutFile, "fret"))
     ).
@@ -260,7 +255,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
 
 wrote_file_messages(_, _, []).
 wrote_file_messages(Spec, Kind, [OutFile|FS]) :-
-    print_message(information, wrote_file(Spec, OutFile, Kind)),
+    print_message(information, wrote_lando_as(Kind, Spec, OutFile)),
     wrote_file_messages(Spec, Kind, FS).
 
 prolog:message(wrote_file(Spec, OutFile, Kind)) -->

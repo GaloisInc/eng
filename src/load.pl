@@ -4,10 +4,12 @@
                   known_command_info/1,
                   known_command_info/2,
                   known_subcommands/2,
+                  known_subcommand_help/1,
                   known_subcommand_info/2,
                   call_eng_cmd/4,
                   call_eng_cmd/3,
                   eng_cmd_help/2,
+                  eng_cmd_help/3,
                   engfile_dir/1,
                   ingest_user_engfiles/1,
                   ingest_engfiles/2,
@@ -16,6 +18,7 @@
 
 :- use_module(library(apply)).
 :- use_module(library(filesex)).
+:- use_module(library(lists)).
 :- use_module(library(readutil)).
 :- use_module(englib).
 
@@ -75,9 +78,10 @@ show_cmd_focus(with_subcommands, cmdfocus(Cmd, CmdFocus), [OutCmd|OutSub]) :-
     known_subcommand_info(OutSub, Cmd).
 
 known_subcommand_info(Info, Cmd) :-
-    known_subcommands(Cmd, SubCmds),
-    sort(SubCmds, SSubCmds),
-    maplist(show_subcmd_focus(Cmd), SSubCmds, Info).
+    findall(I, show_subcmd_focus(Cmd, _, I), SInfo),
+    append(SInfo, SI),
+    list_to_set(SI, Lines),
+    sort(Lines, Info).
 
 known_subcommands(Cmd, SubCmds) :-
     string_concat(Cmd, "_help", CmdH),
@@ -91,21 +95,28 @@ known_subcommands(Cmd, SubCmds) :-
     ; SubCmds = []
     ).
 
+show_subcmd_focus(Cmd, SubCmd, [OutStr]) :-
+    get_subcmd_focus(Cmd, SubCmd, OutStr).
 show_subcmd_focus(Cmd, SubCmd, OutStr) :-
-    string_concat(Cmd, "_help", CmdH),
+    ingest_engfiles(_Context, Refs, silent),
+    findall(O, get_subcmd_focus(Cmd, SubCmd, O), OutStr),
+    erase_refs(Refs).
+get_subcmd_focus(Cmd, SubCmd, OutStr) :-
+    atom_string(Cmd, CmdS),
+    string_concat(CmdS, "_help", CmdH),
     atom_string(CmdHPred, CmdH),
-    call(CmdHPred, SubCmd, H),
+    catch(call(CmdHPred, SubCmd, H), _Err, fail),
     (is_list(H), H = [CmdHelp|_]
     ; \+ is_list(H), CmdHelp = H
     ),
     format(atom(OutStr), '     ~w ~`.t~18+ ~w~72|', [ SubCmd, CmdHelp ]).
 
-call_eng_cmd(Cmd, [], 1) :-
+call_eng_cmd(Cmd, [], Msg) :-
     % If Cmd was not given arguments and this is a command that expects a
     % sub-command, provide the user with help on the available sub-commands.
     known_subcommands(Cmd, Sub),
     \+ Sub == [], !,
-    known_subcommand_help(Cmd).
+    known_subcommand_help(Cmd, Msg).
 
 call_eng_cmd(Cmd, CmdArgs, Sts) :-
     string_concat(Cmd, "_cmd", CmdOp),
@@ -115,12 +126,12 @@ call_eng_cmd(Cmd, CmdArgs, Sts) :-
       fail),
     call(CmdPred, CmdArgs, Sts).
 
-call_eng_cmd(_, Cmd, [], 1) :-
+call_eng_cmd(_, Cmd, [], Msg) :-
     % If Cmd was not given arguments and this is a command that expects a
     % sub-command, provide the user with help on the available sub-commands.
     known_subcommands(Cmd, Sub),
     \+ Sub == [], !,
-    known_subcommand_help(Cmd).
+    known_subcommand_help(Cmd, Msg).
 
 call_eng_cmd(Context, Cmd, CmdArgs, Sts) :-
     string_concat(Cmd, "_cmd", CmdOp),
@@ -130,11 +141,14 @@ call_eng_cmd(Context, Cmd, CmdArgs, Sts) :-
       fail),
     call(CmdPred, Context, CmdArgs, Sts).
 
-known_subcommand_help(Cmd) :-
+known_subcommand_help(Cmd, help(Help)) :-
     format('Please specify one of the ~w engineering sub-commands to perform:~n',
           [ Cmd ]),
     known_subcommand_info(Info, Cmd), !,
     intercalate(Info, "\n", OutStr),
+    format(atom(Help), "~w", [OutStr]).
+known_subcommand_help(Cmd) :-
+    known_subcommand_help(Cmd, help(OutStr)),
     writeln(OutStr).
 
 eng_cmd_help(Cmd, HelpInfo) :-
@@ -142,6 +156,11 @@ eng_cmd_help(Cmd, HelpInfo) :-
     atom_string(CmdHelp, S),
     current_predicate(CmdHelp, _),
     call(CmdHelp, HelpInfo).
+
+eng_cmd_help(Context, Cmd, HelpInfo) :-
+    string_concat(Cmd, "_help", S),
+    atom_string(CmdHelp, S),
+    catch(call(CmdHelp, Context, HelpInfo), _Err, fail).
 
 engfile_dir("_eng_").
 
@@ -204,11 +223,13 @@ normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 
 
 ingest_engfiles(context(EngDir, TopDir), Refs) :-
+    ingest_engfiles(context(EngDir, TopDir), Refs, informational).
+ingest_engfiles(context(EngDir, TopDir), Refs, Verbosity) :-
     engfile_dir(Dir),
     find_engfile_dir(Dir, EngDir),
     file_directory_name(EngDir, TopDir),
     directory_files(EngDir, Files),
-    ingest_files(EngDir, Files, Refs).
+    ingest_files(Verbosity, EngDir, Files, Refs).
 
 ingest_user_engfiles(Refs) :-
     absolute_file_name("~/.config/eng", UserConfigDir,
@@ -218,20 +239,18 @@ ingest_user_engfiles(Refs) :-
                          expand(true) ]),
     exists_directory(UserConfigDir), !,
     directory_files(UserConfigDir, Files),
-    ingest_files(UserConfigDir, Files, Refs).
+    ingest_files(informational, UserConfigDir, Files, Refs).
 ingest_user_engfiles([]).
 
-ingest_files(Dir, Files, Refs) :-
-    findall(R, ingest_files(Dir, Files, each, R), AllRefs),
+ingest_files(Verbosity, Dir, Files, Refs) :-
+    findall(R, ingest_files(Verbosity, Dir, Files, each, R), AllRefs),
     append(AllRefs, Refs).
-ingest_files(Dir, Files, each, Refs) :-
+ingest_files(Verbosity, Dir, Files, each, Refs) :-
     member(File, Files),
     directory_file_path(Dir, File, FilePath),
-    ingest_file(FilePath, Refs).
+    ingest_file(Verbosity, FilePath, Refs).
 
-ingest_file(File, Refs) :- process_eng_file(File, Refs).
-
-process_eng_file(File, Refs) :-
+ingest_file(Verbosity, File, Refs) :-
     % Process files with an .eng extension that aren't hidden files (start with a
     % period).
     file_name_extension(_, ".eng", File),
@@ -239,7 +258,7 @@ process_eng_file(File, Refs) :-
     % Read the file, parse it, and assert the facts in the file for predicate use
     % elsewhere.
     read_file_to_string(File, Contents, []),
-    print_message(informational, reading_eng_file(File)),
+    print_message(Verbosity, reading_eng_file(File)),
     parse_eng_eqil(File, Contents, Parsed),
     ( normalize_eqil(Parsed, Normalized), !,
       reprocess_eng_file(File, Normalized, Refs)
@@ -276,8 +295,14 @@ prolog:message(no_defined_subcmds(Cmd)) -->
 prolog:message(invalid_subcmd(Cmd, context(EngDir, TopDir), SubCmd)) -->
     [ 'Invalid "~w" sub-command in ~w: ~w~n' - [ Cmd, TopDir, SubCmd ] ],
     {
-        ingest_engfiles(context(EngDir, TopDir), Refs),
+        ingest_engfiles(context(EngDir, TopDir), Refs, silent),
         known_subcommands(Cmd, CS),
         erase_refs(Refs)
+    },
+    [ 'Valid sub-commands: ~w~n' - [ CS ] ].
+prolog:message(invalid_subcmd(Cmd, SubCmd)) -->
+    [ 'Invalid "~w" sub-command: ~w~n' - [ Cmd, SubCmd ] ],
+    {
+        known_subcommands(Cmd, CS)
     },
     [ 'Valid sub-commands: ~w~n' - [ CS ] ].

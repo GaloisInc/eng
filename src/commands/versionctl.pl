@@ -13,8 +13,8 @@ vctl_focus("Version Control Engineering").
 vctl_help(Info) :-
     engfile_dir(EngDirV),
     exec_subcmd_help("vctl", ExecHelpI),
-    [EngDir, ExecHelp] = [EngDirV, ExecHelpI],
-    Info = {|string(EngDir, ExecHelp)||
+    [EngDir, ExecHelp, SIBLING] = [EngDirV, ExecHelpI, 'SIBLING'],
+    Info = {|string(EngDir, ExecHelp, SIBLING)||
 | Perform an VERSION CONTROL engineering task.
 |
 | Version control is usually handled by a tool such as git.  However, there
@@ -62,7 +62,7 @@ vctl_help(Info) :-
 |    darcs: the match pattern or tag:X, hash:X, patch:X, or match:X
 |
 | The REPO_URL should be in a format recognized by a VCS tool.  The special
-| prefix syntax "{SIBLING}/" followed by a repo name indicates that the name
+| prefix syntax "{{SIBLING}}/" followed by a repo name indicates that the name
 | should be found at the same location (i.e. next to) the current repository.
 |
 | Frequently, a Personal Access Token (PAT) is needed to access private
@@ -86,13 +86,13 @@ vctl_help("subproj clone", "clone a dependency to a local sub-project.") :-
 
 vctl_cmd(Context, [status|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
-    vctl_status(Context, VCTool, Args, Sts).
+    vctl_status(Context, VCTool, Args, Sts), !.
 vctl_cmd(Context, [push|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
-    vctl_push(Context, VCTool, Args, Sts).
+    vctl_push(Context, VCTool, Args, Sts), !.
 vctl_cmd(Context, [pull|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
-    vctl_pull(Context, VCTool, Args, Sts).
+    vctl_pull(Context, VCTool, Args, Sts), !.
 
 vctl_cmd(Context, [subproj], 0) :-
     vcs_tool(Context, VCTool), !,
@@ -100,31 +100,28 @@ vctl_cmd(Context, [subproj], 0) :-
     maplist(vctl_subproj_show(Context, VCTool), SL, SP),
     sum_list(SP, TSP),
     length(SL, NSL),
-    format('Subprojects: ~w known, ~w present~n', [ NSL, TSP ]).
+    format('Subprojects: ~w known, ~w present~n', [ NSL, TSP ]), !.
 
-vctl_cmd(_, [subproj,clone], 1) :-
-    findall(S, eng:key(vctl, subproject, S), []),
-    print_message(error, no_subprojects()),
-    !.
+vctl_cmd(_, [subproj,clone], no_subprojects) :-
+    findall(S, eng:key(vctl, subproject, S), []), !.
 vctl_cmd(_, [subproj,clone], 1) :-
     findall(S, eng:key(vctl, subproject, S), SS),
     writeln('Please specify one or more subprojects to clone:'),
     maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
     intercalate(OS, '~n', OSS),
     writeln(OSS),
-    writeln('  * ALL').
+    writeln('  * ALL'), !.
 vctl_cmd(Context, [subproj,clone,'ALL'], Sts) :-
     vcs_tool(Context, VCTool), !,
     findall(E, (vctl_subproj_clone(Context, VCTool, _, E)), AllSts),
-    sum_list(AllSts, Sts).
+    sum_list(AllSts, Sts), !.
 vctl_cmd(Context, [subproj,clone|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     findall(E, (member(N, Args), vctl_subproj_clone(Context, VCTool, N, E)), AllSts),
     sum_list(AllSts, Sts).
 
-vctl_cmd(_, [Cmd|_], 1) :-
-    member(Cmd, [ status, push ]), !,
-    print_message(error, vcs_tool_undefined).
+vctl_cmd(_, [Cmd|_], vcs_tool_undefined) :-
+    member(Cmd, [ status, push ]), !.
 vctl_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, vctl, Cmd, Args, Sts).
 vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
@@ -209,6 +206,8 @@ prolog:message(using_pat(H)) --> [ "Using PAT to access ~w~n" - [ H ] ].
 %% VCTL status command
 
 vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
+    vctl_subproj_preface(TopDir, Preface),
+    writeln(Preface),
     do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} status -s',
               'git -C {VCSDir} fetch --dry-run origin -q'
@@ -365,7 +364,7 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 
 % Get the preface to use for printing information about the named subproj
 vctl_subproj_preface(Name, Preface) :-
-    format(atom(Preface), '#__ ~w:: ', [Name]).
+    format(atom(Preface), '#____ ~w:: ', [Name]).
 
 % Returns remote address: darcsremote(String), gitremote(parse_http URL, Auth),
 % miscremote(String), or rmtNotSpecified.
