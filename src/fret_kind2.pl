@@ -1,6 +1,8 @@
 :- module(fret_kind2, [ fret_kind2/4,
                         normalize_kind2_var/2,
-                        kind2_validate/5
+                        kind2_validate/5,
+                        %% -- for testing only
+                        connected_components/4
                       ]).
 
 :- use_module(library(apply)).
@@ -41,30 +43,52 @@ fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
 
 connected_components([], _, _, []).
 connected_components([R|Reqs], Vars, N, [CC|CComps]) :-
-    req_out_varnames(Vars, R, OutVNames),
-    conncomp(Vars, N, R, OutVNames, Reqs, CC, RemReqs),
+    conncomp(Vars, N, R, Reqs, CC, RemReqs),
     succ(N, M),
     connected_components(RemReqs, Vars, M, CComps).
 
-conncomp(_, N, Req, OutVNames, [], comp(N, CName, [Req], OutVNames), []) :-
-    get_dict(semantics, Req, ReqSemantics),
-    get_dict(component_name, ReqSemantics, CName).
-conncomp(Vars, N, Req, OutVNames, [R|RS], comp(N, CName, [R|CReqs], CVars), RemReqs) :-
-    get_dict(semantics, Req, ReqSemantics),
-    get_dict(semantics, R, RSemantics),
-    get_dict(component_name, ReqSemantics, CName),
-    get_dict(component_name, RSemantics, CName),
-    req_out_varnames(Vars, R, ROutVNames),
-    member(V, OutVNames),
-    member(V, ROutVNames),
-    % same component name, and overlap between R and Req response vars: R is in
-    % this component
+conncomp(Vars, N, Req, AllReqs, comp(N, CName, ConnReqs, OutVars), RemReqs) :-
+    find_conn_reqs(Vars, [Req], AllReqs, ConnReqs, RemReqs),
+    collect_out_vars(Vars, ConnReqs, OutVars),
+    req_comp_name(Req, CName).
+
+find_conn_reqs(Vars, Reqs, AllReqs, ConnReqs, RemReqs) :-
+    member(R, AllReqs),
+    member(I, Reqs),
+    \+ member(R, Reqs),
+    conn_reqs(Vars, I, R),
     !,
-    append_nub(OutVNames, ROutVNames, AllOutVNames),
-    conncomp(Vars, N, Req, AllOutVNames, RS,
-             comp(N, CName, CReqs, CVars), RemReqs).
-conncomp(Vars, N, Req, OutVNames, [R|RS], CC, [R|RemReqs]) :-
-    conncomp(Vars, N, Req, OutVNames, RS, CC, RemReqs).
+    find_conn_reqs(Vars, [R|Reqs], AllReqs, ConnReqs, RemReqs).
+find_conn_reqs(_, Reqs, AllReqs, Reqs, RemReqs) :-
+    rem_reqs(Reqs, AllReqs, RemReqs).
+
+rem_reqs(_, [], []).
+rem_reqs(ExclReqs, [R|RS], RemReqs) :-
+    member(R, ExclReqs),
+    !,
+    rem_reqs(ExclReqs, RS, RemReqs).
+rem_reqs(ExclReqs, [R|RS], [R|RemReqs]) :-
+    rem_reqs(ExclReqs, RS, RemReqs).
+
+conn_reqs(Vars, R1, R2) :-
+    req_comp_name(R1, CName),
+    req_comp_name(R2, CName), % verify reqs are for the same component
+    req_out_varnames(Vars, R1, ROutVNames1),
+    req_out_varnames(Vars, R2, ROutVNames2),
+    member(V, ROutVNames2),
+    member(V, ROutVNames1), % reqs share an output var
+    !.  % no need to look further
+
+collect_out_vars(_, [], []).
+collect_out_vars(Vars, [R|RS], O) :-
+    collect_out_vars(Vars, RS, S),
+    req_out_varnames(Vars, R, VS),
+    findall(V, (member(V, VS), \+ member(V, S)), H),
+    append(H, S, O).
+
+req_comp_name(Req, CompName) :-
+    get_dict(semantics, Req, S),
+    get_dict(component_name, S, CompName).
 
 req_out_varnames(Vars, Req, VS) :-
     get_dict(semantics, Req, ReqSem),

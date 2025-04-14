@@ -2,6 +2,7 @@
 :- use_module("datafmts/lando").
 :- use_module("datafmts/frettish").
 :- use_module("datafmts/ltl").
+:- use_module("fret_kind2").
 :- set_test_options([show_blocked(true),
                      output(on_failure)
                      % output(always)
