@@ -532,9 +532,31 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
 | tel
 |
 | node delay(X:bool;  R:int) returns(Y:bool);
+| var X1, X2, X3, X4, X5, X6, X7, X8, X9, X10 : bool;
 | let
-|
-|   Y = X;
+|   Y = if (R=0) then X
+|       else (if (R=1) then X1
+|       else (if (R=2) then X2
+|       else (if (R=3) then X3
+|       else (if (R=4) then X4
+|       else (if (R=5) then X5
+|       else (if (R=6) then X6
+|       else (if (R=7) then X7
+|       else (if (R=8) then X8
+|       else (if (R=9) then X9
+|       else (if (R=10) then X10
+|       else false (* n.b. only handles R <= 10 *)
+|       ))))))))));
+|   X1 = false -> pre X;
+|   X2 = false -> pre X1;
+|   X3 = false -> pre X2;
+|   X4 = false -> pre X3;
+|   X5 = false -> pre X4;
+|   X6 = false -> pre X5;
+|   X7 = false -> pre X6;
+|   X8 = false -> pre X7;
+|   X9 = false -> pre X8;
+|   X10 = false -> pre X9;
 | tel
 |
 | {GlobalDecls}
