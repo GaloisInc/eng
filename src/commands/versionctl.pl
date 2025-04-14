@@ -4,6 +4,7 @@
                   vctl_subproj_remote_repo/3
                 ]).
 
+:- use_module(library(filesex)).
 :- use_module(library(strings)).
 :- use_module(library(http/http_client)).
 :- use_module(library(http/http_json)).
@@ -96,6 +97,8 @@ vctl_help("subproj", "display sub-projects (dependencies).") :-
     eng:key(vctl, subproject).
 vctl_help("subproj clone", "clone a dependency to a local sub-project.") :-
     eng:key(vctl, subproject).
+vctl_help("subproj remove", "remove a local copy of a dependency.") :-
+    eng:key(vctl, subproject).
 
 vctl_cmd(Context, [status|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
@@ -121,7 +124,7 @@ vctl_cmd(_, [subproj,clone], 1) :-
     findall(S, eng:key(vctl, subproject, S), SS),
     writeln('Please specify one or more subprojects to clone:'),
     maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
-    intercalate(OS, '~n', OSS),
+    intercalate(OS, '\n', OSS),
     writeln(OSS),
     writeln('  * ALL'), !.
 vctl_cmd(Context, [subproj,clone,'ALL'], Sts) :-
@@ -131,6 +134,30 @@ vctl_cmd(Context, [subproj,clone,'ALL'], Sts) :-
 vctl_cmd(Context, [subproj,clone|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     findall(E, (member(N, Args), vctl_subproj_clone(Context, VCTool, N, E)), AllSts),
+    sum_list(AllSts, Sts).
+
+vctl_cmd(_, [subproj,remove], no_subprojects) :-
+    findall(S, eng:key(vctl, subproject, S), []), !.
+vctl_cmd(_, [subproj,remove], 1) :-
+    findall(S, (eng:key(vctl, subproject, S),
+                vctl_subproj_local_dir(S, D),
+                exists_directory(D)
+               ), SS),
+    (SS == []
+    -> writeln('No subprojects locally cloned; nothing to remove.')
+    ; writeln('Please specify one or more subprojects to remove:'),
+      maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
+      intercalate(OS, '\n', OSS),
+      writeln(OSS),
+      writeln('  * ALL')
+    ), !.
+vctl_cmd(Context, [subproj,remove,'ALL'], Sts) :-
+    vcs_tool(Context, VCTool), !,
+    findall(E, (vctl_subproj_remove(Context, VCTool, _, E)), AllSts),
+    sum_list(AllSts, Sts), !.
+vctl_cmd(Context, [subproj,remove|Args], Sts) :-
+    vcs_tool(Context, VCTool), !,
+    findall(E, (member(N, Args), vctl_subproj_remove(Context, VCTool, N, E)), AllSts),
     sum_list(AllSts, Sts).
 
 vctl_cmd(_, [Cmd|_], vcs_tool_undefined) :-
@@ -384,6 +411,34 @@ vctl_subproj_local_dir(Name, LclDir) :-
 vctl_subproj_local_dir(Name, LclDir) :-
     format(atom(LclDir), 'subproj/~w', [Name]).
 
+vctl_changes(Context, git(VCSDir)) :-
+    do_exec(Context, 'vcs git changes?', [],
+            capture([ "git","-C", VCSDir, "status", "-s" ]),
+            curdir,
+            Out),
+    Out \= [].
+vctl_changes(Context, git(VCSDir, _)) :-
+    do_exec(Context, 'vcs git unpushed?', [],
+            capture([ "git", "-C", VCSDir, "rev-list", "@{upstream}..HEAD" ]),
+            curdir,
+            Out),
+    Out \= [].
+vctl_changes(Context, darcs(VCSDir)) :-
+    catch(do_exec(Context, 'vcs darcs changes?', [],
+                  capture(["darcs", "status", "-s", "-q"]),
+                  [], VCSDir, 0),
+          _, fail),
+    writeln(dchg).
+vctl_changes(Context, darcs(VCSDir)) :-
+    do_exec(Context, 'vcs darcs unpushed?', [],
+            capture([ "darcs", "push", "--dry-run", "-q" ]),
+            [], VCSDir,
+            Out),
+    Out \= [],
+    writeln(dunp), writeln(Out).
+vctl_changes(Context, darcs(VCSDir, _)) :-
+    vctl_changes(Context, darcs(VCSDir)).
+
 % Returns remote address: darcsremote(String), gitremote_http(parse_http URL, Auth), gitremote_ssh(String),
 % miscremote(String), or rmtNotSpecified.
 vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
@@ -559,6 +614,38 @@ darcs_clone(_, _, Sel, SelVal, _, 1) :-
 
 % ----------------------------------------------------------------------
 
+vctl_subproj_remove(Context, VCTool, DepName, CloneSts) :-
+    eng:key(vctl, subproject, DepName),
+    !,
+    remove_subproj(Context, VCTool, DepName, CloneSts).
+vctl_subproj_remove(context(EngDir, _TopDir), _, DepName, 1) :-
+    print_message(error, unknown_subproject(EngDir, DepName)).
+
+remove_subproj(Context, VCTool, DepName, CloneSts) :-
+    vctl_subproj_local_dir(DepName, TgtDir),
+    exists_directory(TgtDir),
+    !,
+    remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, CloneSts).
+remove_subproj(_, _, DepName, 0) :-
+    vctl_subproj_local_dir(DepName, TgtDir),
+    print_message(info, subproj_not_cloned(DepName, TgtDir)).
+
+remove_subproj_if_clean(Context, _VCTool, DepName, TgtDir, 1) :-
+    Context = context(EngDir, _TopDir),
+    vcs_tool(context(EngDir, TgtDir), TgtDirVCTool),
+    vctl_changes(Context, TgtDirVCTool),
+    !,
+    print_message(error, subproj_not_clean(DepName, TgtDir)).
+remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, 0) :-
+    vctl_subproj_preface(DepName, Pfc),
+    format('~w~w~n', [ Pfc, TgtDir ]),
+    delete_directory_and_contents(TgtDir),
+    format('Local copy (~w) removed.~n', [TgtDir]),
+    vctl_post_clone(Context, VCTool, TgtDir).
+
+
+% ----------------------------------------------------------------------
+
 prolog:message(unknown_vcs_tool(Tool)) -->
     [ 'Unknown VCS tool: ~w.  Unable to perform action' - [ Tool ] ].
 prolog:message(vcs_tool_undefined) -->
@@ -573,3 +660,7 @@ prolog:message(no_repo_remote(VCTool)) --> ['No remote repo for ~w' - [VCTool]].
 prolog:message(no_subprojects()) --> [ 'No subprojects are defined.' ].
 prolog:message(unknown_darcs_revtype(Spec, Val)) -->
     [ 'Unknown revision specification type "~w" for: ~w' - [ Spec, Val ]].
+prolog:message(subproj_not_cloned(DepName, TgtDir)) -->
+    [ 'Subproject ~w is not currently locally cloned (into ~w)' - [ DepName, TgtDir ]].
+prolog:message(subproj_not_clean(DepName, TgtDir)) -->
+    [ 'Local changes to subproject ~w in ~w; not removing!' - [ DepName, TgtDir ]].
