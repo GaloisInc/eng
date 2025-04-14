@@ -26,9 +26,9 @@ get_repos(KnownRepos) :-
     findall(N, eng:key(vctl, subproject, N), KnownRepos).
 
 get_local_repos(KnownRepos, Locals) :-
-    findall((N,Dir), (member(N, KnownRepos),
-                      vctl_subproj_local_dir(N, Dir),
-                      exists_directory(Dir)), Locals).
+    setof((N,Dir), (member(N, KnownRepos),
+                    vctl_subproj_local_dir(N, Dir),
+                    exists_directory(Dir)), Locals).
 
 get_remote_repos(VCTool, KnownRepos, Remotes) :-
     findall((N,Rmt), (member(N, KnownRepos),
@@ -67,12 +67,12 @@ write_remotes(ProjFile, Locals, [(N,RmtRef)|Remotes]) :-
     write_remotes(ProjFile, Locals, Remotes).
 wrp(ProjFile, _N, darcsremote(DarcsAddr)) :-
     format(ProjFile,
-           '~nsource_repository_package~n  type: darcs~n  location: ~w~n',
+           '~nsource-repository-package~n  type: darcs~n  location: ~w~n',
            [ DarcsAddr ]),
     !.
 wrp(ProjFile, _N, gitremote_ssh(S)) :-
     format(ProjFile,
-           '~nsource_repository_package~n  type: git~n  location: ~w~n',
+           '~nsource-repository-package~n  type: git~n  location: ~w~n',
            [ S ]),
     !.
 wrp(ProjFile, N, R) :-

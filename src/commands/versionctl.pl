@@ -111,17 +111,21 @@ vctl_cmd(Context, [pull|Args], Sts) :-
     vctl_pull(Context, VCTool, Args, Sts), !.
 
 vctl_cmd(Context, [subproj], 0) :-
-    vcs_tool(Context, VCTool), !,
-    findall((S,L), eng:eng(vctl, subproject, S, into, L), SL),
+    vcs_tool(Context, VCTool),
+    setof((S,L), (eng:key(vctl, subproject, S),
+                  vctl_subproj_local_dir(S, L)), SL),
+    !,
     maplist(vctl_subproj_show(Context, VCTool), SL, SP),
     sum_list(SP, TSP),
     length(SL, NSL),
-    format('Subprojects: ~w known, ~w present~n', [ NSL, TSP ]), !.
+    format('Subprojects: ~w known, ~w present locally~n', [ NSL, TSP ]), !.
+vctl_cmd(_, [subproj], 0) :-
+    writeln('No subprojects defined').
 
 vctl_cmd(_, [subproj,clone], no_subprojects) :-
     findall(S, eng:key(vctl, subproject, S), []), !.
 vctl_cmd(_, [subproj,clone], 1) :-
-    findall(S, eng:key(vctl, subproject, S), SS),
+    setof(S, eng:key(vctl, subproject, S), SS),
     writeln('Please specify one or more subprojects to clone:'),
     maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
     intercalate(OS, '\n', OSS),
@@ -139,7 +143,7 @@ vctl_cmd(Context, [subproj,clone|Args], Sts) :-
 vctl_cmd(_, [subproj,remove], no_subprojects) :-
     findall(S, eng:key(vctl, subproject, S), []), !.
 vctl_cmd(_, [subproj,remove], 1) :-
-    findall(S, (eng:key(vctl, subproject, S),
+    setof(S, D^(eng:key(vctl, subproject, S),
                 vctl_subproj_local_dir(S, D),
                 exists_directory(D)
                ), SS),
@@ -184,7 +188,8 @@ vcs_tool(context(_, TopDir), DarcsTool) :-
 vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
     directory_file_path(InDir, ".git", VCSDir),
     exists_directory(VCSDir),
-    do_exec(context(_, TopDir), 'vcs git remote origin', [ 'VCSDir' = InDir ],
+    do_exec(context(_, TopDir), 'vcs git remote origin',
+            [ 'VCSDir' = InDir ],
             capture(["git", "-C", "{VCSDir}", "remote", "get-url", "origin"]),
             [], TopDir, [GitForgeURL|_]),
     atom_string(URLAtom, GitForgeURL),
@@ -406,6 +411,9 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 vctl_subproj_preface(Name, Preface) :-
     format(atom(Preface), '#____ ~w :: ', [Name]).
 
+vctl_subproj_context(context(EngDir, TopDir), SubProjDir, context(EngDir, SPDir)) :-
+    directory_file_path(TopDir, SubProjDir, SPDir).
+
 vctl_subproj_local_dir(Name, LclDir) :-
     eng:eng(vctl, subproject, Name, into, LclDir), !.
 vctl_subproj_local_dir(Name, LclDir) :-
@@ -414,14 +422,12 @@ vctl_subproj_local_dir(Name, LclDir) :-
 vctl_changes(Context, git(VCSDir)) :-
     do_exec(Context, 'vcs git changes?', [],
             capture([ "git","-C", VCSDir, "status", "-s" ]),
-            curdir,
-            Out),
+            curdir, [], Out),
     Out \= [].
 vctl_changes(Context, git(VCSDir, _)) :-
-    do_exec(Context, 'vcs git unpushed?', [],
-            capture([ "git", "-C", VCSDir, "rev-list", "@{upstream}..HEAD" ]),
-            curdir,
-            Out),
+    do_exec(Context, 'vcs git unpushed?', ['VCSDir' = VCSDir],
+            capture([ git, "-C", VCSDir, "rev-list", "@{upstream}..HEAD" ]),
+            [], curdir, Out),
     Out \= [].
 vctl_changes(Context, darcs(VCSDir)) :-
     catch(do_exec(Context, 'vcs darcs changes?', [],
@@ -432,8 +438,7 @@ vctl_changes(Context, darcs(VCSDir)) :-
 vctl_changes(Context, darcs(VCSDir)) :-
     do_exec(Context, 'vcs darcs unpushed?', [],
             capture([ "darcs", "push", "--dry-run", "-q" ]),
-            [], VCSDir,
-            Out),
+            [], VCSDir, Out),
     Out \= [],
     writeln(dunp), writeln(Out).
 vctl_changes(Context, darcs(VCSDir, _)) :-
@@ -444,17 +449,21 @@ vctl_changes(Context, darcs(VCSDir, _)) :-
 vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
     eng:eng(vctl, subproject, Name, repo, Repo),
     string_concat("{SIBLING}/", RepoName, Repo),
-    !,
     vctl_repo_remote_addr(VCTool, RepoRemote),
-    vctl_repo_addr_new_repo(RepoRemote, RepoName, Rmt).
+    vctl_repo_addr_new_repo(RepoRemote, RepoName, Rmt),
+    % If the remote is a directory (i.e. another local checkout), see if that
+    % exists... otherwise, this fails an another repo setting for this Name is
+    % checked.
+    vctl_repo_check_remote_exists_if_dir(Rmt),
+    !.
 vctl_subproj_remote_repo(_, Name, gitremote_ssh(Rmt)) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
     string_concat("git@", _, Rmt),
     !.
 vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
-    parse_url(URL, Rmt),
-    string_split(URL, "git", "", Split),
+    parse_url(Rmt, URL),
+    string_split(Rmt, "git", "", Split),
     length(Split, SL),
     SL > 1,
     !,
@@ -475,6 +484,16 @@ vctl_repo_remote_addr(VCTool, _) :-
     print_message(error, no_repo_remote(VCTool)),
     fail.
 
+vctl_repo_check_remote_exists_if_dir(gitremote(_, _)). % just assumes
+vctl_repo_check_remote_exists_if_dir(darcsremote(Remote)) :-
+    parse_url(Remote, URL),
+    member(host(H), URL),
+    H \= '',
+    !.  % if remote, assume it exists
+vctl_repo_check_remote_exists_if_dir(darcsremote(Remote)) :-
+    exists_directory(Remote),
+    !.  % local dir, must exist
+
 vctl_repo_addr_new_repo(gitremote(URL, Auth), RepoName, gitremote(NewURL, Auth)) :-
     member(path(Path), URL),
     split_string(Path, "/", "", [Project, _OldRepoName]),
@@ -491,7 +510,9 @@ vctl_subproj_remote_repo_str(rmtNotSpecified, "UNKNOWN") :- !.
 vctl_subproj_remote_repo_str(darcsremote(S), R) :-
     string_concat("darcs ", S, R), !.
 vctl_subproj_remote_repo_str(gitremote(URL, _), R) :-
-    parse_url(URL, S),
+    parse_url(S, URL),
+    string_concat("git ", S, R), !.
+vctl_subproj_remote_repo_str(gitremote_ssh(S), R) :-
     string_concat("git ", S, R), !.
 vctl_subproj_remote_repo_str(miscremote(S), S) :- !.
 vctl_subproj_remote_repo_str(Rmt, R) :- format(atom(R), '?? ~w', [Rmt]).
@@ -511,7 +532,7 @@ vctl_subproj_show(context(_, TopDir), VCTool, (Name, IntoDir), IsPresent) :-
       vctl_subproj_remote_repo(VCTool, Name, RmtAddr),
       vctl_subproj_remote_repo_str(RmtAddr, Rmt),
       (vctl_subproj_remote_rev(Name, Rev) ; Rev = ""),
-      format(atom(I), "[currently @ ~w ~w]", [Rmt, Rev])
+      format(atom(I), "[@ ~w ~w]", [Rmt, Rev])
     ),
     vctl_subproj_preface(Name, Pfc),
     format('~w~w~n', [ Pfc, I ]).
@@ -577,6 +598,18 @@ vctl_clone(context(EngDir, TopDir), gitremote(URL, _), Rev, TgtDir, 0) :-
               'git checkout -C {TgtDir} {Ref}'
             ],
             [], TopDir, 0), !.
+vctl_clone(context(EngDir, TopDir), gitremote_ssh(URL), head, TgtDir, 0) :-
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = URL ],
+            [ 'git clone {RepoAddr} {TgtDir}' ],
+            [], TopDir, 0), !.
+vctl_clone(context(EngDir, TopDir), gitremote_ssh(URL), Rev, TgtDir, 0) :-
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = URL, 'Ref' = Rev ],
+            [ 'git clone {RepoAddr} {TgtDir}',
+              'git checkout -C {TgtDir} {Ref}'
+            ],
+            [], TopDir, 0), !.
 vctl_clone(_, Repo, _, TgtDir, 1) :-
     print_message(error, cannot_clone(Repo, TgtDir)).
 
@@ -631,8 +664,8 @@ remove_subproj(_, _, DepName, 0) :-
     print_message(info, subproj_not_cloned(DepName, TgtDir)).
 
 remove_subproj_if_clean(Context, _VCTool, DepName, TgtDir, 1) :-
-    Context = context(EngDir, _TopDir),
-    vcs_tool(context(EngDir, TgtDir), TgtDirVCTool),
+    vctl_subproj_context(Context, TgtDir, SPContext),
+    vcs_tool(SPContext, TgtDirVCTool),
     vctl_changes(Context, TgtDirVCTool),
     !,
     print_message(error, subproj_not_clean(DepName, TgtDir)).
