@@ -111,13 +111,15 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
 
     % Update the Req to ensure it references the Scenario state initial and final
     % variables--if needed--by modifying the FRETtish English and re-parsing.
-    update_req_with_var(Inputs, RV, InitStateV, FinalStateV, UpdInps),
+
+    update_req_with_var(Inputs, RV, InitStateV, FinalStateV, UpdInps, AddVars),
 
     % Update the initial state variable Variable (if necessary) with a reference
     % to this Req.
     % Update the final state variable Variable (if necessary) with a reference
     % to this Req.
-    add_upd_vars(UpdInps, VS, [InitStateV,FinalStateV], NextVS),
+    % Add any other added variables
+    add_upd_vars(UpdInps, VS, [InitStateV,FinalStateV|AddVars], NextVS),
     % Don't duplicate the state variable
     get_dict(variable_name, MainV, MainVName),
     (existing_var(MainVName, NextVS, _, _)
@@ -156,7 +158,7 @@ add_var_ref_(Var, ReqID, UpdVar) :-
     ).
 
 update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
-                    inputs(Defs, UpdReq, SSL)) :-
+                    inputs(Defs, UpdReq, SSL), VarAdds) :-
     get_dict(requirement, FretReq, Req),
     % If the user referenced a var in the original, then assume they have
     % responsibility for the proper format, otherwise we add a "SV = " to the RV
@@ -172,23 +174,24 @@ update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
     ).
 
 update_req_with_var_(_, _, _, hasvar, hasvar, no_update, []) :- !.
-update_req_with_var_(Defs, Req, RV, hasvar, PostVar, UpdReq, [PostVar]) :-
+update_req_with_var_(Defs, Req, RV, hasvar, PostVar, UpdReq, [PostVar|AddVars]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
-    add_var_state_access(RV, PostVar, Post, UpdPost),
+    add_var_state_access(Req, RV, PostVar, Post, UpdPost, AddVars),
     update_req_with_newfret(Defs, Pre, UpdPost, Req, UpdReq).
-update_req_with_var_(Defs, Req, RV, PreVar, hasvar, UpdReq, [PreVar]) :-
+update_req_with_var_(Defs, Req, RV, PreVar, hasvar, UpdReq, [PreVar|AddVars]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
-    add_var_state_access(RV, PreVar, Pre, UpdPre),
+    add_var_state_access(Req, RV, PreVar, Pre, UpdPre, AddVars),
     update_req_with_newfret(Defs, UpdPre, Post, Req, UpdReq).
-update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar]) :-
+update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar|AddVars]) :-
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
-    add_var_state_access(RV, PreVar, Pre, UpdPre),
-    add_var_state_access(RV, PostVar, Post, UpdPost),
+    add_var_state_access(Req, RV, PreVar, Pre, UpdPre, AddVars1),
+    add_var_state_access(Req, RV, PostVar, Post, UpdPost, AddVars2),
+    append([AddVars1, AddVars2], AddVars),
     update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq).
 
 update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq) :-
@@ -218,12 +221,60 @@ req_accesses_var(Req, Var) :-
     get_dict(variable_name, Var, VName),
     member(VName, ReqVars).
 
-add_var_state_access(LclVName, StateVar, Phrase, Out) :-
+add_var_state_access(Req, LclVName, StateVar, Phrase, Out, AddVars) :-
     % Note: this does a crude search-and-replace in the text; if the frettish was
     % parsed to an API this could be much more refined.
     get_dict(variable_name, StateVar, N),
     format(atom(Repl), '(~w = ~w)', [N, LclVName]),
-    subst(LclVName, Repl, Phrase, Out).
+    subst(LclVName, Repl, Phrase, NewPhrase),
+    fix_scope_(Req, Repl, N, LclVName, NewPhrase, Out, AddVars).
+
+% More crude search-and-replace: the Scope portion of a frettish statement
+% can only refer to a "mode" by name, whereas this just did a (statevar =
+% foo) subsitutution.  Handle this here by replacing scope prefixes with a
+% reference to a local variable which will be created to handle this.
+fix_scope_(Req, Repl, StateVName, LclVName, NewPhrase, Out, [Var]) :-
+    member(ScopeWord, ["In", "in",
+                       "Not in", "not in",
+                       "Only in", "only in",
+                       "Before", "before",
+                       "Only before", "only before",
+                       "After", "after",
+                       "Only after", "only after"
+                      ]),
+    member(MatchFmt, ['~w ~w ', '~w mode ~w ']),
+    format(atom(Match), MatchFmt, [ScopeWord, Repl]),
+    atom_string(Match, MatchS),
+    format(atom(VarName), '~w__mode', [LclVName]),
+    format(atom(Fixed), '~w ~w ', [ScopeWord, VarName]),
+    string_concat(MatchS, _, NewPhrase),
+    subst(MatchS, Fixed, NewPhrase, ModePhrase),
+    with_stateref(StateVName, LclVName, ModePhrase, Out),
+    get_dict(project, Req, ProjName),
+    get_dict(semantics, Req, Semantics),
+    get_dict(component, Semantics, CompName),
+    mkVar(ProjName, CompName, VarName,
+          "scope state value reference", "boolean", "Internal", Repl, Var).
+fix_scope_(_, _, _, _, Out, Out, []).
+
+with_stateref(StateVName, _, OutPhrase, OutPhrase) :-
+    string_codes(StateVName, SC),
+    string_codes(OutPhrase, MC),
+    append(_, SVP, MC),
+    append(SC, _, SVP),
+    % already has a reference to StateVName, no modification needed.
+    !.
+with_stateref(StateVName, LclVName, ModePhrase, OutPhrase) :-
+    % Add a no-op reference to the state variable so that it will be added as an
+    % input to the kind2 Lustre node.
+    split_string(ModePhrase, " ", "", Words),
+    (reverse(Words, [Comp, "the" |Rest]) ; reverse(Words, [Comp|Rest])),
+    reverse(Rest, P),
+    intercalate(P, " ", PS),
+    format(atom(OutPhrase), '~w & (~w = ~w) the ~w',
+           [ PS, StateVName, LclVName, Comp ]),
+    !.
+
 
 % ----------
 
