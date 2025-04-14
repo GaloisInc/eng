@@ -48,8 +48,6 @@ show_help :-
     known_command_info(Info),
     writeln(Info).
 
-% get_eng_area :- atom_concat(Cmd, "_focus", CmdFocus), call_
-
 prolog:message(cmd_not_found(Cmd))  -->
     [ 'Sorry, command "~w" does not exist or is implemented erroneously.'-[Cmd] ].
 prolog:message(cmd_not_impl(Cmd))  -->
