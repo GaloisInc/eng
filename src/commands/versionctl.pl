@@ -1,4 +1,8 @@
-:- module(vctl, [ vctl_cmd/3, vctl_focus/1, vctl_help/1, vctl_help/2 ]).
+:- module(vctl, [ vctl_cmd/3, vctl_focus/1, vctl_help/1, vctl_help/2,
+                  % These are internal helpers for other modules to use:
+                  vctl_subproj_local_dir/2,
+                  vctl_subproj_remote_repo/3
+                ]).
 
 :- use_module(library(strings)).
 :- use_module(library(http/http_client)).
@@ -364,7 +368,12 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 
 % Get the preface to use for printing information about the named subproj
 vctl_subproj_preface(Name, Preface) :-
-    format(atom(Preface), '#____ ~w:: ', [Name]).
+    format(atom(Preface), '#____ ~w :: ', [Name]).
+
+vctl_subproj_local_dir(Name, LclDir) :-
+    eng:eng(vctl, subproject, Name, into, LclDir), !.
+vctl_subproj_local_dir(Name, LclDir) :-
+    format(atom(LclDir), 'subproj/~w', [Name]).
 
 % Returns remote address: darcsremote(String), gitremote(parse_http URL, Auth),
 % miscremote(String), or rmtNotSpecified.
@@ -433,9 +442,7 @@ vctl_subproj_show(context(_, TopDir), VCTool, (Name, IntoDir), IsPresent) :-
 vctl_subproj_clone(Context, VCTool, DepName, CloneSts) :-
     eng:key(vctl, subproject, DepName),
     !,
-    (eng:eng(vctl, subproject, DepName, into, TgtDir), ! ;
-     format(atom(TgtDir), 'subproj/~w', [DepName])
-    ),
+    vctl_subproj_local_dir(DepName, TgtDir),
     file_directory_name(TgtDir, TgtParentDir),
     ensure_dir_exists(Context, TgtParentDir),
     vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts).
