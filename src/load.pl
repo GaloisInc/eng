@@ -145,36 +145,70 @@ eng_cmd_help(Cmd, HelpInfo) :-
 
 engfile_dir("_eng_").
 
-find_engfile_dir(Dir, AbsDir) :-
-    absolute_file_name(Dir, AbsDir),
-    exists_directory(AbsDir), !.
-find_engfile_dir(Dir, _) :-
-    absolute_file_name(Dir, AbsDir),
-    file_directory_name(AbsDir, Main),
-    file_directory_name(Main, Main), !, fail.
+% Entrypoint: assume "Dir" is relative, may have multiple elements, and may
+% be relative to the current working directory: convert it to absolute and
+% start the search from that parent.
+%
+% This must be called from somewhere within a tree; not finding an engfile
+% anywhere above the current point is an error.
 find_engfile_dir(Dir, EngDir) :-
+    find_engfile_tree(Dir, Tree),
+    select_engfile_dir(Tree, EngDir).
+
+select_engfile_dir(engnode(_,SS), EngDir) :-
+    member(Ent, SS),
+    select_engfile_dir(Ent, EngDir).
+select_engfile_dir(engnode(H,_), H).
+select_engfile_dir(engleaf(H), H).
+
+find_engfile_tree(Dir, EngDirs) :-
     absolute_file_name(Dir, AbsDir),
     file_directory_name(AbsDir, Main),
-    file_directory_name(Main, Parent),
-    file_base_name(AbsDir, EDir),
-    directory_file_path(Parent, EDir, CheckNext),
-    find_engfile_dir(CheckNext, EngDir).
+    find_topmost_engfile_dir(Dir, Main, TopEng),
+    file_directory_name(TopEng, TopDir),
+    find_engfile_dirs(Dir, TopDir, EngDirs).
+find_topmost_engfile_dir(Dir, InDir, Result) :-
+    file_directory_name(InDir, ParentDir),
+    \+ file_directory_name(ParentDir, ParentDir), % fail at root
+    find_topmost_engfile_dir(Dir, ParentDir, Result).
+find_topmost_engfile_dir(Dir, ParentDir, Result) :-
+    directory_file_path(ParentDir, Dir, Result),
+    exists_directory(Result).
+find_engfile_dirs(TgtDir, Here, Tree) :-
+    directory_files(Here, AllHere),
+    atom_string(ATgtDir, TgtDir),
+    findall(D, (member(E, AllHere),
+                \+ member(E, [ '.', '..', ATgtDir,
+                               '_darcs', '.git',
+                               'dist-newstyle'
+                             ]),
+                directory_file_path(Here, E, Subdir),
+                exists_directory(Subdir),
+                find_engfile_dirs(TgtDir, Subdir, D)), SubTreeEnts),
+    normalize_subtrees(SubTreeEnts, SubTree),
+    find_engfile_here_subs(TgtDir, Here, SubTree, Tree).
+find_engfile_here_subs(TgtDir, Here, [], engleaf(EngDir)) :-
+    directory_file_path(Here, TgtDir, EngDir),
+    exists_directory(EngDir),
+    !.
+find_engfile_here_subs(TgtDir, Here, Subs, engnode(EngDir, Subs)) :-
+    directory_file_path(Here, TgtDir, EngDir),
+    exists_directory(EngDir),
+    !.
+find_engfile_here_subs(_, _, Subs, Subs) :- !.
 
-ingest_engfiles(context(EngDir, TopDir)) :-
+normalize_subtrees([], []).
+normalize_subtrees([[]|ES], OS) :- !, normalize_subtrees(ES, OS).
+normalize_subtrees([[E]|ES], [E|OS]) :- !, normalize_subtrees(ES, OS).
+normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
+
+
+ingest_engfiles(context(EngDir, TopDir), Refs) :-
     engfile_dir(Dir),
     find_engfile_dir(Dir, EngDir),
     file_directory_name(EngDir, TopDir),
     directory_files(EngDir, Files),
-    ingest_files(EngDir, Files, Refs1),
-    !,
-    ingest_user_engfiles(Refs2),
-    append(Refs1, Refs2, Refs).
-ingest_engfiles(context(EngDir, TopDir), Refs) :-
-    ingest_user_engfiles(Refs),
-    engfile_dir(EngDir),
-    file_directory_name(EngDir, TopDir),
-    % exists_directory failed in the previous proposition.
-    format('No eng files found (~w directory).~n', [ EngDir ]).
+    ingest_files(EngDir, Files, Refs).
 
 ingest_user_engfiles(Refs) :-
     absolute_file_name("~/.config/eng", UserConfigDir,
@@ -188,19 +222,16 @@ ingest_user_engfiles(Refs) :-
 ingest_user_engfiles([]).
 
 ingest_files(Dir, Files, Refs) :-
-    % Backtracks through each File: for that File, all the possible ingestion
-    % methods are tried, and ultimately they all signal failure to cause
-    % backtracking to the next file.
+    findall(R, ingest_files(Dir, Files, each, R), AllRefs),
+    append(AllRefs, Refs).
+ingest_files(Dir, Files, each, Refs) :-
     member(File, Files),
     directory_file_path(Dir, File, FilePath),
     ingest_file(FilePath, Refs).
-ingest_files(_, _, []).  %% When all backtracking above has been finished, return
-                         %% success from here.
 
-ingest_file(File, Refs) :- process_eng_file(File, Refs, true), !, fail.
-%% ingest_file(_) :- fail.
+ingest_file(File, Refs) :- process_eng_file(File, Refs).
 
-process_eng_file(File, Refs, true) :-
+process_eng_file(File, Refs) :-
     % Process files with an .eng extension that aren't hidden files (start with a
     % period).
     file_name_extension(_, ".eng", File),
@@ -230,6 +261,9 @@ reprocess_eng_file(File, Updated_EQIL, Refs) :-
     ( assert_eqil(Parsed, Refs), !
     ; print_message(error, eqil_nesting_too_deep(File)), Refs = []
     ).
+
+erase_refs([]).
+erase_refs([E|ES]) :- erase(E), erase_refs(ES).
 
 prolog:message(reading_eng_file(File)) -->
     [ 'Ingesting ~w' - [File] ].
