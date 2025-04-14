@@ -10,6 +10,7 @@
 :- use_module(library(url)).
 :- use_module(library(yall)).
 :- use_module("../englib").
+:- use_module("../datafmts/cabal_project").
 :- use_module('exec_subcmds').
 
 vctl_focus("Version Control Engineering").
@@ -46,6 +47,7 @@ vctl_help(Info) :-
 |          into = PATH
 |          repo = REPO_URL
 |          rev = BRANCH|TAG|REF
+|          subdir = RELDIR
 |
 | In normal operations, the vctl command uses the repository information in
 | the current working directory and needs no additional configuration.  At
@@ -56,6 +58,8 @@ vctl_help(Info) :-
 | be supplied along with the --complement flag; this is useful for filtering
 | out patches from the upstream repository that should not be considered for
 | pulling into the local repository by moving them to the complement repository.
+|
+| Subprojects:
 |
 | The subproject is used to specify one or more dependencies for the current
 | project.  This information is used in various ways, including: checking out
@@ -68,6 +72,11 @@ vctl_help(Info) :-
 | The REPO_URL should be in a format recognized by a VCS tool.  The special
 | prefix syntax "{{SIBLING}}/" followed by a repo name indicates that the name
 | should be found at the same location (i.e. next to) the current repository.
+|
+| The optional subdir specifies the subdirectory in the repo in which the
+| NAME package exists.
+|
+| Repository Access:
 |
 | Frequently, a Personal Access Token (PAT) is needed to access private
 | repositories or to avoid rate limiting.  A PAT can be set in an EQIL
@@ -375,7 +384,7 @@ vctl_subproj_local_dir(Name, LclDir) :-
 vctl_subproj_local_dir(Name, LclDir) :-
     format(atom(LclDir), 'subproj/~w', [Name]).
 
-% Returns remote address: darcsremote(String), gitremote(parse_http URL, Auth),
+% Returns remote address: darcsremote(String), gitremote_http(parse_http URL, Auth), gitremote_ssh(String),
 % miscremote(String), or rmtNotSpecified.
 vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
     eng:eng(vctl, subproject, Name, repo, Repo),
@@ -383,9 +392,24 @@ vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
     !,
     vctl_repo_remote_addr(VCTool, RepoRemote),
     vctl_repo_addr_new_repo(RepoRemote, RepoName, Rmt).
-vctl_subproj_remote_repo(_VCTool, Name, Rmt) :-
-    eng:eng(vctl, subproject, Name, repo, miscremote(Rmt)), !.
+vctl_subproj_remote_repo(_, Name, gitremote_ssh(Rmt)) :-
+    eng:eng(vctl, subproject, Name, repo, Rmt),
+    string_concat("git@", _, Rmt),
+    !.
+vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
+    eng:eng(vctl, subproject, Name, repo, Rmt),
+    parse_url(URL, Rmt),
+    string_split(URL, "git", "", Split),
+    length(Split, SL),
+    SL > 1,
+    !,
+    git_rmt_with_auth(VCTool, URL, Rmt).
+vctl_subproj_remote_repo(_VCTool, Name, miscremote(Rmt)) :-
+    eng:eng(vctl, subproject, Name, repo, Rmt), !.
 vctl_subproj_remote_repo(_VCTool, _Name, rmtNotSpecified).
+
+git_rmt_with_auth(git(_, forge(_, Auth)), URL, gitremote(URL, Auth)).
+git_rmt_with_auth(_, URL, gitremote(URL, noAuth)).
 
 vctl_repo_remote_addr(git(_, forge(URL, Auth)), gitremote(URL, Auth)) :- !.
 vctl_repo_remote_addr(darcs(VCSDir, _), darcsremote(Remote)) :-
@@ -412,7 +436,7 @@ vctl_subproj_remote_repo_str(rmtNotSpecified, "UNKNOWN") :- !.
 vctl_subproj_remote_repo_str(darcsremote(S), R) :-
     string_concat("darcs ", S, R), !.
 vctl_subproj_remote_repo_str(gitremote(URL, _), R) :-
-    parse_http(URL, S),
+    parse_url(URL, S),
     string_concat("git ", S, R), !.
 vctl_subproj_remote_repo_str(miscremote(S), S) :- !.
 vctl_subproj_remote_repo_str(Rmt, R) :- format(atom(R), '?? ~w', [Rmt]).
