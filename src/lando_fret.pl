@@ -50,6 +50,9 @@ resource(fret_semantics, 'src/semantics.json').
 % --------------------
 
 collect_vars(_, _, [], [], [], []).
+collect_vars(Defs, SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
+    !,
+    collect_vars(Defs, SSLBody, InpReqs, Vars, OutReqs, OutVars).
 collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     collect_vars(Defs, SSLBody, InpReqs, Vars, SubReqs, SubVars),
     get_dict(requirement, FretReq, Req),
@@ -60,6 +63,9 @@ collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     OutReqs = [OutFretReq|SubReqs].
 
 collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(_, FretReq, _).
+collect_req_vars(Inputs, [noreq|RVS], VS, OutReq, OutVS) :-
+    !,
+    collect_req_vars(Inputs, RVS, VS, OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     component_var(RV, Inputs, CompVar),
     !,
@@ -156,7 +162,7 @@ update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
     update_req_with_var_(Defs, Req, RV, PreVar, PostVar, OutReq, VarAdds),
     (get_dict(added_vars, FretReq, AddedVars) ; AddedVars = []),
     append(AddedVars, VarAdds, VAS),
-    (OutReq == no_update
+    ((OutReq == no_update ; OutReq == noreq)
     -> put_dict(_{added_vars:VAS}, FretReq, UpdReq)
     ; put_dict(_{added_vars:VAS}, OutReq, UpdReq)
     ).
