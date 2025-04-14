@@ -185,7 +185,8 @@ find_engfile_tree(Dir, EngDirs) :-
     file_directory_name(AbsDir, Main),
     find_topmost_engfile_dir(Dir, Main, TopEng),
     file_directory_name(TopEng, TopDir),
-    find_engfile_dirs(Dir, TopDir, EngDirs).
+    find_engfile_dirs(Dir, TopDir, EngDirs),
+    !.
 find_topmost_engfile_dir(Dir, InDir, Result) :-
     file_directory_name(InDir, ParentDir),
     \+ file_directory_name(ParentDir, ParentDir), % fail at root
