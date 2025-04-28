@@ -206,7 +206,9 @@ find_engfile_dirs(TgtDir, Here, Tree) :-
                 exists_directory(Subdir),
                 find_engfile_dirs(TgtDir, Subdir, D)), SubTreeEnts),
     normalize_subtrees(SubTreeEnts, SubTree),
-    find_engfile_here_subs(TgtDir, Here, SubTree, Tree).
+    list_to_set(SubTree, SubTreeSet),
+    (append(SubTreeSet, STree) ; STree = SubTreeSet),
+    find_engfile_here_subs(TgtDir, Here, STree, Tree).
 find_engfile_here_subs(TgtDir, Here, [], engleaf(EngDir)) :-
     directory_file_path(Here, TgtDir, EngDir),
     exists_directory(EngDir),
