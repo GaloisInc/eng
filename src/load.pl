@@ -109,7 +109,7 @@ get_subcmd_focus(Cmd, SubCmd, OutStr) :-
     (is_list(H), H = [CmdHelp|_]
     ; \+ is_list(H), CmdHelp = H
     ),
-    format(atom(OutStr), '     ~w ~`.t~18+ ~w~72|', [ SubCmd, CmdHelp ]).
+    format(atom(OutStr), '     ~w ~`.t~24+ ~w~72|', [ SubCmd, CmdHelp ]).
 
 call_eng_cmd(Cmd, [], Msg) :-
     % If Cmd was not given arguments and this is a command that expects a
