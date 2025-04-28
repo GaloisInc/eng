@@ -566,14 +566,21 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
 |
 | {GlobalDecls}
 |
-| node imported {NodeName}Spec( {NodeArgDecls} ) returns ( {NodeRet} );
-| (*@contract
+| contract {NodeName}Spec( {NodeArgDecls} ) returns ( {NodeRet} );
+| let
 |   {NodeDecls}
 |
 |   {NodeReqDecls}
 |
 |   {NodeGuarantees}
 |
+| tel
 |
+| node {NodeName} ( {NodeArgDecls} ) returns ( {NodeRet} );
+| (*@contract
+|    import {NodeName}Spec({NodeArgs}) returns ({NodeOutputs});
 | *)
+| let
+|   --%MAIN;
+| tel
 |}.
