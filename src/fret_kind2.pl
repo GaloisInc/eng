@@ -272,6 +272,7 @@ show_kind2_results(_, OType, Sts, BadSts) :-
     print_message(warning, unrecognized_kind2_result_type(OType)),
     succ(Sts, BadSts).
 
+
 show_kind2_log(O, "error", Sts, BadSts) :-
     !,
     succ(Sts, BadSts),
@@ -282,6 +283,7 @@ show_kind2_log(O, "error", Sts, BadSts) :-
     get_dict(value, O, Msg),
     print_message(error, kind2_log_error(Source, File, Line, Col, Msg)).
 show_kind2_log(_, _, Sts, Sts).  % All other log levels ignored
+
 
 show_kind2_result(O, "realizable", Sts, Sts) :-
     !,
@@ -311,6 +313,7 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
 show_kind2_result(_, R, Sts, Sts) :-
     print_message(error, unknown_kind2_result(R)).
 
+
 show_kind2_satresult(O, "satisfiable", Sts, Sts) :-
     !,
     get_dict(runtime, O, RT),
@@ -319,6 +322,7 @@ show_kind2_satresult(O, "satisfiable", Sts, Sts) :-
     print_message(success, kind2_satisfiable(Time, Unit)). % which CC?
 show_kind2_satresult(_, R, Sts, Sts) :-
     print_message(error, unknown_kind2_satresult(R)).
+
 
 trace_input(StreamEntry, Name) :-
     get_dict(class, StreamEntry, "input"),
@@ -357,6 +361,14 @@ make_format([Var|Vars], Fmt) :-
     format(atom(X), '~w~d~w ~w', [ '~w~t~', CW, '+', PFmt ]),
     atom_string(X, Fmt).
 
+prolog:message(kind2_realizable(0.0, _Unit)) -->
+    % Suppress messages for instantly realizable elements: these are generally
+    % the ancillary nodes and functions supporting the primary.  Another method
+    % for detecting these would be to check the surrounding
+    % analysisStart/analysisStop, except the realizable realizablityCheck outputs
+    % are within those brackets and the unrealizable realizablityCheck is outside
+    % of those brackets... why?
+    [ ].
 prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_satisfiable(Time, Unit)) -->
