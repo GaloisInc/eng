@@ -157,8 +157,8 @@ implicit_vars(EnumVals, [V|VS], [D|DS]) :-
 % However, consider that Kind2 mode support is significantly more complex...
 implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
 
-input_vars(VTypes, Reqs, Vars, Decls) :-
-    input_vars_(VTypes, Reqs, Vars, _, Decls).
+input_vars(VTypes, Reqs, Vars, Decls, Refs) :-
+    input_vars_(VTypes, Reqs, Vars, Refs, Decls).
 input_vars_(_, _, [], _, []).
 input_vars_(VTypes, Reqs, [V|VS], [Name|SeenNames], Out) :-
     get_dict(idType, V, "Input"),  % filters out Internal, Mode, and Output vars
@@ -174,8 +174,8 @@ input_vars_(VTypes, Reqs, [_|VS], Seen, Out) :-
     input_vars_(VTypes, Reqs, VS, Seen, Out).
 
 
-output_vars(VTypes, Vars, OutNames, Decls) :-
-    output_vars_(VTypes, Vars, OutNames, _, Decls).
+output_vars(VTypes, Vars, OutNames, Decls, Names) :-
+    output_vars_(VTypes, Vars, OutNames, Names, Decls).
 output_vars_(_, _, [], _, []).
 output_vars_(VTypes, Vars, [VN|VNS], [Name|SeenNames], Out) :-
     find_named_var(VN, Vars, V),
@@ -386,17 +386,22 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
     intercalate(Kind2Globals, "\n", GlobalDecls),
     implicit_vars(EnumVals, Vars, Kind2Decls),
     intercalate(Kind2Decls, "\n  ", NodeDecls),
-    input_vars(VarTypes, Reqs, Vars, Kind2Input),
+    input_vars(VarTypes, Reqs, Vars, Kind2Input, Kind2Args),
     reverse(Kind2Input, RKind2Input),
-    intercalate(RKind2Input, "; ", NodeArgs),
-    output_vars(VarTypes, Vars, CVars, Kind2Output),
-    intercalate(Kind2Output, "; ", NodeRet),
+    reverse(Kind2Args, RKind2Args),
+    intercalate(RKind2Input, "; ", NodeArgDecls),
+    intercalate(RKind2Args, ", ", NodeArgs),
+    output_vars(VarTypes, Vars, CVars, Kind2OutputDecls, Kind2Outputs),
+    intercalate(Kind2OutputDecls, "; ", NodeRet),
+    intercalate(Kind2Outputs, "; ", NodeOutputs),
     req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars),
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
 
     [NodeName] = [ CompName ],
-    Kind2 = {|string(NodeName, NodeArgs, NodeRet,
+    Kind2 = {|string(NodeName,
+                     NodeArgDecls, NodeArgs,
+                     NodeRet, NodeOutputs,
                      NodeDecls,
                      NodeReqDecls,
                      NodeGuarantees,
@@ -561,7 +566,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
 |
 | {GlobalDecls}
 |
-| node imported {NodeName}Spec( {NodeArgs} ) returns ( {NodeRet} );
+| node imported {NodeName}Spec( {NodeArgDecls} ) returns ( {NodeRet} );
 | (*@contract
 |   {NodeDecls}
 |
