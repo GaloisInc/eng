@@ -28,6 +28,32 @@ test(state_change, [nondet]) :-
     assertion(PostCond == "(((wet & awake)) => ((noise = croaking)))"),
     assertion(RespVars == [ "wet", "awake", "noise", "croaking" ]).
 
+test(state_change_noparen_expr, [nondet]) :-
+    Inp = "frog shall always satisfy if (wet & awake) then noise = croaking",
+    parse_fret("test", Inp,
+               fretment(scope_info(SFret, SVars),
+                                  condition_info(CFret, CVars),
+                                  component_info(Comp),
+                                  timing_info(Timing, TVars),
+                                  response_info(Responses, RespVars))),
+    get_dict(scope, SFret, Scope),
+    get_dict(type, Scope, SType),
+    assertion(SType == null),
+    assertion(SVars == []),
+    get_dict(condition, CFret, Condition),
+    assertion(Condition == "null"),
+    assertion(CVars == []),
+    get_dict(component_name, Comp, CompName),
+    assertion(CompName == "frog"),
+    get_dict(timing, Timing, Tmng),
+    assertion(Tmng == "always"),
+    assertion(TVars == []),
+    get_dict(response, Responses, Rspns),
+    get_dict(post_condition, Responses, PostCond),
+    assertion(Rspns == "satisfaction"),
+    assertion(PostCond == "(((wet & awake)) => (noise = croaking))"),
+    assertion(RespVars == [ "wet", "awake", "noise", "croaking" ]).
+
 test(stage_change_natural, [nondet]) :-
     Inp = "Upon wet & awake the frog shall always satisfy (noise = croaking)",
     parse_fret("test", Inp,

@@ -308,13 +308,13 @@ postcond(E, V, P) --> bool_expr(E, V, P).
 
 % --------------------------------------------------
 
-bool_expr(V, Vars, P) --> bool_term(LT, LV, LP),
-                          bool_exprMore(LT, LV, LP, V, Vars, P).
 bool_expr(V, Vars, P) --> numeric_expr(LT, LV, LP),
                           relational_op(Op, _),
                           numeric_expr(RT, RV, RP),
                           { binary_(Op, LT, LV, LP, RT, RV, RP, XT, XV, XP) },
                           bool_exprMore(XT, XV, XP, V, Vars, P).
+bool_expr(V, Vars, P) --> bool_term(LT, LV, LP),
+                          bool_exprMore(LT, LV, LP, V, Vars, P).
 bool_term("true", [], P) --> lexeme(true, P).
 bool_term("false", [], P) --> lexeme(false, P).
 bool_term(V, Vars, P) --> lexeme(if, IP), bool_expr(Cnd, CVars, _CP),
