@@ -1,4 +1,4 @@
-:- module(lando_fret, [ lando_to_fret/3 ]).
+:- module(lando_fret, [ lando_to_fret/4 ]).
 
 :- use_module(library(http/json)).
 :- use_module('datafmts/frettish').
@@ -7,13 +7,24 @@
 :- use_module('englib').
 
 
-lando_to_fret(LandoSSL, FretRequirements, FretMents) :-
+%% Extract FRET requirements from a Lando SSL (System Specification Language)
+% instance.
+%
+% FretRequirements returns an array of dictionaries where each element is the
+% requirement dictionary as {added_vars:[{..}], fretment:{..fret parts..}, requirement:{..FRET json entry..}}
+%
+% FretMents returns fret{ requirements:OutReqs, variables: FretVars }
+%
+% SrcRefs returns a list of (reqsrc(FRET_REQ_ID, srcref(REQID, REQDOC)))
+%
+lando_to_fret(LandoSSL, FretRequirements, FretMents, SrcRefs) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
-    (extract_fret(SemanticDefs, Body, Reqs, Status)
+    (extract_fret(SemanticDefs, Body, Reqs, Refs, Status)
     -> ( fret_results(SemanticDefs, Body, Status, Reqs,
                       FretRequirements, FretVariables),
          fretOut(FretRequirements, OutRequirements),
+         append(Refs, SrcRefs),
          FretMents = fret{ requirements: OutRequirements,
                            variables: FretVariables
                          }
@@ -386,24 +397,51 @@ get_semantics_defs(Defs) :-
     open('res://lando_fret:fret_semantics', read, Strm),
     json_read_dict(Strm, Defs).
 
-extract_fret(Defs, SSLBody, Reqs, Status) :-
+extract_fret(Defs, SSLBody, Reqs, Refs, Status) :-
     findall(F, find_specElement(SSLBody, lando_fret:is_lando_req, F), Found),
-    lando_reqs_to_fret_reqs(Defs, Found, Reqs, Status).
+    lando_reqs_to_fret_reqs(Defs, Found, Reqs, Refs, Status).
 
-lando_reqs_to_fret_reqs(_, [], [], 0).
+% Create FRET requirements from FRET: indexing statements in Lando requirements
+lando_reqs_to_fret_reqs(_, [], [], [], 0).
 lando_reqs_to_fret_reqs(Defs, [found(ProjName, CompName, SpecElement)|Fnd],
-                        Reqs, Status) :-
+                        Reqs, ReqRefs, Status) :-
     specElement_ref(SpecElement, Name),
     get_dict(explanation, SpecElement, Expl),
     get_dict(uid, SpecElement, UID),
     get_dict(indexing, SpecElement, Indexing),
+
     make_fret_reqs(Defs, ProjName, CompName, Name, Expl, UID,
                    0, Indexing, ThisReqs, Sts),
-    lando_reqs_to_fret_reqs(Defs, Fnd, NextReqs, NextSts),
+
+    % Create a mapping from FRET requirements back to the originating source
+    % requirements and documents (if specified via "indexing source: ID from DOC"
+    % Lando entries).
+    findall(S, source_ref(Indexing, S), SRefs),
+    maplist(mkReqRef(SRefs), ThisReqs, ThisReqRefs),
+
+    lando_reqs_to_fret_reqs(Defs, Fnd, NextReqs, NextReqRefs, NextSts),
     prepend_valid_reqs(ThisReqs, NextReqs, Reqs),
+    append([ThisReqRefs, NextReqRefs], ReqRefs),
     Status is Sts + NextSts.
 
 is_lando_req(E) :- is_dict(E, requirement).
+
+mkReqRef([], _, []).
+mkReqRef(SRefs, Req, ReqRefs) :-
+    get_dict(requirement, Req, R),
+    get_dict('_id', R, RID),
+    mkReqRef_(SRefs, RID, ReqRefs).
+mkReqRef_([], _, []).
+mkReqRef_([S|SR], RID, [reqsrc(RID, S)|RSRS]) :-
+    mkReqRef_(SR, RID, RSRS).
+
+source_ref(Indexing, srcref(ReqTag, ReqSrc)) :-
+    member(E, Indexing),
+    get_dict(key, E, "source"),
+    get_dict(values, E, Vals),
+    member(V, Vals),
+    string_concat(ReqTag, FromSfx, V),
+    string_concat(" from ", ReqSrc, FromSfx).
 
 prepend_valid_reqs([], Reqs, Reqs).
 prepend_valid_reqs([noreq|RS], Reqs, OutReqs) :-
@@ -492,6 +530,10 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
     make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
                    NextNum, IXS, Reqs, NextSts),
     Sts is Cnt + NextSts.
+make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+               Num, [_|IXS], Reqs, Sts) :-
+    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+                   Num, IXS, Reqs, Sts).
 make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
                Num, [_|IXS], Reqs, Sts) :-
     make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
