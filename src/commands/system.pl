@@ -235,7 +235,6 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "fret"),
     open(OutFile, write, OutStrm),
-    !,
     (write_lando_fret(OutStrm, SSL)
     -> Result = 0,
        print_message(information, wrote_lando_as("FRET", Spec, OutFile))
@@ -245,7 +244,6 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
 generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutDir),
     eng:eng(system, spec, Spec, generate, OutDir, format, "fret_kind2"),
-    !,
     (write_lando_fret_kind2(OutDir, SSL, OutFiles)
     -> Result = 0,
        wrote_file_messages(Spec, "fret_kind2", OutFiles)
