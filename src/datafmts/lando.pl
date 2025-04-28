@@ -1,7 +1,8 @@
 :- module(lando, [ process_lando_file/1,
                    parse_lando_file/2,
                    specElement_type/2,
-                   specElement_ref/2
+                   specElement_ref/2,
+                   find_specElement/3
                  ]).
 
 :- use_module(library(apply)).
@@ -73,6 +74,35 @@ specElement_type(D, T) :- is_dict(D, TA),
 % Returns the abbrevName if set, otherwise the Name.
 specElement_ref(D, R) :- get_dict(abbrevName, D, R), \+ R == null, !.
 specElement_ref(D, R) :- get_dict(name, D, R).
+
+%% Recursively traverse the SSL elements to return any (with backtracking) that
+% the matcher accepts.
+%
+% Each returned Elem is of the form found(ProjName, CompName, Elem), where the
+% top-level system/subsystem is the ProjName project name and the closest
+% enclosing system/subsystem is the CompName component name (Defaulting to
+% "Default" for both).
+find_specElement(SSL, Matcher, Elem) :-
+    phrase(findElem(Matcher, "Default", "Default", Found), SSL, _),
+    !,
+    member(Elem, Found).
+findElem(Matcher, PName, CName, [found(PName, CName, SpecElement)|Elems]) -->
+    [ SpecElement ],
+    { call(Matcher, SpecElement) },
+    !,
+    findElem(Matcher, PName, CName, Elems).
+findElem(Matcher, PName, CName, Elems) -->
+    [ SpecElement ],
+    { get_dict(body, SpecElement, B),
+      !,
+      specElement_ref(SpecElement, SysName),
+      (PName == "Default" -> P = SysName; P = PName),
+      phrase(findElem(Matcher, P, SysName, SE), B, _)
+    },
+    findElem(Matcher, PName, CName, NE),
+    { append([SE, NE], Elems) }.
+findElem(M, P, C, E) --> [ _ ], findElem(M, P, C, E).
+findElem(_, _, _, []) --> [].
 
 % ----------------------------------------------------------------------
 

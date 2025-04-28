@@ -282,31 +282,18 @@ with_stateref(StateVName, LclVName, ModePhrase, OutPhrase) :-
 % this name with the expected sub-elements.
 
 component_var(VName, inputs(_, _, SSLBody), CompVar) :-
-    phrase(extract_fret_component_var("Default", "Default", VName, CompVar), SSLBody, _).
+    find_specElement(SSLBody, lando_fret:component_var_match(VName),
+                     found(ProjName, CompName, SpecElement)),
+    ( fret_usage_type(SpecElement, Usage, Type, ModeReqs)
+    -> get_dict(explanation, SpecElement, Expl),
+       mkVar(ProjName, CompName, VName, Expl, Type, Usage, ModeReqs, CompVar)
+    ; print_message(warning, no_fret_var_info(component, VName)),
+      fail
+    ).
+component_var_match(VName, E) :-
+    is_dict(E, component),
+    specElement_ref(E, VName).
 
-extract_fret_component_var(ProjName, _, VName, CompVar) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, SpecType),
-      member(SpecType, [ system, subsystem ]), %%%% <- selector
-      specElement_ref(SpecElement, SysName),
-      get_dict(body, SpecElement, SysBody),
-      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret_component_var(NewProjName, SysName, VName, CompVar), SysBody, _Remaining)
-    }.
-extract_fret_component_var(ProjName, CompName, VName, Var) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, component), %%%% <- selector
-      specElement_ref(SpecElement, VName),
-      ( fret_usage_type(SpecElement, Usage, Type, ModeReqs)
-      -> get_dict(explanation, SpecElement, Expl),
-         mkVar(ProjName, CompName, VName, Expl, Type, Usage, ModeReqs, Var)
-      ; print_message(warning, no_fret_var_info(component, VName)),
-        fail
-      )
-    }.
-extract_fret_component_var(ProjName, CompName, VName, Var) -->
-    [ _ ],
-    extract_fret_component_var(ProjName, CompName, VName, Var).
 
 prolog:message(no_fret_var_info(ElementType, VarName)) -->
     [ 'Found ~w for ~w but there is no FRET specification'
@@ -321,28 +308,14 @@ prolog:message(no_fret_var_info(VarName)) -->
 % name).
 
 scenarios_var(VName, inputs(_, _, SSLBody), Var) :-
-    phrase(extract_fret_scenarios_var("Default", "Default", VName, Var), SSLBody, _).
+    find_specElement(SSLBody, lando_fret:scenarios_var_match(VName),
+                     found(ProjName, CompName, SpecElement)),
+    scenarios_var_name(SpecElement, VName, Usage),
+    string_concat("scenarios state ", Usage, Expl),
+    mkVar(ProjName, CompName, VName, Expl, "integer", Usage, "", Var).
 
-extract_fret_scenarios_var(ProjName, _, VName, Var) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, SpecType),
-      member(SpecType, [ system, subsystem ]), %%%% <- selector
-      specElement_ref(SpecElement, SysName),
-      get_dict(body, SpecElement, SysBody),
-      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret_scenarios_var(NewProjName, SysName, VName, Var), SysBody, _Remaining)
-    }.
-extract_fret_scenarios_var(ProjName, CompName, VName, Var) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, scenarios), %%%% <- selector
-      scenarios_var_name(SpecElement, VName, Usage),
-      string_concat("scenarios state ", Usage, Expl),
-      mkVar(ProjName, CompName, VName, Expl, "integer", Usage, "", Var)
-    }.
-
-extract_fret_scenarios_var(ProjName, CompName, VName, Var) -->
-    [ _ ],
-    extract_fret_scenarios_var(ProjName, CompName, VName, Var).
+scenarios_var_match(VName, E) :- is_dict(E, scenarios),
+                                 scenarios_var_name(E, VName, _).
 
 scenarios_var_name(SpecElement, VName, "Input") :-
     get_dict(name, SpecElement, ScenariosName),
@@ -361,50 +334,24 @@ scenarios_final_var_name(InitName, FinalName) :-
 % which this input name is one of the scenario names.
 
 scenario_var(VName, inputs(_, _, SSLBody), MainVar, ScenarioVar) :-
-    phrase(extract_fret_scenario_var("Default", "Default", VName,
-                                     MainVar, ScenarioVar),
-           SSLBody, _).
+    find_specElement(SSLBody, lando_fret:scenario_var_name(VName),
+                     found(ProjName, CompName, SpecElement)),
+    get_dict(name, SpecElement, ScenarioName),
+    string_concat(ScenarioVarName, " Values", ScenarioName),
+    get_dict(scenarios, SpecElement, Scenarios),
+    find_scenario_var(VName, Scenarios, 0, Desc, Value),
+    scenarios_final_var_name(ScenarioVarName, FinalVarName),
+    format(atom(VString), '~w ', [Value]), % don't output numerics, only strings
+    % n.b. deduplication is handled elsewhere
+    mkVar(ProjName, CompName, VName, Desc, "integer", "Internal", VString, MainVar),
+    mkVar(ProjName, CompName, ScenarioVarName, "Initial state", "integer", "Input", "", InitialVar),
+    mkVar(ProjName, CompName, FinalVarName, "Final state", "integer", "Output", "", FinalVar),
+    ScenarioVar = scenario(InitialVar, FinalVar, internal_transition).
 
-extract_fret_scenario_var(ProjName, _, VName, MainVar, ScenarioVar) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, SpecType),
-      member(SpecType, [ system, subsystem ]), %%%% <- selector
-      specElement_ref(SpecElement, SysName),
-      get_dict(body, SpecElement, SysBody),
-      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret_scenario_var(NewProjName, SysName, VName, MainVar, ScenarioVar), SysBody, _Remaining)
-    }.
-extract_fret_scenario_var(ProjName, CompName, VName, MainVar,
-                          scenario(InitialVar, FinalVar, internal_transition)) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, scenarios), %%%% <- selector
-      get_dict(name, SpecElement, ScenarioName),
-      string_concat(ScenarioVarName, " Values", ScenarioName), %%%% <- selector
-      get_dict(scenarios, SpecElement, Scenarios),
-      find_scenario_var(VName, Scenarios, 0, Desc, Value),
-      scenarios_final_var_name(ScenarioVarName, FinalVarName),
-      format(atom(VString), '~w ', [Value]), % don't output numerics, only strings
-      % n.b. deduplication is handled elsewhere
-      mkVar(ProjName, CompName, VName, Desc, "integer", "Internal", VString, MainVar),
-      mkVar(ProjName, CompName, ScenarioVarName, "Initial state", "integer", "Input", "", InitialVar),
-      mkVar(ProjName, CompName, FinalVarName, "Final state", "integer", "Output", "", FinalVar)
-    }.
-extract_fret_scenario_var(ProjName, CompName, VName, MainVar, scenario(Var, mode)) -->  %% Old
-    [ SpecElement ],
-    { is_dict(SpecElement, scenarios), %%%% <- selector
-      get_dict(name, SpecElement, ScenarioName),
-      string_concat(ScenarioVarName, " Modes", ScenarioName), %%%% <- selector
-      % !,
-      get_dict(scenarios, SpecElement, Scenarios),
-      find_scenario_var(VName, Scenarios, 0, Desc, Value),
-      Expl = "State variable",
-      format(atom(F), "~w = ~w", [ScenarioVarName, Value]),
-      mkVar(ProjName, CompName, VName, Desc, "boolean", "Mode", F, MainVar),
-      mkVar(ProjName, CompName, ScenarioVarName, Expl, "integer", "Output", "", Var)
-    }.
-extract_fret_scenario_var(ProjName, CompName, VName, MainVar, ScenarioVar) -->
-    [ _ ],
-    extract_fret_scenario_var(ProjName, CompName, VName, MainVar, ScenarioVar).
+scenario_var_name(VName, E) :-
+    is_dict(E, scenarios),
+    get_dict(scenarios, E, Scenarios),
+    find_scenario_var(VName, Scenarios, 0, _, _).
 
 find_scenario_var(VName, [Scenario|_], Value, Desc, Value) :-
     get_dict(id, Scenario, VName),
@@ -421,28 +368,17 @@ find_scenario_var(VName, [_|Scenarios], ThisValue, Desc, Value) :-
 % which this input name is one of the event names.
 
 events_var(VName, inputs(_, _, SSLBody), Var) :-
-    phrase(extract_fret_events_var("Default", "Default", VName, Var), SSLBody, _).
+    find_specElement(SSLBody, lando_fret:events_var_name(VName),
+                     found(ProjName, CompName, SpecElement)),
+    get_dict(events, SpecElement, Events),
+    find_event_var(VName, Events, Desc),
+    % n.b. deduplication is handled elsewhere
+    mkVar(ProjName, CompName, VName, Desc, "boolean", "Input", "", Var).
 
-extract_fret_events_var(ProjName, _, VName, Var) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, SpecType),
-      member(SpecType, [ system, subsystem ]), %%%% <- selector
-      specElement_ref(SpecElement, SysName),
-      get_dict(body, SpecElement, SysBody),
-      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret_events_var(NewProjName, SysName, VName, Var), SysBody, _Remaining)
-    }.
-extract_fret_events_var(ProjName, CompName, VName, Var) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, events), %%%% <- selector
-      get_dict(events, SpecElement, Events),
-      find_event_var(VName, Events, Desc),
-      % n.b. deduplication is handled elsewhere
-      mkVar(ProjName, CompName, VName, Desc, "boolean", "Input", "", Var)
-    }.
-extract_fret_events_var(ProjName, CompName, VName, Var) -->
-    [ _ ],
-    extract_fret_events_var(ProjName, CompName, VName, Var).
+events_var_name(VName, E) :-
+    is_dict(E, events),
+    get_dict(events, E, Events),
+    find_event_var(VName, Events, _).
 
 find_event_var(VName, [Event|_], Desc) :-
     get_dict(id, Event, VName),
