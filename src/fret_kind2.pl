@@ -347,33 +347,41 @@ trace_output(StreamEntry, Name) :-
     get_dict(name, StreamEntry, Name).
 
 show_stream_steps(Vars, Streams) :-
-    make_format(["Step"|Vars], Fmt),
-    format(Fmt, ["Step"|Vars]),
-    !,
-    show_stream_steps(Vars, Streams, Fmt, 0).
-show_stream_steps(Vars, Streams, Fmt, StepNum) :-
+    maplist(string_length, Vars, ColSizes),
+    show_stream_steps(Vars, Streams, ColSizes, 0, Fmt, Lines),
+    format_lines(Fmt, [["Step"|Vars]|Lines]).
+show_stream_steps(Vars, Streams, ColSizes, StepNum, Fmt, [[StepNum|Vals]|Lines]) :-
     maplist(get_step_val(Streams, StepNum), Vars, Vals),
-    format(Fmt, [StepNum|Vals]),
     !,
+    maplist(string_max_length, ColSizes, Vals, UpdColSizes),
     succ(StepNum, NextStepNum),
-    (show_stream_steps(Vars, Streams, Fmt, NextStepNum); true).
+    show_stream_steps(Vars, Streams, UpdColSizes, NextStepNum, Fmt, Lines).
+show_stream_steps(_, _, ColSizes, _, Fmt, []) :-
+    maplist(succ, ColSizes, SZS), % +1 on each for the space separator
+    make_format([4|SZS], Fmt).
+
+
+string_max_length(CurLen, Str, MaxLen) :-
+        string_length(Str, MaxLen),
+        MaxLen > CurLen,
+        !.
+string_max_length(MaxLen, _, MaxLen).
+
+make_format([S|SZ], Fmt) :-
+    make_format(SZ, SubFmt),
+    format(atom(Fmt), '~w~d~w ~w', ['~w~t~', S, '+', SubFmt]).
+make_format([], "~n").
 
 get_step_val([S|_], StepNum, Var, Val) :-
     get_dict(name, S, Var),
     get_dict(instantValues, S, Vals),
-    get_valnum(Vals, StepNum, Val).
+    get_valnum(Vals, StepNum, RawVal),
+    format(atom(V), '~w', [RawVal]),
+    atom_string(V, Val).
 get_step_val([_|Streams], StepNum, Var, Val) :-
     get_step_val(Streams, StepNum, Var, Val).
 
 get_valnum(StepVals, StepNum, Val) :- member([StepNum,Val], StepVals).
-
-make_format([], "~n") :- !.
-make_format([Var|Vars], Fmt) :-
-    string_length(Var, VL),
-    succ(VL, CW),
-    make_format(Vars, PFmt),
-    format(atom(X), '~w~d~w ~w', [ '~w~t~', CW, '+', PFmt ]),
-    atom_string(X, Fmt).
 
 prolog:message(kind2_realizable(0.0, _Unit)) -->
     % Suppress messages for instantly realizable elements: these are generally
