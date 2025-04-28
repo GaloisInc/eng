@@ -299,7 +299,15 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
     (Nodes == [] ; print_message(warning, other_unrealizable_nodes(Nodes))),
     get_dict(elements, Node, Elems),
     maplist(get_dict(name), Elems, Names),
-    maplist(normalize_kind2_var, Names, ContractNames),
+    maplist(normalize_kind2_var, Names, CNames),
+    % ContractNames are direct variable names if this is a "node imported"
+    % contract specification.  If it is a "contract" specification, a ghost
+    % variable is created in the primary node for each contract guarantee and it
+    % is referenced in the ContractNames as
+    % "contractname[UNIQUENODEID].ContractVar"; here, we extract just the
+    % ContractVar from either form.
+    maplist(contract_varname, CNames, ContractNames),
+
     get_dict(deadlockingTrace, O, [Trace|Traces]),
     (Traces == [] ; print_message(warning, other_unrealizable_traces(Traces))),
     get_dict(streams, Trace, Streams),
@@ -313,6 +321,12 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
 show_kind2_result(_, R, Sts, Sts) :-
     print_message(error, unknown_kind2_result(R)).
 
+
+contract_varname(ContractRef, ContractVar) :-
+    string_concat(_, Right, ContractRef),
+    string_concat("].", ContractVar, Right),
+    !.
+contract_varname(CV, CV).
 
 show_kind2_satresult(O, "satisfiable", Sts, Sts) :-
     !,
