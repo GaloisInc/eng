@@ -89,13 +89,15 @@ Conversion from Lando to FRET:
   * The abbrevName or first word of the ~requirement~ name will be used as the
     FRET requirement ID.  If there are multiple ~FRET:~ statements for a
     requirement, subsequent ~FRET:~ statements will be numbered with ~-N~
-    suffixes to the ID.
+    suffixes to the ID. The first is assumed to be the parent requirement for the
+    subsequent FRET statements [KWQ: TODO add parent reference].
 
   * The explanation of the ~requirement~ will be used as the FRET justification
     text.
 
   * A FRET ~events~ with an event entry that matches a FRET variable name will
-    automatically be declared as a Fret Input boolean variable.
+    automatically be declared as a Fret Input boolean variable.  There is no
+    association betwen the different events that is imposed or expected.
 
   * A FRET ~scenarios~ with a one-word word followed by the word "Values" will be
     assumed to describe the (mutually-exclusive) state values for a state.
@@ -150,7 +152,7 @@ Conversion from Lando to FRET:
 
     * Usage :: The FRET use of variable is specified by a component constraint
       ~FRET <USAGE> var.~ where ~USAGE~ is one of: ~Input~, ~Output~, ~Mode~,
-      ~Function~, ~Internal~.
+      ~Function~, ~Internal~. Only ~Input~ and ~Output~ are recommended.
 
     * Type :: The type of the variable is specified by a component constraint
       ~FRET : <TYPE>.~ where supported FRET data types are: ~boolean~, ~integer~,
@@ -199,3 +201,61 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
   % Wrote lando spec "car" to markdown file specs/car.md
   % Wrote lando spec "car" to fret file car_fret.json
   #+end_example#
+
+* Sample FRETtish statements
+
+** Change of state
+
+   #+begin_example
+   FSM_Autopilot shall always satisfy
+   if (state = ap_standby_state & !standby & !apfail)
+   then STATE = ap_transition_state
+   #+end_example
+
+   # condition: "null"
+   # post_condition: "((wet & awake) => noise = croaking)"
+   # CoCoSpecCpde: "H(((wet and awake) => (noise = croaking)))"
+
+   This is the example from FRET itself, although it is somewhat awkwardly
+   phrased: the CONDITIONS under which this applies are specified as part of the
+   RESPONSES.
+
+   * This phrasing also uses STATE instead of state_final for the result, so the
+     states cannot be indicated by a Lando "satisfies" and must instead be
+     defined via explicit "component" specifications.
+
+   * The scenarios methodology will also attempt to find references to the state
+     variable itself in the SCOPE+CONDITIONS and RESPONSES and supply the
+     equality phrases as needed.  As specified above, this will not be possible.
+
+   The recommended way of stating this FRET requirement is:
+
+   #+begin_example
+   Upon ap_standby_state & !standby & !apfail
+   the FSM_Autopilot shall always satisfy ap_transition_state
+   #+end_example
+
+   # Upon wet & awake the frog shall always satisfy noise = croaking
+
+   # condition: "regular"
+   # qualifier_word: "upon"
+   # pre_condition: "(wet & awake)"
+   # regular_condition: "(wet & awake)"
+   # post_condition: "(noise = croaking)"
+   # CoCoSpecCode: "H((H(not ((wet and awake))) or (noise = croaking)))"
+
+
+   #+begin_example
+   In ap_standby_state mode upon !standby & !apfail
+   the FSM_Autopilot shall always satisfy ap_transition_state
+   #+end_example
+
+   # CoCoSpecCode: "(H(((not (awake) and YtoPre(awake))
+   #                    => YtoPre(SI((awake and ZtoPre(not (awake))),
+   #                                 (SI((awake and ZtoPre(not (awake))),
+   #                                     not (wet)) or (noise = croaking))))))
+   #                and (SI((awake and ZtoPre(not (awake))),
+   #                        not ((not (awake) and YtoPre(awake))))
+   #                     => SI((awake and ZtoPre(not (awake))),
+   #                           (SI((awake and ZtoPre(not (awake))),
+   #                               not (wet)) or (noise = croaking)))))"
