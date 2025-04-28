@@ -411,13 +411,41 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
 
     [NodeName] = [ CompName ],
+    kind2_helpers(Helpers),
     Kind2 = {|string(NodeName,
                      NodeArgDecls, NodeArgs,
                      NodeRet, NodeOutputs,
                      NodeDecls,
                      NodeReqDecls,
                      NodeGuarantees,
-                     GlobalDecls)||
+                     GlobalDecls,
+                     Helpers)||
+| {Helpers}
+|
+| {GlobalDecls}
+|
+| contract {NodeName}Spec( {NodeArgDecls} ) returns ( {NodeRet} );
+| let
+|   {NodeDecls}
+|
+|   {NodeReqDecls}
+|
+|   {NodeGuarantees}
+|
+| tel
+|
+| node {NodeName} ( {NodeArgDecls} ) returns ( {NodeRet} );
+| (*@contract
+|    import {NodeName}Spec({NodeArgs}) returns ({NodeOutputs});
+| *)
+| let
+|   --%MAIN;
+| tel
+|}.
+
+
+kind2_helpers(Helpers) :-
+    Helpers = {|string||
 | --Historically
 | node H(X:bool) returns (Y:bool);
 | let
@@ -509,40 +537,40 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
 | tel
 |
 | -- Absolute value for reals
-| node absReal(x:real) returns(y: real);
+| function absReal(x:real) returns(y: real);
 | let
 |   y = if (x >= 0.0) then x else -x;
 | tel
 |
 | -- Absolute value for integers
-| node absInt(x:int) returns(y: int);
+| function absInt(x:int) returns(y: int);
 | let
 |   y = if (x >= 0) then x else -x;
 | tel
 |
 | -- Maximum value between two reals
-| node maxReal (a : real; b : real)
+| function maxReal (a : real; b : real)
 | returns (z : real);
 | let
 |   z = (if (((a) >= (b))) then (a) else (b));
 | tel
 |
 | -- Maximum value between two integers
-| node maxInt (a : int; b : int)
+| function maxInt (a : int; b : int)
 | returns (z : int);
 | let
 |   z = (if (((a) >= (b))) then (a) else (b));
 | tel
 |
 | -- Minimum value between two integers
-| node minInt (a : int; b : int)
+| function minInt (a : int; b : int)
 | returns (z : int);
 | let
 |   z = (if (((a) <= (b))) then (a) else (b));
 | tel
 |
 | -- Minimum value between two reals
-| node minReal (a : real; b : real)
+| function minReal (a : real; b : real)
 | returns (z : real);
 | let
 |   z = (if (((a) <= (b))) then (a) else (b));
@@ -574,25 +602,5 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
 |   X8 = false -> pre X7;
 |   X9 = false -> pre X8;
 |   X10 = false -> pre X9;
-| tel
-|
-| {GlobalDecls}
-|
-| contract {NodeName}Spec( {NodeArgDecls} ) returns ( {NodeRet} );
-| let
-|   {NodeDecls}
-|
-|   {NodeReqDecls}
-|
-|   {NodeGuarantees}
-|
-| tel
-|
-| node {NodeName} ( {NodeArgDecls} ) returns ( {NodeRet} );
-| (*@contract
-|    import {NodeName}Spec({NodeArgs}) returns ({NodeOutputs});
-| *)
-| let
-|   --%MAIN;
 | tel
 |}.
