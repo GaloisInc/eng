@@ -381,12 +381,14 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
   override of the Compositional mode if they desire.  The ~eng~ tool does not
   allow an override to "Monolithic" output and always generates one file per CC.
 
-  NOTE: The ~FRET~ use of the terms "Monolithic" and "Compositional" are
+  _NOTE_: The ~FRET~ use of the terms "Monolithic" and "Compositional" are
   different than the ~kind2~ use of these terms; in ~kind2~, "compositional"
   analysis refers to the manner in which sub-nodes are checked.
 
   When ~FRET~ (or ~eng~) generates ~kind2~ input, a separate file is generated
-  for *each* CC and ~kind2~ is invoked separately on each file.
+  for *each* CC and ~kind2~ is invoked separately on each file.  For convenience
+  sake, discussions throughout this document will refer to a "CC" even if there
+  is only one monolithic component.
 
 *** Difference
 
@@ -409,12 +411,28 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
   use.  This is mostly an internal change, although it may affect the display of
   trace values.
 
+** Minimization of counter-examples
+
+  When a CC is found to be unrealizable, ~FRET~ will iteratively call ~kind2~
+  with various combinations of the requirements in the unrealizable CC to attempt
+  to find the minimal set of requirements that will still be unrealizable.  The
+  ~eng~-driven ~kind2~ invocation does not do this: it will simply display the
+  main trace for any unrealizable CC, including all conflicting realizability
+  contracts; however, note that ~kind2~ will indicate the subset of guarantees
+  that have a conflict, so it is anticipated that the ~eng~-provided output will
+  be roughly as concise as the ~FRET~-provided output, and will take much less
+  time to produce.
+
+  ~FRET~ also provides a more elaborate graph of conflicting requirements that
+  aids in visualization and selection of the conflicting traces (there may be
+  separate conflicts in a single CC).
+
 ** Version of kind2
 
   ~FRET~ is oriented towards v2.1 of ~kind2~; ~eng~ has been updated to support
   v2.3 of ~kind2~.  There are some small differences in the behavior and output
   of ~kind2~ associated with the new version.
-  
+
 ** kind2 contract specification
 
   The ~FRET~ generation of kind2 input uses imported nodes to provide the
