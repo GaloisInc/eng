@@ -2,7 +2,8 @@
                         write_lando_fret/2,
                         write_lando_fret_kind2/3,
                         write_lando_json/2,
-                        write_lando_markdown/2
+                        write_lando_markdown/2,
+                        write_lando_rack/2
                       ]).
 
 :- use_module(library(apply)).
@@ -70,12 +71,12 @@ prolog:message(wrote_lando_as(FType, Src, OutDir, dir)) -->
 write_lando_json(Strm, SSL) :- json_write_dict(Strm, SSL, [tag(type)]).
 
 write_lando_fret(OutStrm, SSL) :-
-    lando_to_fret(SSL, _, FretProject),
+    lando_to_fret(SSL, _, FretProject, _),
     json_write_dict(OutStrm, FretProject, []),
     format(OutStrm, '~n', []).
 
 write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
-    lando_to_fret(SSL, Reqs, FretProject),
+    lando_to_fret(SSL, Reqs, FretProject, _),
     enumerated_values(SSL, EnumVals),
     fret_kind2(EnumVals, Reqs, FretProject, Kind2ConnComps),
     !,
@@ -118,6 +119,38 @@ get_enumerated([Val|Vals], N, [(Name, N)|MoreEnumVals]) :-
     succ(N, M),
     get_dict(id, Val, Name),
     get_enumerated(Vals, M, MoreEnumVals).
+
+%% ----------------------------------------------------------------------
+
+write_lando_rack(OutStrm, SSL) :-
+    lando_to_fret(SSL, Reqs, _, SrcRefs),
+    !,
+    write_rack_csv(OutStrm, SrcRefs, Reqs).
+
+write_rack_csv(OutStrm, _, []) :-
+    format(OutStrm, '~w,~w,~w,~w,~w,~w,~w~n',
+           [ "Project", "Component", "Requirement", "Source", "FretID",
+             "Status", "Frettish" ]).
+write_rack_csv(OutStrm, SrcRefs, [R|Reqs]) :-
+    write_rack_csv(OutStrm, SrcRefs, Reqs),
+    get_srcrefs_for_req(SrcRefs, R, SR),
+    (SR == [] -> SRS = [srcref("", "")] ; SRS = SR),
+    maplist(ww_csv(OutStrm, R), SRS, _).
+ww_csv(OutStrm, R, srcref(ReqTag, ReqSrc), ReqTag) :-
+    get_dict(requirement, R, D),
+    get_dict(project, D, P),
+    get_dict(reqid, D, I),
+    get_dict(fulltext, D, T),
+    get_dict(semantics, D, S),
+    get_dict(component, S, C),
+    format(OutStrm, '~w,~w,~w,~w,~w,~w,"~w"~n',
+           [P, C, ReqTag, ReqSrc, I, "UNCHECKED", T]).
+
+get_srcrefs_for_req(SrcRefs, R, SR) :-
+    get_dict(requirement, R, X),
+    get_dict('_id', X, RID),
+    findall(Y, member(reqsrc(RID, Y), SrcRefs), SR).
+
 
 %% ----------------------------------------------------------------------
 

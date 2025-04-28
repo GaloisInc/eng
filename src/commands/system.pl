@@ -250,6 +250,16 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
+generate_spec_outputs(Spec, "lando", SSL, Result) :-
+    eng:key(system, spec, Spec, generate, OutFile),
+    eng:eng(system, spec, Spec, generate, OutFile, format, "RACK"),
+    open(OutFile, write, OutStrm),
+    (write_lando_rack(OutStrm, SSL)
+    -> Result = 0,
+       print_message(information, wrote_lando_as("FRET RACK", Spec, OutFile))
+    ; Result = 1,
+      print_message(error, did_not_write(Spec, OutFile, "FRET RACK"))
+    ).
 
 wrote_file_messages(_, _, []).
 wrote_file_messages(Spec, Kind, [OutFile|FS]) :-
