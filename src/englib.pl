@@ -7,6 +7,7 @@
                     string_codes_ltrim/3,
                     string_codes_rtrim/3,
                     string_rpad/4,
+                    string_contains/2,
                     subst/4,
                     get_dict_or/4,
                     write_strings/2,
@@ -104,6 +105,12 @@ subst(ThisStr, ThatStr, InpStr, OutStr) :-
     string_chars(InpStr, Inp),
     substl(This, That, Inp, Out),
     string_chars(OutStr, Out).
+
+% True if the second string argument is contained within the first
+string_contains(Str, Part) :-
+    string_concat(_, Mid, Str),
+    string_concat(Part, _, Mid), !.
+
 
 get_dict_or(Key, Dict, _, Val) :- get_dict(Key, Dict, Val), !.
 get_dict_or(_, _, Def, Def).
