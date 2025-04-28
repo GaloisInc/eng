@@ -25,7 +25,10 @@ help_cmd([On|_], 0) :-
        format('Subcommands for ~w~n', [On]),
        intercalate(Info, "\n", OutStr),
        writeln(OutStr))
-    ).
+    ),
+    writeln("").
+help_cmd([C|_], 1) :-
+    print_message(error, no_help_or_unk_command(C)).
 help_cmd(_, 0).
 
 help_cmd(Context, [On|_], 0) :-
@@ -42,3 +45,6 @@ help_help(Info) :-
              'area commands that the eng tool supports.',
              'Run me with the name of the area you would like help on.'
            ]).
+
+prolog:message(no_help_or_unk_command(C)) -->
+    [ 'No help available or unknown command: ~w' - [C]].
