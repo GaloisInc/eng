@@ -10,7 +10,7 @@
 lando_to_fret(LandoSSL, FretRequirements, FretMents) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
-    (phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, _, _, Status),
+    (phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, Status),
             Body, Remaining)
     -> ( fret_results(SemanticDefs, Body, Remaining, Status, Reqs,
                       FretRequirements, FretVariables),
@@ -458,7 +458,7 @@ get_semantics_defs(Defs) :-
     open('res://lando_fret:fret_semantics', read, Strm),
     json_read_dict(Strm, Defs).
 
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, Status) -->
     [ SpecElement ],
     { is_dict(SpecElement, SpecType),
       member(SpecType, [ system, subsystem ]) %%%% <- selector
@@ -467,18 +467,15 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
     { specElement_ref(SpecElement, SysName),
       get_dict(body, SpecElement, SysBody),
       (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret(NewProjName, SysName, Defs,
-                          SysReqs, SysVars, SysModes, Sts), SysBody, Remaining)
+      phrase(extract_fret(NewProjName, SysName, Defs, SysReqs, Sts),
+             SysBody, Remaining)
     },
-    extract_fret(ProjName, FretCompName, Defs,
-                 NextReqs, NextVars, NextModes, NextSts),
+    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextSts),
     { append(SysReqs, NextReqs, Reqs),
-      append(SysVars, NextVars, Vars),  % KWQ TODO normalize vars
-      append(SysModes, NextModes, Modes),
       length(Remaining, UnExtractedCnt),
       Status is Sts + NextSts + UnExtractedCnt
     }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, Status) -->
     [ SpecElement ],
     { is_dict(SpecElement, requirement) }, %%%% <- selector
     !,
@@ -489,14 +486,14 @@ extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
       make_fret_reqs(Defs, ProjName, FretCompName, Name, Expl, UID,
                      0, Indexing, ThisReqs, Sts)
     },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, Vars, Modes, NextSts),
+    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextSts),
     { prepend_valid_reqs(ThisReqs, NextReqs, Reqs),
       Status is Sts + NextSts
     }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status) -->
+extract_fret(ProjName, FretCompName, Defs, Reqs, Status) -->
     [ _ ],  % skip other elements
-    extract_fret(ProjName, FretCompName, Defs, Reqs, Vars, Modes, Status).
-extract_fret(_, _, _, [], [], [], 0) --> [].
+    extract_fret(ProjName, FretCompName, Defs, Reqs, Status).
+extract_fret(_, _, _, [], 0) --> [].
 
 prepend_valid_reqs([], Reqs, Reqs).
 prepend_valid_reqs([noreq|RS], Reqs, OutReqs) :-
