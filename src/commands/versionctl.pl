@@ -283,7 +283,7 @@ vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
     do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
             [ PullCmd,
               'darcs push --repodir={VCSDir} -q --dry-run',
-              'darcs w --repodir={VCSDir} -l'
+              'darcs w --repodir={VCSDir} -l || true'  % returns 1 if no unrecorded changes
             ],
             [], TopDir, Sts).
 
