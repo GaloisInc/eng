@@ -4,6 +4,7 @@
                   vctl_subproj_remote_repo/3
                 ]).
 
+:- use_module(library(ansi_term)).
 :- use_module(library(filesex)).
 :- use_module(library(strings)).
 :- use_module(library(http/http_client)).
@@ -531,8 +532,16 @@ vctl_subproj_remote_repo_str(rmtNotSpecified, "UNKNOWN") :- !.
 vctl_subproj_remote_repo_str(darcsremote(S), R) :-
     string_concat("darcs ", S, R), !.
 vctl_subproj_remote_repo_str(gitremote(URL, _), R) :-
+    parse_url(R, URL),
+    string_contains(R, "git"),
+    !.
+vctl_subproj_remote_repo_str(gitremote(URL, _), R) :-
     parse_url(S, URL),
-    string_concat("git ", S, R), !.
+    string_concat("git ", S, R),
+    !.
+vctl_subproj_remote_repo_str(gitremote_ssh(S), S) :-
+    string_contains(S, "git"),
+    !.
 vctl_subproj_remote_repo_str(gitremote_ssh(S), R) :-
     string_concat("git ", S, R), !.
 vctl_subproj_remote_repo_str(miscremote(S), S) :- !.
@@ -547,16 +556,16 @@ vctl_subproj_remote_rev(Name, Rev) :-
 
 vctl_subproj_show(context(_, TopDir), VCTool, (Name, IntoDir), IsPresent) :-
     working_directory(_, TopDir),
+    vctl_subproj_preface(Name, Pfc),
     (exists_directory(IntoDir)
-    -> IsPresent = 1, I=IntoDir
+    -> IsPresent = 1,
+       ansi_format([bold], '~w~w~n', [ Pfc, IntoDir ])
     ; IsPresent = 0,
       vctl_subproj_remote_repo(VCTool, Name, RmtAddr),
       vctl_subproj_remote_repo_str(RmtAddr, Rmt),
       (vctl_subproj_remote_rev(Name, Rev) ; Rev = ""),
-      format(atom(I), "[@ ~w ~w]", [Rmt, Rev])
-    ),
-    vctl_subproj_preface(Name, Pfc),
-    format('~w~w~n', [ Pfc, I ]).
+      ansi_format([], "~w~` t~w ~w~78|~n", [Pfc, Rmt, Rev])
+    ).
 
 % ----------------------------------------------------------------------
 
