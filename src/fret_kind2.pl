@@ -393,7 +393,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
     intercalate(RKind2Args, ", ", NodeArgs),
     output_vars(VarTypes, Vars, CVars, Kind2OutputDecls, Kind2Outputs),
     intercalate(Kind2OutputDecls, "; ", NodeRet),
-    intercalate(Kind2Outputs, "; ", NodeOutputs),
+    intercalate(Kind2Outputs, ", ", NodeOutputs),
     req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars),
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
