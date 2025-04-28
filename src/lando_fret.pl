@@ -10,9 +10,8 @@
 lando_to_fret(LandoSSL, FretRequirements, FretMents) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
-    (phrase(extract_fret("Default", "Default", SemanticDefs, Reqs, Status),
-            Body, Remaining)
-    -> ( fret_results(SemanticDefs, Body, Remaining, Status, Reqs,
+    (extract_fret(SemanticDefs, Body, Reqs, Status)
+    -> ( fret_results(SemanticDefs, Body, Status, Reqs,
                       FretRequirements, FretVariables),
          fretOut(FretRequirements, OutRequirements),
          FretMents = fret{ requirements: OutRequirements,
@@ -24,20 +23,13 @@ lando_to_fret(LandoSSL, FretRequirements, FretMents) :-
 
 prolog:message(fret_conversion_failed()) --> [ 'Failed to convert Lando to FRET' ].
 prolog:message(fret_conversion_errors(_Cnt)) --> [ 'FRET extractions failed' ].
-prolog:message(fret_extra(Extra)) -->
-    { length(Extra, L) },
-    [ 'Unexpected extra ~w not converted to Fret: ~w' - [L, Extra] ].
 
-fret_results(Defs, SSLBody, [], 0, InpReqs, OutReqs, OutVars) :-
+fret_results(Defs, SSLBody, 0, InpReqs, OutReqs, OutVars) :-
     !,
     collect_vars(Defs, SSLBody, InpReqs, [], OutReqs, OutVars).
-fret_results(_, _, [], Status, _, _, _) :-
+fret_results(_, _, Status, _, _, _) :-
     !,
     print_message(error, fret_conversion_errors(Status)),
-    fail.
-fret_results(_, _, Remaining, _, _, _, _) :-
-    !,
-    print_message(error, fret_extra(Remaining)),
     fail.
 
 fretOut([], []).
@@ -394,42 +386,24 @@ get_semantics_defs(Defs) :-
     open('res://lando_fret:fret_semantics', read, Strm),
     json_read_dict(Strm, Defs).
 
-extract_fret(ProjName, FretCompName, Defs, Reqs, Status) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, SpecType),
-      member(SpecType, [ system, subsystem ]) %%%% <- selector
-    },
-    !,
-    { specElement_ref(SpecElement, SysName),
-      get_dict(body, SpecElement, SysBody),
-      (ProjName == "Default" -> NewProjName = SysName ; NewProjName = ProjName),
-      phrase(extract_fret(NewProjName, SysName, Defs, SysReqs, Sts),
-             SysBody, Remaining)
-    },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextSts),
-    { append(SysReqs, NextReqs, Reqs),
-      length(Remaining, UnExtractedCnt),
-      Status is Sts + NextSts + UnExtractedCnt
-    }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Status) -->
-    [ SpecElement ],
-    { is_dict(SpecElement, requirement) }, %%%% <- selector
-    !,
-    { specElement_ref(SpecElement, Name),
-      get_dict(explanation, SpecElement, Expl),
-      get_dict(uid, SpecElement, UID),
-      get_dict(indexing, SpecElement, Indexing),
-      make_fret_reqs(Defs, ProjName, FretCompName, Name, Expl, UID,
-                     0, Indexing, ThisReqs, Sts)
-    },
-    extract_fret(ProjName, FretCompName, Defs, NextReqs, NextSts),
-    { prepend_valid_reqs(ThisReqs, NextReqs, Reqs),
-      Status is Sts + NextSts
-    }.
-extract_fret(ProjName, FretCompName, Defs, Reqs, Status) -->
-    [ _ ],  % skip other elements
-    extract_fret(ProjName, FretCompName, Defs, Reqs, Status).
-extract_fret(_, _, _, [], 0) --> [].
+extract_fret(Defs, SSLBody, Reqs, Status) :-
+    findall(F, find_specElement(SSLBody, lando_fret:is_lando_req, F), Found),
+    lando_reqs_to_fret_reqs(Defs, Found, Reqs, Status).
+
+lando_reqs_to_fret_reqs(_, [], [], 0).
+lando_reqs_to_fret_reqs(Defs, [found(ProjName, CompName, SpecElement)|Fnd],
+                        Reqs, Status) :-
+    specElement_ref(SpecElement, Name),
+    get_dict(explanation, SpecElement, Expl),
+    get_dict(uid, SpecElement, UID),
+    get_dict(indexing, SpecElement, Indexing),
+    make_fret_reqs(Defs, ProjName, CompName, Name, Expl, UID,
+                   0, Indexing, ThisReqs, Sts),
+    lando_reqs_to_fret_reqs(Defs, Fnd, NextReqs, NextSts),
+    prepend_valid_reqs(ThisReqs, NextReqs, Reqs),
+    Status is Sts + NextSts.
+
+is_lando_req(E) :- is_dict(E, requirement).
 
 prepend_valid_reqs([], Reqs, Reqs).
 prepend_valid_reqs([noreq|RS], Reqs, OutReqs) :-
