@@ -10,6 +10,7 @@
                     string_contains/2,
                     subst/4,
                     get_dict_or/4,
+                    format_lines/2,
                     write_strings/2,
                     %% classification_marks/1,
                     assert_eng/2,
@@ -114,6 +115,11 @@ string_contains(Str, Part) :-
 
 get_dict_or(Key, Dict, _, Val) :- get_dict(Key, Dict, Val), !.
 get_dict_or(_, _, Def, Def).
+
+format_lines(_, []).
+format_lines(Fmt, [E|ES]) :-
+    format(Fmt, E),
+    format_lines(Fmt, ES).
 
 write_strings(Indent, Lines) :-
     maplist(string_concat(Indent), Lines, IndLines),
