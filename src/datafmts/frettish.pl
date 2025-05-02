@@ -94,30 +94,43 @@ scope(_{scope:_{type: null}}, []) --> [].
 
 scope_(_{scope:_{type: "after"}, scope_mode:Mode,
          exclusive: false, required: false}, Vars, Pos) -->
-    after(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
+    after(P0),
+    scope_mode(allow_expr, Mode, Vars, PM), { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "before"}, scope_mode:Mode,
          exclusive: false, required: false}, Vars, Pos) -->
-    before(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
+    before(P0),
+    scope_mode(allow_expr, Mode, Vars, PM), { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
-    during(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
+    during(P0),
+    scope_mode(allow_expr, Mode, Vars, PM), { pos(P0, PM, Pos) }.
+scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
+    while(P0),
+    scope_mode(allow_expr, Mode, Vars, PM), { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars, Pos) -->
-    if(P0), lexeme(not, _), lexeme(in, _), scope_mode(Mode, Vars, PM),
+    if(P0), lexeme(not, _), lexeme(in, _),
+    scope_mode(mode_only, Mode, Vars, PM),
     { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars, Pos) -->
-    in(P0), scope_mode(Mode, Vars, PM), { pos(P0, PM, Pos) }.
+    in(P0),
+    scope_mode(mode_only, Mode, Vars, PM), { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars, Pos) -->
-    when(P0), lexeme(not, _), lexeme(in, _), scope_mode(Mode, Vars, PM),
+    when(P0), lexeme(not, _), lexeme(in, _),
+    scope_mode(mode_only, Mode, Vars, PM),
     { pos(P0, PM, Pos) }.
 scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars, Pos) -->
-    unless(P0), lexeme(in, _), scope_mode(Mode, Vars, PM),
+    unless(P0), lexeme(in, _),
+    scope_mode(mode_only, Mode, Vars, PM),
     { pos(P0, PM, Pos) }.
 
-% scope_mode: mode WORD | WORD mode | WORD
-scope_mode(Mode, [Mode], P) --> lexeme(mode, P0), lexeme(word, Mode, PE),
-                                { pos(P0, PE, P) }.
-scope_mode(Mode, [Mode], P) --> lexeme(word, Mode, P0), lexeme(mode, PE),
-                                { pos(P0, PE, P) }.
-scope_mode(Mode, [Mode], P) --> lexeme(word, Mode, P).
+% scope_mode: mode WORD | WORD mode | WORD   % KWQ: make vars for word (state = val)?
+scope_mode(_, Mode, [Mode], P) -->
+    lexeme(mode, P0), lexeme(word, Mode, PE),
+    { pos(P0, PE, P) }.
+scope_mode(_, Mode, [Mode], P) -->
+    lexeme(word, Mode, P0), lexeme(mode, PE),
+    { pos(P0, PE, P) }.
+scope_mode(allow_expr, E, V, P) --> bool_expr(E, V, P).
+scope_mode(_, Mode, [Mode], P) --> lexeme(word, Mode, P).
 
 % --------------------------------------------------
 
@@ -452,6 +465,7 @@ upon(P) --> token("upon", P).
 whenever(P) --> token("whenever", P).
 when(P) --> token("when", P).
 where(P) --> token("where", P).
+while(P) --> token("while", P).
 within(P) --> token("within", P).
 
 lparen(span(P,P)) --> [(P,'(')].

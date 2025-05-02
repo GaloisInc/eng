@@ -1,5 +1,6 @@
 :- begin_tests(frettish).
 :- use_module("frettish").
+:- use_module("../englib").
 :- use_module(library(strings)).
 
 test(state_change, [nondet]) :-
@@ -91,6 +92,11 @@ test(stage_change_scope, [nondet]) :-
     parse_fret("test", Inp, FretMent),
     check_scs_scope(FretMent, "in").
 
+test(expr_scope, [nondet]) :-
+    Inp = "while mind = awake upon wet the frog shall always satisfy (noise = croaking)",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "in", [ "mind", "awake" ]).
+
 test(stage_change_scope_during, [nondet]) :-
     Inp = "During awake mode upon wet the frog shall always satisfy (noise = croaking)",
     parse_fret("test", Inp, FretMent),
@@ -131,7 +137,9 @@ check_scs_scope(FretMent, ScopeType, Exclusive, Required) :-
     get_dict(required, SFret, Rqrd),
     assertion(Rqrd == Required).
 
-check_scs_scope(FretMent, ScopeType) :-
+check_scs_scope(F, S) :- check_scs_scope(F, S, ["awake"]).
+
+check_scs_scope(FretMent, ScopeType, ScopeVars) :-
     FretMent = fretment(scope_info(SFret, SVars),
                         condition_info(CFret, CVars),
                         component_info(Comp),
@@ -141,8 +149,9 @@ check_scs_scope(FretMent, ScopeType) :-
     get_dict(type, Scope, SType),
     assertion(SType == ScopeType),
     get_dict(scope_mode, SFret, SMode),
-    assertion(SMode == "awake"),
-    assertion(SVars == ["awake"]),
+    intercalate(ScopeVars, " = ", SMVal),  % assumes either 1 or 2 vars
+    assertion(SMode == SMVal),
+    assertion(SVars == ScopeVars),
     get_dict(condition, CFret, Condition),
     get_dict(qualifier_word, CFret, Qualifier),
     get_dict(pre_condition, CFret, PreCond),
