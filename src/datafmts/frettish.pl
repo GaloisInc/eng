@@ -220,7 +220,7 @@ qualifier("unless", P) --> unless(P).
 qualifier("where", P) --> where(P).
 qualifier("if", P) --> if(P).
 
-precond(E, V, P) --> bool_expr(E, V, P).
+precond(E, V, P) --> bool_expr(E, V, P), !.  % green cut for performance
 
 % --------------------------------------------------
 
