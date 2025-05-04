@@ -414,6 +414,15 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 
 %% ----------------------------------------------------------------------
 
+%% Called to generate an output file for kind2 contract analysis.
+%
+% EnumVals: list of values which are an enumeration
+% Vars: all variable definitions
+% CompName: the component name (used to name nodes and contracts)
+% Reqs: all fret requirements
+% CVars: the output variables for this contract
+% Kind2: returns the Kind2 specification
+
 reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
     enum_types(EnumVals, Kind2Globals, VarTypes),
     !,
@@ -468,31 +477,40 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
 
 kind2_helpers(Helpers) :-
     Helpers = {|string||
-| --Historically
+| --Historically: X has always been true
+| -- As soon as X is false once, Y will be false forever
+| -- (falling edge)
 | node H(X:bool) returns (Y:bool);
 | let
 |     Y = X -> (X and (pre Y));
 | tel
 |
 | --Y since inclusive X
+| --  Y is enabler/reset: while Y, from X true onwards
+| -- or
+| --  at X, Y until false, then reset
 | node SI(X,Y: bool) returns (Z:bool);
 | let
 | Z = Y and (X or (false -> pre Z));
 | tel
 |
 | --Y since X
+| -- X is true, then Y until false
 | node S(X,Y: bool) returns (Z:bool);
 | let
 | Z = X or (Y and (false -> pre Z));
 | tel
 |
 | --Once
+| --  the first time X is true, Y is true forever
+| --  (rising edge)
 | node O(X:bool) returns (Y:bool);
 | let
 |  Y = X or (false -> pre Y);
 | tel
 |
 | --Timed Once: less than or equal to N
+| --  True every X and for N ticks afterward
 | node OTlore( N: int; X: bool) returns (Y: bool);
 |     var C:int;
 | let
@@ -503,6 +521,7 @@ kind2_helpers(Helpers) :-
 | tel
 |
 | --Timed Once: general case
+| -- True R ticks after each X first true until L ticks after X is last true
 | node OT( L: int;  R: int; X: bool) returns (Y: bool);
 | var  D:bool;
 | let
@@ -511,18 +530,23 @@ kind2_helpers(Helpers) :-
 | tel
 |
 | -- Timed Historically: general case
+| -- True if X has been true, and for R ticks afterwards, false thereafter
+| -- Always true for at least R ticks of the timeline, even if X is never true
+| -- L is ignored
 | node HT( L: int;  R: int; X: bool) returns (Y: bool);
 | let
 |   Y = not OT(L, R, not X);
 | tel
 |
 | -- Timed Since: general case
+| -- R ticks after X is true, for L ticks if/while Y remains true
 | node ST( L: int;  R: int; X: bool; Y: bool)  returns (Z: bool);
 | let
 |   Z = S(X, Y) and OT(L, R, X);
 | tel
 |
 | -- Timed Since Inclusive: general case
+| -- R ticks after X is true, for L ticks if X or while Y remains true
 | node SIT( L: int;  R: int; X: bool; Y: bool) returns (Z: bool);
 | let
 |   Z = SI(X, Y) and OT(L, R, X);
@@ -547,12 +571,14 @@ kind2_helpers(Helpers) :-
 | tel
 |
 | -- The equivalent of LTL's Y in Lustre.
+| --   Initially false, then the previous value of X
 | node YtoPre(X: bool) returns (Y:bool);
 | let
 |   Y = false -> pre X;
 | tel
 |
 | -- The equivalent of LTL's Z in Lustre.
+| --   Initially true, then the previous value of X
 | node ZtoPre(X: bool) returns (Y:bool);
 | let
 |   Y = true -> pre X;
