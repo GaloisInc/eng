@@ -62,11 +62,11 @@ collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
     get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, Semantics),
     get_dict(variables, Semantics, ReqVars),
-    InpConsts = inputs(Defs, FretReq, SSLBody),
+    InpConsts = inputs(FretReq, SSLBody),
     collect_req_vars(InpConsts, ReqVars, SubVars, OutFretReq, OutVars),
     OutReqs = [OutFretReq|SubReqs].
 
-collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(_, FretReq, _).
+collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(FretReq, _).
 collect_req_vars(Inputs, [noreq|RVS], VS, OutReq, OutVS) :-
     !,
     collect_req_vars(Inputs, RVS, VS, OutReq, OutVS).
@@ -150,7 +150,7 @@ existing_var(VName, [Var|VS], Var, VS) :- get_dict(variable_name, Var, VName).
 existing_var(VName, [V|Vars], Var, [V|VSNoV]) :-
     existing_var(VName, Vars, Var, VSNoV).
 
-add_var_ref(Var, inputs(_, FretReq, _), UpdVar) :-
+add_var_ref(Var, inputs(FretReq, _), UpdVar) :-
     get_dict(requirement, FretReq, Req),
     get_dict('_id', Req, ReqID),
     add_var_ref_(Var, ReqID, UpdVar).
@@ -161,15 +161,15 @@ add_var_ref_(Var, ReqID, UpdVar) :-
     ; put_dict(_{reqs: [ReqID|Reqs]}, Var, UpdVar)
     ).
 
-update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
-                    inputs(Defs, UpdReq, SSL), VarAdds) :-
+update_req_with_var(inputs(FretReq, SSL), RV, InitialSV, FinalSV,
+                    inputs(UpdReq, SSL), VarAdds) :-
     get_dict(requirement, FretReq, Req),
     % If the user referenced a var in the original, then assume they have
     % responsibility for the proper format, otherwise we add a "SV = " to the RV
     % instances in the fret and then re-parse.
     req_needs_var(FretReq, Req, InitialSV, PreVar),
     req_needs_var(FretReq, Req, FinalSV, PostVar),
-    update_req_with_var_(Defs, Req, RV, PreVar, PostVar, OutReq, VarAdds),
+    update_req_with_var_(Req, RV, PreVar, PostVar, OutReq, VarAdds),
     (get_dict(added_vars, FretReq, AddedVars) ; AddedVars = []),
     append(AddedVars, VarAdds, VAS),
     ((OutReq == no_update ; OutReq == noreq)
@@ -177,33 +177,33 @@ update_req_with_var(inputs(Defs, FretReq, SSL), RV, InitialSV, FinalSV,
     ; put_dict(_{added_vars:VAS}, OutReq, UpdReq)
     ).
 
-update_req_with_var_(_, _, _, hasvar, hasvar, no_update, []) :- !.
-update_req_with_var_(Defs, Req, RV, hasvar, PostVar, UpdReq, [PostVar|AddVars]) :-
+update_req_with_var_(_, _, hasvar, hasvar, no_update, []) :- !.
+update_req_with_var_(Req, RV, hasvar, PostVar, UpdReq, [PostVar|AddVars]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(Req, RV, PostVar, Post, UpdPost, AddVars),
-    update_req_with_newfret(Defs, Pre, UpdPost, Req, UpdReq).
-update_req_with_var_(Defs, Req, RV, PreVar, hasvar, UpdReq, [PreVar|AddVars]) :-
+    update_req_with_newfret(Pre, UpdPost, Req, UpdReq).
+update_req_with_var_(Req, RV, PreVar, hasvar, UpdReq, [PreVar|AddVars]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(Req, RV, PreVar, Pre, UpdPre, AddVars),
-    update_req_with_newfret(Defs, UpdPre, Post, Req, UpdReq).
-update_req_with_var_(Defs, Req, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar|AddVars]) :-
+    update_req_with_newfret(UpdPre, Post, Req, UpdReq).
+update_req_with_var_(Req, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar|AddVars]) :-
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(Req, RV, PreVar, Pre, UpdPre, AddVars1),
     add_var_state_access(Req, RV, PostVar, Post, UpdPost, AddVars2),
     append([AddVars1, AddVars2], AddVars),
-    update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq).
+    update_req_with_newfret(UpdPre, UpdPost, Req, UpdReq).
 
-update_req_with_newfret(Defs, UpdPre, UpdPost, Req, UpdReq) :-
+update_req_with_newfret(UpdPre, UpdPost, Req, UpdReq) :-
     format(atom(English), '~w shall ~w', [ UpdPre, UpdPost ]),
     get_dict(reqid, Req, RName),
     format(atom(Context), 'Add state references into FRET req ~w~n', [RName]),
     !,
-    parse_fret_into_req(Defs, Context, Req, English, UpdReq).
+    parse_fret_into_req(Context, Req, English, UpdReq).
 
 split_frettish(Frettish, PreCond, PostCond) :-
     string_chars(Frettish, CS),
@@ -285,7 +285,7 @@ with_stateref(StateVName, LclVName, ModePhrase, OutPhrase) :-
 % Search the Lando elements (recursively) to find a "component" declaration for
 % this name with the expected sub-elements.
 
-component_var(VName, inputs(_, _, SSLBody), CompVar) :-
+component_var(VName, inputs(_, SSLBody), CompVar) :-
     find_specElement(SSLBody, lando_fret:component_var_match(VName),
                      found(ProjName, CompName, SpecElement)),
     ( fret_usage_type(SpecElement, Usage, Type, ModeReqs)
@@ -311,7 +311,7 @@ prolog:message(no_fret_var_info(VarName)) -->
 % which this input name is the scenario's main name (in either initial or final
 % name).
 
-scenarios_var(VName, inputs(_, _, SSLBody), Var) :-
+scenarios_var(VName, inputs(_, SSLBody), Var) :-
     find_specElement(SSLBody, lando_fret:scenarios_var_match(VName),
                      found(ProjName, CompName, SpecElement)),
     scenarios_var_name(SpecElement, VName, Usage),
@@ -337,7 +337,7 @@ scenarios_final_var_name(InitName, FinalName) :-
 % Search the Lando elements (recursively) to find a "scenarios" declaration for
 % which this input name is one of the scenario names.
 
-scenario_var(VName, inputs(_, _, SSLBody), MainVar, ScenarioVar) :-
+scenario_var(VName, inputs(_, SSLBody), MainVar, ScenarioVar) :-
     find_specElement(SSLBody, lando_fret:scenario_var_name(VName),
                      found(ProjName, CompName, SpecElement)),
     get_dict(name, SpecElement, ScenarioName),
@@ -371,7 +371,7 @@ find_scenario_var(VName, [_|Scenarios], ThisValue, Desc, Value) :-
 % Search the Lando elements (recursively) to find an "events" declaration for
 % which this input name is one of the event names.
 
-events_var(VName, inputs(_, _, SSLBody), Var) :-
+events_var(VName, inputs(_, SSLBody), Var) :-
     find_specElement(SSLBody, lando_fret:events_var_name(VName),
                      found(ProjName, CompName, SpecElement)),
     get_dict(events, SpecElement, Events),
@@ -536,7 +536,7 @@ make_fret_reqs(_, _, _, _, _, _, _, [], [], 0).
 make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
                Num, [Index|IXS], [Req|Reqs], Sts) :-
     get_dict(key, Index, "FRET"),
-    (parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num,
+    (parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num,
                          Index, Req)
     -> Cnt = 0
     ; Cnt = 1
@@ -555,7 +555,7 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
                    Num, IXS, Reqs, Sts).
 
 
-parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
+parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
     get_dict(values, Index, Lines),
     intercalate(Lines, " ", English),
     get_dict(pos, Index, pos{line:Line, col:_Col}),
@@ -577,16 +577,16 @@ parse_fret_or_error(Defs, ProjName, CompName, ReqName, Expl, UID, Num, Index, Re
                            '_id': ReqID
                          },
     !,
-    parse_fret_into_req(Defs, Context, ReqBase, English, Req).
-parse_fret_into_req(Defs, Context, ReqBase, English, Req) :-
+    parse_fret_into_req(Context, ReqBase, English, Req).
+parse_fret_into_req(Context, ReqBase, English, Req) :-
     parse_fret(Context, English, FretMent),
     !,
-    ( fretment_semantics(Defs, FretMent, FretReq), !
+    ( fretment_semantics(FretMent, FretReq), !
     -> put_dict(_{fulltext: English, semantics: FretReq}, ReqBase, Requirement),
        Req = _{requirement:Requirement, fretment:FretMent}
     ; print_message(error, no_semantics(Context, English, FretMent)), fail
     ).
-parse_fret_into_req(_, Context, _, English, noreq) :-
+parse_fret_into_req(Context, _, English, noreq) :-
     print_message(error, bad_frettish(Context, English)).
 
 
@@ -597,7 +597,7 @@ prolog:message(bad_frettish(Context, English)) -->
     [ 'BAD Frettish statement for ~w: ~w~n'
       - [ Context, English ] ].
 
-fretment_semantics(Defs, Fretment, Semantics) :-
+fretment_semantics(Fretment, Semantics) :-
     fretish_to_jsondict(Fretment, Semantics).
 
 % --------------------
