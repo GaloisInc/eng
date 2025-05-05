@@ -271,7 +271,8 @@ kind2_validate(Context, Kind2File, OutDirectory, ResultFile, Status) :-
             [ 'InpFile' = Kind2File,
               'OutDir' = OutDirectory,
               'JSONFile' = ResultFile ],
-            [ "kind2 -json --enable CONTRACTCK --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
+            %% [ "kind2 -json --enable CONTRACTCK --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
+            [ "kind2 -json --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
               % --lus_strict
             ], [], ".", Sts),
     ( process_kind2_results(ResultFile, Sts, Status)
@@ -304,6 +305,12 @@ show_kind2_results(O, "satisfiabilityCheck", Sts, Status) :-
     !,
     get_dict(result, O, Result),
     show_kind2_satresult(O, Result, Sts, Status).
+show_kind2_results(O, "property", Sts, Status) :-
+    !,
+    get_dict(answer, O, Answer),
+    get_dict(value, Answer, PropSts),
+    show_kind2_result(O, PropSts, Sts, Status).
+
 show_kind2_results(_, OType, Sts, BadSts) :-
     print_message(warning, unrecognized_kind2_result_type(OType)),
     succ(Sts, BadSts).
@@ -354,6 +361,17 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
     !,
     show_stream_steps(InterestingVars, Streams),
     print_message(error, kind2_unrealizable(CSize, Names)).
+show_kind2_result(O, "falsifiable", Sts, Sts) :-
+    !,
+    get_dict(counterExample, O, [CounterEx|OtherCounterEx]),
+    get_dict(name, CounterEx, Name),
+    get_dict(streams, CounterEx, Streams),
+    findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
+    findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
+    append(Inputs, Outputs, InterestingVars),
+    !,
+    show_stream_steps(InterestingVars, Streams),
+    print_message(error, kind2_falsifiable(Name)).
 show_kind2_result(_, R, Sts, Sts) :-
     print_message(error, unknown_kind2_result(R)).
 
@@ -433,6 +451,8 @@ prolog:message(kind2_satisfiable(Time, Unit)) -->
     [ 'Satisfiable (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_unrealizable(Num, Names)) -->
     [ 'UNREALIZABLE, ~w conflicts: ~w' - [ Num, Names ] ].
+prolog:message(kind2_falsifiable(Name)) -->
+    [ 'FALSIFIABLE: ~w' - [ Name ] ].
 prolog:message(other_unrealizable_nodes(Nodes)) -->
     [ 'additional nodes not handled: ~w' - [ Nodes ] ].
 prolog:message(other_unrealizable_traces(Traces)) -->
