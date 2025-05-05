@@ -35,7 +35,8 @@ fret_kind2(EnumVals, _FretReqs, FretMents, Kind2Comps) :-
     get_dict(variables, FretMents, Vars),
     !,
     connected_components(Reqs, Vars, 0, CComps),
-    fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps).
+    fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps),
+    warn_about_skipped_models(Kind2Comps).
 
 fret_to_kind2(_, _, [], []).
 fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
@@ -47,6 +48,28 @@ fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
             kind2: Kind2,
             files: NodeFiles
           }.
+
+%% ----------------------------------------------------------------------
+
+warn_about_skipped_models(K2S) :- warn_about_skipped_models(K2S, []).
+
+warn_about_skipped_models([K2|K2S], NodeFiles) :-
+    get_dict(files, K2, KNF),
+    append(KNF, NodeFiles, NNF),
+    warn_about_skipped_models(K2S, NNF).
+warn_about_skipped_models([], NodeFiles) :-
+    !,  % warn_skipped will backtrack, so make a backtracking fence here
+    warn_skipped(NodeFiles).
+
+warn_skipped(NodeFiles) :-
+    eng:eng(system, model, kind2, NN, file, NF),
+    \+ member(NF, NodeFiles),
+    print_message(warning, skipped_model(NN, NF)),
+    fail.  % try next non-member
+warn_skipped(_).  % after all failures
+
+prolog:message(skipped_model(ModelName, ModelFile)) -->
+    [ 'No kind2 component for model ~w in ~w' - [ ModelName, ModelFile ]].
 
 %% ----------------------------------------------------------------------
 
