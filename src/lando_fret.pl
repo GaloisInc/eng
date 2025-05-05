@@ -1,4 +1,6 @@
-:- module(lando_fret, [ lando_to_fret/4 ]).
+:- module(lando_fret, [ lando_to_fret/4,
+                        scenarios_final_var_name/2
+                      ]).
 
 :- use_module(library(http/json)).
 :- use_module('datafmts/frettish').
@@ -330,7 +332,7 @@ scenarios_var_name(SpecElement, VName, "Output") :-
     scenarios_final_var_name(SName, VName).
 
 scenarios_final_var_name(InitName, FinalName) :-
-    string_concat(InitName, "_final", FinalName).
+    string_concat("_", InitName, FinalName).
 
 % ----------
 

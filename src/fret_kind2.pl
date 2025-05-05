@@ -10,6 +10,7 @@
 :- use_module(library(lists)).
 :- use_module(library(strings)).
 :- use_module('src/datafmts/lando').
+:- use_module('src/lando_fret').
 :- use_module('englib').
 :- use_module('commands/exec_subcmds').
 :- use_module(lando_fret).
@@ -194,7 +195,7 @@ find_named_var(Name, VS, V) :- member(V, VS), get_dict(variable_name, V, Name).
 
 get_var_type([(VName,VarType)|_], VName, _, VarType) :- !.
 get_var_type([(VNameBase,VarType)|_], VName, _, VarType) :-
-    string_concat(VNameBase, "_final", VName), !.
+    scenarios_final_var_name(VNameBase, VName), !.
 get_var_type([_|VTS], VName, V, VarType) :- get_var_type(VTS, VName, V, VarType).
 get_var_type([], _, V, VarType) :- get_dict(dataType, V, VarType).
 
