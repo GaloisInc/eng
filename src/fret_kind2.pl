@@ -147,18 +147,17 @@ out_varname([_|VS], VName) :- out_varname(VS, VName).
 %% ----------------------------------------------------------------------
 
 enum_types(EnumsVals, Kind2Globals, VarTypes) :-
-    enum_types_(EnumsVals, 0, Kind2Globals, VarTypes).
+    enum_types_(EnumsVals, Kind2Globals, VarTypes).
 
-enum_types_([], _, [], []).
-enum_types_([(VN, EV)|EVS], N, [TypeDef|TypeDefs], [(VN, TypeName)|VNS]) :-
+enum_types_([], [], []).
+enum_types_([(VN, EV)|EVS], [TypeDef|TypeDefs], [(VN, TypeName)|VNS]) :-
     enum_names(EV, EVNames),
     intercalate(EVNames, ", ", EVNMS),
-    format(atom(Y), 'E~w', [N]),
+    format(atom(Y), '~w__T', [VN]),
     atom_string(Y, TypeName),
     format(atom(X), 'type ~w = enum { ~w };', [ TypeName, EVNMS ]),
     atom_string(X, TypeDef),
-    succ(N, M),
-    enum_types_(EVS, M, TypeDefs, VNS).
+    enum_types_(EVS, TypeDefs, VNS).
 
 
 enum_names([], []).
