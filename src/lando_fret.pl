@@ -201,7 +201,8 @@ update_req_with_var_(Req, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar|AddVars]
     update_req_with_newfret(UpdPre, UpdPost, Req, UpdReq).
 
 update_req_with_newfret(UpdPre, UpdPost, Req, UpdReq) :-
-    format(atom(English), '~w shall ~w', [ UpdPre, UpdPost ]),
+    frettish_splitword(SplitWord),
+    format(atom(English), '~w~w~w', [ UpdPre, SplitWord, UpdPost ]),
     get_dict(reqid, Req, RName),
     format(atom(Context), 'Add state references into FRET req ~w~n', [RName]),
     !,
@@ -209,12 +210,17 @@ update_req_with_newfret(UpdPre, UpdPost, Req, UpdReq) :-
 
 split_frettish(Frettish, PreCond, PostCond) :-
     string_chars(Frettish, CS),
-    string_chars(" shall ", SS),
+    frettish_splitword(SplitWord),
+    string_chars(SplitWord, SS),
     append(PreCondCS, SS, AShall),
     append(AShall, PostCondCS, CS),
     string_chars(PreCond, PreCondCS),
     string_chars(PostCond, PostCondCS),
     !.
+
+frettish_splitword(" satisfy "). % timing uses input variables
+% frettish_splitword(" shall ").  % timing uses output variables
+
 
 req_needs_var(FretReq, _, Var, Var) :- get_dict(added_vars, FretReq, Vars),
                                        member(Var, Vars), !.
