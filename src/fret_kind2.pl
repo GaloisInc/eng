@@ -571,14 +571,14 @@ kind2_helpers(Helpers) :-
 | tel
 |
 | -- The equivalent of LTL's Y in Lustre.
-| --   Initially false, then the previous value of X
+| --   Initially false, then the previous value of X (false, delay X by one)
 | node YtoPre(X: bool) returns (Y:bool);
 | let
 |   Y = false -> pre X;
 | tel
 |
 | -- The equivalent of LTL's Z in Lustre.
-| --   Initially true, then the previous value of X
+| --   Initially true, then the previous value of X (true, delay X by one)
 | node ZtoPre(X: bool) returns (Y:bool);
 | let
 |   Y = true -> pre X;
