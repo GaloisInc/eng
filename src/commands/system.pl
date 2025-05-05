@@ -41,7 +41,7 @@ system_help(Info) :-
 |         format = { lando | other }
 |         generate =
 |           OUTPUT_FILENAME
-|             format = { ALL | fret | json | markdown }
+|             format = { ALL | fret | json | markdown | fret_kind2 }
 |
 |     model =
 |       kind2 =

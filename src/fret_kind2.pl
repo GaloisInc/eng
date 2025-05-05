@@ -428,32 +428,6 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 
 %% ----------------------------------------------------------------------
 
-% KWQ: TODO: nodeimpls not used!
-
-cc_model_impls(OutVars, Calls, NodeImplFileNames) :-
-    findall(I, cc_model_impl_name(OutVars, I), ImplNames),
-    findall(C, cc_model_impl_call(ImplNames, C), Calls),
-    findall(N, cc_model_impl_file(ImplNames, N), NodeImplFileNames).
-
-cc_model_impl_name(OutVars, ImplName) :-
-    eng:eng(system, model, kind2, ImplName, output, IOutVars),
-    % n.b. expect a single output variable, but allow multiples separated by
-    % commas here.
-    split_string(IOutVars, ",", "", VS),
-    findall(V, (member(V, VS), member(V, OutVars)), NVS),
-    length(VS, VSLen),
-    length(NVS, VSLen).  % lengths are the same
-
-cc_model_impl_call(ImplNames, Call) :-
-    member(NodeName, ImplNames),
-    eng:eng(system, model, kind2, NodeName, output, OutArg),
-    eng:eng(system, model, kind2, NodeName, inputs, InpArgs),
-    format(atom(Call), '  ~w = ~w(~w);', [ OutArg, NodeName, InpArgs ]).
-
-cc_model_impl_file(ImplNames, FName) :-
-    member(NodeName, ImplNames),
-    eng:eng(system, model, kind2, NodeName, file, FName).
-
 %% Called to generate an output file for kind2 contract analysis.
 %
 % EnumVals: list of values which are an enumeration
@@ -483,9 +457,6 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 
     cc_model_impls(CVars, Calls, FileNames),
     intercalate(Calls, "\n", NodeCalls),
-
-    % KWQ: add model specification for any model impl output var?
-    % KWQ: enum types must be predictable
 
     [NodeName] = [ CompName ],
     kind2_helpers(Helpers),
@@ -522,6 +493,34 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 | tel
 |}.
 
+%% ----------------------------------------------------------------------
+
+cc_model_impls(OutVars, Calls, NodeImplFileNames) :-
+    findall(I, cc_model_impl_name(OutVars, I), ImplNames),
+    findall(C, cc_model_impl_call(ImplNames, C), Calls),
+    findall(N, cc_model_impl_file(ImplNames, N), NodeImplFileNames).
+
+cc_model_impl_name(OutVars, ImplName) :-
+    eng:eng(system, model, kind2, ImplName, output, IOutVars),
+    % n.b. expect a single output variable, but allow multiples separated by
+    % commas here.
+    split_string(IOutVars, ",", "", VS),
+    findall(V, (member(V, VS), member(V, OutVars)), NVS),
+    length(VS, VSLen),
+    length(NVS, VSLen).  % lengths are the same
+
+cc_model_impl_call(ImplNames, Call) :-
+    member(NodeName, ImplNames),
+    eng:eng(system, model, kind2, NodeName, output, OutArg),
+    eng:eng(system, model, kind2, NodeName, inputs, InpArgs),
+    format(atom(Call), '  ~w = ~w(~w);', [ OutArg, NodeName, InpArgs ]).
+
+cc_model_impl_file(ImplNames, FName) :-
+    member(NodeName, ImplNames),
+    eng:eng(system, model, kind2, NodeName, file, FName).
+
+
+%% ----------------------------------------------------------------------
 
 kind2_helpers(Helpers) :-
     Helpers = {|string||
