@@ -18,7 +18,19 @@
 
 %% ----------------------------------------------------------------------
 
-fret_kind2(EnumVals, FretReqs, FretMents, Kind2Comps) :-
+% Generates a list of Kind2 outputs extracted from analyzing the set of FRETish
+% statements.
+%
+%  EnumVals: (input) a list of enumeration definitions  (KWQ: TODO)
+%  _FretReqs: unused
+%  FretMents: (input) FRETtish JSON export of requirements
+%
+%  Kind2Comps: output list of dicts for each connected component (compNum,
+%  compName, kind2, files).  The kind2 field is the output kind2 contract and
+%  node body, and files are all the implementation files referenced by the node
+%  body.
+%
+fret_kind2(EnumVals, _FretReqs, FretMents, Kind2Comps) :-
     get_dict(requirements, FretMents, Reqs),
     get_dict(variables, FretMents, Vars),
     !,
@@ -29,10 +41,11 @@ fret_to_kind2(_, _, [], []).
 fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
     fret_to_kind2(EnumVals, Vars, CCs, K2s),
     format(atom(CName), '~w_~w', [ CompName, N ]),
-    reqs_to_kind2(EnumVals, Vars, CName, Reqs, CVars, Kind2),
+    reqs_to_kind2(EnumVals, Vars, CName, Reqs, CVars, Kind2, NodeFiles),
     K2 = _{ compNum: N,
             compName: CompName,
-            kind2: Kind2
+            kind2: Kind2,
+            files: NodeFiles
           }.
 
 %% ----------------------------------------------------------------------
@@ -415,6 +428,32 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 
 %% ----------------------------------------------------------------------
 
+% KWQ: TODO: nodeimpls not used!
+
+cc_model_impls(OutVars, Calls, NodeImplFileNames) :-
+    findall(I, cc_model_impl_name(OutVars, I), ImplNames),
+    findall(C, cc_model_impl_call(ImplNames, C), Calls),
+    findall(N, cc_model_impl_file(ImplNames, N), NodeImplFileNames).
+
+cc_model_impl_name(OutVars, ImplName) :-
+    eng:eng(system, model, kind2, ImplName, output, IOutVars),
+    % n.b. expect a single output variable, but allow multiples separated by
+    % commas here.
+    split_string(IOutVars, ",", "", VS),
+    findall(V, (member(V, VS), member(V, OutVars)), NVS),
+    length(VS, VSLen),
+    length(NVS, VSLen).  % lengths are the same
+
+cc_model_impl_call(ImplNames, Call) :-
+    member(NodeName, ImplNames),
+    eng:eng(system, model, kind2, NodeName, output, OutArg),
+    eng:eng(system, model, kind2, NodeName, inputs, InpArgs),
+    format(atom(Call), '  ~w = ~w(~w);', [ OutArg, NodeName, InpArgs ]).
+
+cc_model_impl_file(ImplNames, FName) :-
+    member(NodeName, ImplNames),
+    eng:eng(system, model, kind2, NodeName, file, FName).
+
 %% Called to generate an output file for kind2 contract analysis.
 %
 % EnumVals: list of values which are an enumeration
@@ -424,7 +463,7 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 % CVars: the output variables for this contract
 % Kind2: returns the Kind2 specification
 
-reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
+reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     enum_types(EnumVals, Kind2Globals, VarTypes),
     !,
     intercalate(Kind2Globals, "\n", GlobalDecls),
@@ -442,6 +481,12 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
 
+    cc_model_impls(CVars, Calls, FileNames),
+    intercalate(Calls, "\n", NodeCalls),
+
+    % KWQ: add model specification for any model impl output var?
+    % KWQ: enum types must be predictable
+
     [NodeName] = [ CompName ],
     kind2_helpers(Helpers),
     Kind2 = {|string(NodeName,
@@ -451,6 +496,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
                      NodeReqDecls,
                      NodeGuarantees,
                      GlobalDecls,
+                     NodeCalls,
                      Helpers)||
 | {Helpers}
 |
@@ -472,6 +518,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2) :-
 | *)
 | let
 |   --%MAIN;
+|   {NodeCalls}
 | tel
 |}.
 

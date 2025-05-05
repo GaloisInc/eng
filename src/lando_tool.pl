@@ -90,7 +90,22 @@ write_kind2(OutDir, Kind2Comp, Kind2FName) :-
     open(Kind2FName, write, OutStrm),
     get_dict(kind2, Kind2Comp, Lustre),
     format(OutStrm, '~w~n', [Lustre]),
+
+    get_dict(files, Kind2Comp, Files),
+    append_files(OutStrm, Files),
+
     close(OutStrm).
+
+append_files(_, []).
+append_files(OutStream, [F|FS]) :-
+    append_file(OutStream, F),
+    append_files(OutStream, FS).
+
+append_file(OutStream, F) :-
+    open(F, read, S),
+    read_string(S, _, I),
+    write(OutStream, I),
+    close(S).
 
 enumerated_values(SSL, Enums) :- get_dict(body, SSL, Body),
                                  enum_vals(Body, Enums).

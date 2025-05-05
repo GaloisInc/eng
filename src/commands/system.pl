@@ -43,6 +43,12 @@ system_help(Info) :-
 |           OUTPUT_FILENAME
 |             format = { ALL | fret | json | markdown }
 |
+|     model =
+|       kind2 =
+|         KIND2_NODE_NAME =
+|           output = OUTPUT_VAR(S)
+|           inputs = INPUT_VARS
+|           file = KIND2_NODE_FILENAME
 |}.
 
 system_help(list, "List project's system specifications").
