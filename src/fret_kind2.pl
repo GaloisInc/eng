@@ -21,7 +21,7 @@
 % Generates a list of Kind2 outputs extracted from analyzing the set of FRETish
 % statements.
 %
-%  EnumVals: (input) a list of enumeration definitions  (KWQ: TODO)
+%  EnumVals: (input) a list of enumeration definitions as (VarName, [VarValues])
 %  _FretReqs: unused
 %  FretMents: (input) FRETtish JSON export of requirements
 %
@@ -146,6 +146,7 @@ out_varname([_|VS], VName) :- out_varname(VS, VName).
 
 %% ----------------------------------------------------------------------
 
+% Generate a kind2/lustre enumerated type for each enumerated variable.
 enum_types(EnumsVals, Kind2Globals, VarTypes) :-
     enum_types_(EnumsVals, Kind2Globals, VarTypes).
 
@@ -168,6 +169,30 @@ is_enum_val([(_,EN)|_], VName) :- enum_names(EN, ENames),
                                   !.
 is_enum_val([_|ENS], VName) :- is_enum_val(ENS, VName), !.
 
+%% ----------------------------------------------------------------------
+
+% Generate a set of mode specifications for each enumerated variable to enable
+% kind2 defensive reachability and non-vacuity checking.
+enum_modes(_, [], []).
+enum_modes(Vars, [(N,VS)|EnumsVals], [[""|Modes]|ModeSpecs]) :-
+    member(N, Vars),
+    !,
+    enum_mode(N, VS, Modes),
+    enum_modes(Vars, EnumsVals, ModeSpecs).
+enum_modes(Vars, [(IN,VS)|EnumsVals], [[""|Modes]|ModeSpecs]) :-
+    scenarios_final_var_name(IN, N),
+    member(N, Vars),
+    !,
+    enum_mode(N, VS, Modes),
+    enum_modes(Vars, EnumsVals, ModeSpecs).
+enum_modes(Vars, [_|EnumsVals], ModeSpecs) :-
+    enum_modes(Vars, EnumsVals, ModeSpecs).
+enum_mode(_, [], []).
+enum_mode(Var, [(N,_V)|VS], [Mode|Modes]) :-
+    format(atom(Mode), '  mode ~w_~w ( require ~w = ~w; );', [Var, N, Var, N]),
+    enum_mode(Var, VS, Modes).
+
+%% ----------------------------------------------------------------------
 
 % All Internal and Mode variables should always be defined.  They may not be used
 % by the requirements in this CC, but they shouldn't hurt anything by being
@@ -271,7 +296,8 @@ kind2_validate(Context, Kind2File, OutDirectory, ResultFile, Status) :-
             [ 'InpFile' = Kind2File,
               'OutDir' = OutDirectory,
               'JSONFile' = ResultFile ],
-            [ "kind2 -json --enable CONTRACTCK --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
+            %% [ "kind2 -json --enable CONTRACTCK --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
+            [ "kind2 -json --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
               % --lus_strict
             ], [], ".", Sts),
     ( process_kind2_results(ResultFile, Sts, Status)
@@ -304,6 +330,12 @@ show_kind2_results(O, "satisfiabilityCheck", Sts, Status) :-
     !,
     get_dict(result, O, Result),
     show_kind2_satresult(O, Result, Sts, Status).
+show_kind2_results(O, "property", Sts, Status) :-
+    !,
+    get_dict(answer, O, Answer),
+    get_dict(value, Answer, PropSts),
+    show_kind2_result(O, PropSts, Sts, Status).
+
 show_kind2_results(_, OType, Sts, BadSts) :-
     print_message(warning, unrecognized_kind2_result_type(OType)),
     succ(Sts, BadSts).
@@ -342,7 +374,7 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
     % is referenced in the ContractNames as
     % "contractname[UNIQUENODEID].ContractVar"; here, we extract just the
     % ContractVar from either form.
-    maplist(contract_varname, CNames, ContractNames),
+    maplist(simple_varname, CNames, ContractNames),
 
     get_dict(deadlockingTrace, O, [Trace|Traces]),
     (Traces == [] ; print_message(warning, other_unrealizable_traces(Traces))),
@@ -354,15 +386,53 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
     !,
     show_stream_steps(InterestingVars, Streams),
     print_message(error, kind2_unrealizable(CSize, Names)).
+show_kind2_result(O, "falsifiable", Sts, Sts) :-
+    !,
+    get_dict(counterExample, O, [CounterEx|OtherCounterEx]),
+    get_dict(name, CounterEx, Name),
+    get_dict(streams, CounterEx, Streams),
+    findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
+    findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
+    append(Inputs, Outputs, InterestingVars),
+    !,
+    show_stream_steps(InterestingVars, Streams),
+    print_message(error, kind2_falsifiable(Name)).
+show_kind2_result(O, "reachable", Sts, Sts) :-
+    !,
+    get_dict(runtime, O, RT),
+    get_dict(value, RT, Time),
+    get_dict(unit, RT, Unit),
+    get_dict(name, O, FullName),
+    simple_varname(FullName, Name),
+    print_message(success, kind2_reachable(Time, Unit, Name)). % which CC?
+show_kind2_result(O, "unreachable", Sts, Sts) :-
+    !,
+    get_dict(name, O, FullName),
+    simple_varname(FullName, Name),
+    print_message(error, kind2_unreachable(Name)). % which CC?
+show_kind2_result(O, "valid", Sts, Sts) :-
+    !,
+    get_dict(runtime, O, RT),
+    get_dict(value, RT, Time),
+    get_dict(unit, RT, Unit),
+    get_dict(name, O, Name),
+    print_message(success, kind2_valid(Time, Unit, Name)). % which CC?
 show_kind2_result(_, R, Sts, Sts) :-
     print_message(error, unknown_kind2_result(R)).
 
 
-contract_varname(ContractRef, ContractVar) :-
+simple_varname(ContractRef, ContractVar) :-
     string_concat(_, Right, ContractRef),
-    string_concat("].", ContractVar, Right),
+    string_concat("].", Mid, Right),
+    trim_trailing_index(Mid, ContractVar),
     !.
-contract_varname(CV, CV).
+simple_varname(CV, CV).
+
+trim_trailing_index(V, Simple) :-
+    string_concat(Simple, Right, V),
+    string_concat("[", _, Right),
+    !.
+trim_trailing_index(V, V).
 
 show_kind2_satresult(O, "satisfiable", Sts, Sts) :-
     !,
@@ -429,10 +499,18 @@ prolog:message(kind2_realizable(0.0, _Unit)) -->
     [ ].
 prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
+prolog:message(kind2_reachable(Time, Unit, Name)) -->
+    [ 'Reachable (~w ~w): ~w' - [ Time, Unit, Name ] ].
+prolog:message(kind2_valid(Time, Unit, Name)) -->
+    [ 'Valid (~w ~w): ~w' - [ Time, Unit, Name ] ].
 prolog:message(kind2_satisfiable(Time, Unit)) -->
     [ 'Satisfiable (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_unrealizable(Num, Names)) -->
     [ 'UNREALIZABLE, ~w conflicts: ~w' - [ Num, Names ] ].
+prolog:message(kind2_unreachable(Name)) -->
+    [ 'UNREACHABLE: ~w' - [ Name ] ].
+prolog:message(kind2_falsifiable(Name)) -->
+    [ 'FALSIFIABLE: ~w' - [ Name ] ].
 prolog:message(other_unrealizable_nodes(Nodes)) -->
     [ 'additional nodes not handled: ~w' - [ Nodes ] ].
 prolog:message(other_unrealizable_traces(Traces)) -->
@@ -462,6 +540,11 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     enum_types(EnumVals, Kind2Globals, VarTypes),
     !,
+
+    enum_modes(CVars, EnumVals, ModeSpecs),
+    append(ModeSpecs, AllModes),
+    intercalate(AllModes, "\n", Modes),
+
     intercalate(Kind2Globals, "\n", GlobalDecls),
     implicit_vars(EnumVals, Vars, Kind2Decls),
     intercalate(Kind2Decls, "\n  ", NodeDecls),
@@ -490,6 +573,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
                      NodeGuarantees,
                      GlobalDecls,
                      NodeCalls,
+                     Modes,
                      Helpers)||
 | {Helpers}
 |
@@ -497,6 +581,8 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 |
 | contract {NodeName}Spec( {NodeArgDecls} ) returns ( {NodeRet} );
 | let
+|   {Modes}
+|
 |   {NodeDecls}
 |
 |   {NodeReqDecls}
