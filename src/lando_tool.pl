@@ -51,7 +51,7 @@ lando(LandoSource, ['to-fret', OutFile], 0) :-
 lando(LandoSource, ['to-fret-kind2', OutDir], 0) :-
     parse_lando_file(LandoSource, SSL),
     !,
-    write_lando_fret_kind2(OutDir, SSL),
+    write_lando_fret_kind2(OutDir, SSL, _),
     print_message(informational, wrote_lando_as("Kind2", LandoSource, OutDir, dir)).
 
 lando(LandoSource, _, 1) :-
