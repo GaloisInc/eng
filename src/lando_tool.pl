@@ -83,9 +83,18 @@ write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
     maplist(write_kind2(OutDir), Kind2ConnComps, OutFiles).
 
 write_kind2(OutDir, Kind2Comp, Kind2FName) :-
+    get_dict(files, Kind2Comp, []),
+    !,
+    % No additional model files specified: just has contracts
+    write_kind2(OutDir, Kind2Comp, '~w_~w.lus', Kind2FName).
+write_kind2(OutDir, Kind2Comp, Kind2FName) :-
+    % Additional model files, indicate via different filename
+    write_kind2(OutDir, Kind2Comp, '~w_~w_model.lus', Kind2FName).
+
+write_kind2(OutDir, Kind2Comp, NameFmt, Kind2FName) :-
     get_dict(compNum, Kind2Comp, CNum),
     get_dict(compName, Kind2Comp, PName),
-    format(atom(FName), '~w_~w.lus', [ PName, CNum ]),
+    format(atom(FName), NameFmt, [ PName, CNum ]),
     directory_file_path(OutDir, FName, Kind2FName),
     open(Kind2FName, write, OutStrm),
     get_dict(kind2, Kind2Comp, Lustre),
