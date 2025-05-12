@@ -92,6 +92,7 @@ write_kind2(OutDir, Kind2Comp, model(Kind2FName)) :-
     write_kind2(OutDir, Kind2Comp, '~w_~w_model.lus', Kind2FName).
 
 write_kind2(OutDir, Kind2Comp, NameFmt, Kind2FName) :-
+    (exists_directory(OutDir) ; make_directory(OutDir) ),
     get_dict(compNum, Kind2Comp, CNum),
     get_dict(compName, Kind2Comp, PName),
     format(atom(FName), NameFmt, [ PName, CNum ]),
