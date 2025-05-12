@@ -1,6 +1,6 @@
 :- module(fret_kind2, [ fret_kind2/4,
                         normalize_kind2_var/2,
-                        kind2_validate/5,
+                        kind2_validate/6,
                         %% -- for testing only
                         connected_components/4
                       ]).
@@ -291,13 +291,18 @@ normalize_kind2_var(Inp, Out) :-
 
 %% ----------------------------------------------------------------------
 
-kind2_validate(Context, Kind2File, OutDirectory, ResultFile, Status) :-
+kind2_validate(Context, Kind2File, OutDirectory, contract, ResultFile, Status) :-
+    validate(Context, Kind2File, OutDirectory, "--enable CONTRACTCK", ResultFile, Status).
+kind2_validate(Context, Kind2File, OutDirectory, model, ResultFile, Status) :-
+    validate(Context, Kind2File, OutDirectory, "", ResultFile, Status).
+validate(Context, Kind2File, OutDirectory, Args, ResultFile, Status) :-
     do_exec(Context, "kind2 lando fret validation",
             [ 'InpFile' = Kind2File,
               'OutDir' = OutDirectory,
+              'Kind2Args' = Args,
               'JSONFile' = ResultFile ],
             %% [ "kind2 -json --enable CONTRACTCK --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
-            [ "kind2 -json --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
+            [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
               % --lus_strict
             ], [], ".", Sts),
     ( process_kind2_results(ResultFile, Sts, Status)

@@ -185,13 +185,17 @@ validate_lando_fret(Context, Spec, SSL, R) :-
     maplist(validate_lando_fret_cc(Context), OutFiles, Results),
     sum_list(Results, R).
 
-validate_lando_fret_cc(Context, OutFile, Status) :-
+validate_lando_fret_cc(Context, contract(OutFile), Status) :-
+    validate_lando_fret_cc(Context, contract, OutFile, Status).
+validate_lando_fret_cc(Context, model(OutFile), Status) :-
+    validate_lando_fret_cc(Context, model, OutFile, Status).
+validate_lando_fret_cc(Context, Kind2Mode, OutFile, Status) :-
     directory_file_path(OutD, _, OutFile),
     %absolute_file_name(OutFile, OutFilePath),
     file_name_extension(OutBase, 'lus', OutFile),
     string_concat(OutBase, "_result", ResultBase),
     file_name_extension(ResultBase, 'json', ResultFile),
-    kind2_validate(Context, OutFile, OutD, ResultFile, Status).
+    kind2_validate(Context, OutFile, OutD, Kind2Mode, ResultFile, Status).
 
 show_lando_validation_error(Spec, SpecFile, Err) :-
     print_message(error, lando_validation_error(Spec, SpecFile, Err)).
@@ -268,8 +272,13 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     ).
 
 wrote_file_messages(_, _, []).
-wrote_file_messages(Spec, Kind, [OutFile|FS]) :-
-    print_message(information, wrote_lando_as(Kind, Spec, OutFile)),
+wrote_file_messages(Spec, Kind, [contract(OutFile)|FS]) :-
+    string_concat(Kind, " contract", FKind),
+    print_message(information, wrote_lando_as(FKind, Spec, OutFile)),
+    wrote_file_messages(Spec, Kind, FS).
+wrote_file_messages(Spec, Kind, [model(OutFile)|FS]) :-
+    string_concat(Kind, " model", FKind),
+    print_message(information, wrote_lando_as(FKind, Spec, OutFile)),
     wrote_file_messages(Spec, Kind, FS).
 
 prolog:message(wrote_file(Spec, OutFile, Kind)) -->

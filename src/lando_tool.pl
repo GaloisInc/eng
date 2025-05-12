@@ -82,12 +82,12 @@ write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
     !,
     maplist(write_kind2(OutDir), Kind2ConnComps, OutFiles).
 
-write_kind2(OutDir, Kind2Comp, Kind2FName) :-
+write_kind2(OutDir, Kind2Comp, contract(Kind2FName)) :-
     get_dict(files, Kind2Comp, []),
     !,
     % No additional model files specified: just has contracts
     write_kind2(OutDir, Kind2Comp, '~w_~w.lus', Kind2FName).
-write_kind2(OutDir, Kind2Comp, Kind2FName) :-
+write_kind2(OutDir, Kind2Comp, model(Kind2FName)) :-
     % Additional model files, indicate via different filename
     write_kind2(OutDir, Kind2Comp, '~w_~w_model.lus', Kind2FName).
 
