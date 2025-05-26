@@ -623,7 +623,14 @@ parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
 parse_fret_into_req(Context, ReqBase, LandoReqBase, English, Req) :-
     parse_fret(Context, English, FretMent),
     !,
-    ( fretment_semantics(FretMent, FretReq), !
+    ( fretment_semantics(FretMent,
+                         ranges{ scopeTextRange:[0, 1],
+                                 conditionTextRange:[2, 3],
+                                 componentTextRange:[4, 5],
+                                 timingTextRange:[6, 7],
+                                 responseTextRange:[8, 9]
+                               },
+                         FretReq), !
     -> put_dict(_{fulltext: English, semantics: FretReq}, ReqBase, Requirement),
        put_dict(_{fret_req: FretMent}, LandoReqBase, LandoReq),
        Req = _{requirement:Requirement,  % KWQ: deprecated
@@ -641,8 +648,8 @@ prolog:message(bad_frettish(Context, English)) -->
     [ 'BAD Frettish statement for ~w: ~w~n'
       - [ Context, English ] ].
 
-fretment_semantics(Fretment, Semantics) :-
-    fretment_to_fretsemantics(Fretment, Semantics).
+fretment_semantics(Fretment, Ranges, Semantics) :-
+    fretment_to_fretsemantics(Fretment, Ranges, Semantics).
 
 % --------------------
 

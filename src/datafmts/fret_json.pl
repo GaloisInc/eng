@@ -1,7 +1,7 @@
 % Converts parsed fretish into the on-disk JSON stored format.
 
 :- module(fret_json, [ lando_reqs_to_fret_json/3,
-                       fretment_to_fretsemantics/2,
+                       fretment_to_fretsemantics/3,
                        replace_template_vars/5
                      ]).
 
@@ -24,8 +24,8 @@ lando_req_to_fret_json(Lando_Req, JSONDict) :-
     get_dict(req_desc, R, RD),
     get_dict(req_project, R, RP),
     get_dict(fret_req, R, RF),
-    fretment_to_fretsemantics(RF, FJ),
-    emit_fretish(RF, FT),
+    emit_fretish(RF, FT, Ranges),
+    fretment_to_fretsemantics(RF, Ranges, FJ),
     JSONDict = _{ '_id': RI, reqid: RN, parent_reqid: PI, project: RP,
                   fulltext: FT,
                   rationale: RD, status: "", comments: "", semantics: FJ }.
@@ -36,7 +36,7 @@ lando_req_to_fret_json(Lando_Req, JSONDict) :-
 % returns:
 %   dictionary of "semantics" portion of FRET JSON for that fretment.
 %
-fretment_to_fretsemantics(Fretment, JSONDict) :-
+fretment_to_fretsemantics(Fretment, Ranges, JSONDict) :-
     Fretment = fretment(scope_info(Scope, ScopeVars),
                         condition_info(Condition, CondVars),
                         component_info(Comp),
@@ -50,11 +50,27 @@ fretment_to_fretsemantics(Fretment, JSONDict) :-
                                % by the _id.
                                variables: Vars
                              },
-    put_dict(SemanticsBase, Scope, Sem1),
-    put_dict(Sem1, Condition, Sem2),  % TODO: if no condition, this is null and breaks the next
-    put_dict(Sem2, Comp, Sem3),
-    put_dict(Sem3, Response, Sem4),
-    put_dict(Sem4, Timing, Sem5),
+    (get_dict(scopeTextRange, Ranges, STR)
+    -> (put_dict(Scope, _{scopeTextRange: STR}, ScopeJSON),
+        put_dict(SemanticsBase, ScopeJSON, Sem1))
+    ; put_dict(SemanticsBase, Scope, Sem1)
+    ),
+
+    get_dict(conditionTextRange, Ranges, CndTR),
+    put_dict(Condition, _{conditionTextRange: CndTR}, ConditionJSON),
+    put_dict(Sem1, ConditionJSON, Sem2),  % TODO: if no condition, this is null and breaks the next
+
+    get_dict(componentTextRange, Ranges, CTR),
+    put_dict(Comp, _{componentTextRange: CTR}, CompJSON),
+    put_dict(Sem2, CompJSON, Sem3),
+
+    get_dict(timingTextRange, Ranges, TTR),
+    put_dict(Timing, _{timingTextRange: TTR}, TimingJSON),
+    put_dict(Sem3, TimingJSON, Sem4),
+
+    get_dict(responseTextRange, Ranges, RTR),
+    put_dict(Response, _{responseTextRange: RTR}, ResponseJSON),
+    put_dict(Sem4, ResponseJSON, Sem5),
 
     req_semantics_defs(Sem5, SemDefs),
     create_variable_description(Sem5, DV),
