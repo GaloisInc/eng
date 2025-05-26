@@ -1,6 +1,6 @@
 :- begin_tests(frettish).
-:- use_module("frettish").
-:- use_module("../englib").
+:- use_module(frettish).
+:- use_module('../englib').
 :- use_module(library(strings)).
 
 test(state_change, [nondet]) :-

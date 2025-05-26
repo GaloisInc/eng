@@ -7,7 +7,7 @@
                         ]).
 
 :- use_module(library(strings)).
-:- use_module("../englib").
+:- use_module('../englib').
 
 % This module does not define a command directly, but provides definitions to
 % support the use of the eng configuration files to define sub-commands.  These

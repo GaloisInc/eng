@@ -11,9 +11,9 @@
 :- use_module(library(http/http_json)).
 :- use_module(library(url)).
 :- use_module(library(yall)).
-:- use_module("../englib").
-:- use_module("../datafmts/cabal_project").
-:- use_module('exec_subcmds').
+:- use_module('../englib').
+:- use_module('../datafmts/cabal_project').
+:- use_module(exec_subcmds).
 
 vctl_focus("Version Control Engineering").
 

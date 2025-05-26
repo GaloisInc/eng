@@ -1,5 +1,5 @@
 :- begin_tests(ltl).
-:- use_module("ltl").
+:- use_module(ltl).
 :- use_module(library(strings)).
 
 test(simple_expr, [nondet]) :-

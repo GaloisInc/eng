@@ -5,8 +5,8 @@
 :- use_module(library(strings)).
 :- use_module(library(yall)).
 :- use_module('../load.pl').
-:- use_module("../englib").
-:- use_module('exec_subcmds').
+:- use_module('../englib').
+:- use_module(exec_subcmds).
 
 dev_focus("Development Engineering").
 

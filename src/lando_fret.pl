@@ -3,11 +3,11 @@
                       ]).
 
 :- use_module(library(http/json)).
-:- use_module('datafmts/frettish').
-:- use_module('datafmts/fret_json').
-:- use_module('datafmts/lando').
-:- use_module('datafmts/ltl').
-:- use_module('englib').
+:- use_module(datafmts/frettish).
+:- use_module(datafmts/fret_json).
+:- use_module(datafmts/lando).
+:- use_module(datafmts/ltl).
+:- use_module(englib).
 
 
 %% Extract FRET requirements from a Lando SSL (System Specification Language)

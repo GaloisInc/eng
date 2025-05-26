@@ -1,8 +1,8 @@
 :- module(run, [ run_cmd/3, run_focus/1, run_help/1, run_help/2 ]).
 
 :- use_module(library(strings)).
-:- use_module("../englib").
-:- use_module('exec_subcmds').
+:- use_module('../englib').
+:- use_module(exec_subcmds).
 
 run_focus("Execution Engineering").
 

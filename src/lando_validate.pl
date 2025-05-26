@@ -3,8 +3,8 @@
 :- use_module(library(apply)).
 :- use_module(library(lists)).
 :- use_module(library(http/json)).
-:- use_module('src/datafmts/lando').
-:- use_module('englib').
+:- use_module(src/datafmts/lando).
+:- use_module(englib).
 
 
 validate_lando(SSL, ValidationErrors) :-

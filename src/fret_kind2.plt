@@ -1,5 +1,5 @@
 :- begin_tests(fret_kind2).
-:- use_module("fret_kind2").
+:- use_module(fret_kind2).
 :- use_module(library(strings)).
 
 test(empty_no_components, [nondet]) :-

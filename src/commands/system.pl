@@ -6,7 +6,7 @@
 :- use_module(library(lists)).
 :- use_module(library(strings)).
 :- use_module('../englib').
-:- use_module('exec_subcmds').
+:- use_module(exec_subcmds).
 :- use_module('../load').
 :- use_module('../datafmts/lando').
 :- use_module('../lando_tool').

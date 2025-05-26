@@ -1,6 +1,6 @@
 :- begin_tests(eqil).
-:- use_module("eqil").
-:- use_module("../englib").
+:- use_module(eqil).
+:- use_module('../englib').
 :- use_module(library(strings)).
 
 % Note: many tests are nondet because the show_warnings has separate predicates

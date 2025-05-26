@@ -9,11 +9,11 @@
 :- use_module(library(http/json)).
 :- use_module(library(lists)).
 :- use_module(library(strings)).
-:- use_module('src/datafmts/lando').
-:- use_module('src/lando_fret').
-:- use_module('src/datafmts/frettish').
-:- use_module('englib').
-:- use_module('commands/exec_subcmds').
+:- use_module(src/datafmts/lando).
+:- use_module(src/lando_fret).
+:- use_module(src/datafmts/frettish).
+:- use_module(englib).
+:- use_module(commands/exec_subcmds).
 :- use_module(lando_fret).
 
 

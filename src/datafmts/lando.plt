@@ -1,5 +1,5 @@
 :- begin_tests(lando).
-:- use_module("lando").
+:- use_module(lando).
 :- use_module(library(strings)).
 
 test(simple_nameWord, [nondet]) :-

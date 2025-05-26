@@ -1,4 +1,4 @@
-:- use_module('load.pl').
+:- use_module(load).
 
 main :- load_eng, run_eng_cmd
         ; show_help, halt(0).

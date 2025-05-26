@@ -6,7 +6,7 @@
 :- use_module(library(strings)).
 :- use_module('../englib').
 :- use_module('../lando_tool').
-:- use_module('exec_subcmds').
+:- use_module(exec_subcmds).
 
 
 doc_focus("Documentation Engineering").

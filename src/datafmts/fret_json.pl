@@ -5,10 +5,10 @@
                        replace_template_vars/5
                      ]).
 
-:- use_module(library('apply')).
+:- use_module(library(apply)).
 :- use_module('../englib').
-:- use_module('ltl').
-:- use_module('frettish').
+:- use_module(ltl).
+:- use_module(frettish).
 
 lando_reqs_to_fret_json(Lando_Reqs, Vars, JSONDict) :-
     maplist(lando_req_to_fret_json, Lando_Reqs, JSONReqs),
