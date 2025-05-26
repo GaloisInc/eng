@@ -7,10 +7,26 @@
 
 %% Parses a Frettish English requirement to a Fret structured requirement, using
 %% the definitions and templates provided to enhance the structured requirement.
-parse_fret(Context, English, FretRequirement) :-
+%
+%  Returns: fretment(scope_info({scope:{type:},[SCOPE_VAR_NAMES]),
+%                    condition_info({condition:,
+%                                    conditionTextRange:,
+%                                    pre_condition:,
+%                                    qualifier_word:,
+%                                    regular_condition:},[COND_VAR_NAMES]),
+%                    component_info({component:,
+%                                    componentTextRange:,
+%                                    component_name:},
+%                    timing_info({timing:,
+%                                 timingTextRange:},[TIMING_VAR_NAMES]),
+%                    response_info({response:,
+%                                   responseTextRange:,
+%                                   post_condition:},[RESPONSE_VAR_NAMES]),
+%
+parse_fret(Context, English, FretMent) :-
     string_chars(English, ECodes),
     enumerate(ECodes, Input),
-    phrase(frettish(Semantics), Input, Remaining),
+    phrase(frettish(FretMent), Input, Remaining),
     !,
     ( Remaining == []
     -> true
@@ -18,8 +34,7 @@ parse_fret(Context, English, FretRequirement) :-
       -> true
       ; show_remaining(Context, Remaining)
       )
-    ),
-    FretRequirement = Semantics.
+    ).
 
 show_remaining(Context, [(P,C)|CS]) :-
     unenumerate(Chars, CS),

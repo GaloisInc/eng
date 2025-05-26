@@ -28,8 +28,6 @@ fretish_to_jsondict(Fretment, JSONDict) :-
     put_dict(Sem3, Response, Sem4),
     put_dict(Sem4, Timing, Sem5),
 
-    %% get_semantics_defs(SemanticDefs),
-
     req_semantics_defs(Sem5, SemDefs),
     create_variable_description(Sem5, DV),
 

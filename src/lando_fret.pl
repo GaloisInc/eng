@@ -14,13 +14,44 @@
 % instance.
 %
 % FretRequirements returns an array of dictionaries where each element is the
-% requirement dictionary as {added_vars:[{..}], fretment:{..fret parts..}, requirement:{..FRET json entry..}}
+% requirement dictionary as:
+%     {added_vars:[VDICT],
+%      fretment:FMENT
+%      requirement:{..FRET json entry..}
+%     }
 %
-% FretMents returns fret{ requirements:OutReqs, variables: FretVars }
+%     where VDICT = FRET JSON form of variable =
+%                     { _id:,
+%                       assignment:,  % KWQ: only if internal; unsupported from lando ...
+%                       completed:, copilotAssignment:,  % KWQ: trivial
+%                       component_name:,
+%                       dataType:,
+%                       description:,
+%                       idType:,
+%                       modeRequirement:, modelComponent:, modeldoc:, modeldoc_id:, moduleName:,  % KWQ: trivial
+%                       project:,
+%                       variable_name:}
+%
+%           FMENT = fretment(scope_info({scope:{type:},[SCOPE_VAR_NAMES]),
+%                            condition_info({condition:,
+%                                            conditionTextRange:,
+%                                            pre_condition:,
+%                                            qualifier_word:,
+%                                            regular_condition:},[COND_VAR_NAMES]),
+%                            component_info({component:,
+%                                            componentTextRange:,
+%                                            component_name:},
+%                            timing_info({timing:,
+%                                         timingTextRange:},[TIMING_VAR_NAMES]),
+%                            response_info({response:,
+%                                           responseTextRange:,
+%                                           post_condition:},[RESPONSE_VAR_NAMES]),
+%
+% FretJSONs returns the JSON form -- KWQ: RMV: fret{ requirements:OutReqs, variables: FretVars }
 %
 % SrcRefs returns a list of (reqsrc(FRET_REQ_ID, srcref(REQID, REQDOC)))
-%
-lando_to_fret(LandoSSL, FretRequirements, FretMents, SrcRefs) :-
+
+lando_to_fret(LandoSSL, FretRequirements, FretJSONs, SrcRefs) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
     (extract_fret(SemanticDefs, Body, Reqs, Refs, Status)
@@ -28,7 +59,7 @@ lando_to_fret(LandoSSL, FretRequirements, FretMents, SrcRefs) :-
                       FretRequirements, FretVariables),
          fretOut(FretRequirements, OutRequirements),
          append(Refs, SrcRefs),
-         FretMents = fret{ requirements: OutRequirements,
+         FretJSONs = fret{ requirements: OutRequirements,
                            variables: FretVariables
                          }
        )
