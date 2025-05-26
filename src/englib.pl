@@ -10,6 +10,8 @@
                     string_contains/2,
                     subst/4,
                     get_dict_or/4,
+                    ensure_dir/1,
+                    ensure_file_loc/1,
                     format_lines/2,
                     write_strings/2,
                     %% classification_marks/1,
@@ -125,6 +127,19 @@ write_strings(Indent, Lines) :-
     maplist(string_concat(Indent), Lines, IndLines),
     string_lines(Str, IndLines),
     writeln(Str).
+
+
+% ensure_file_loc ensures that the directory for the specified file path exists.
+ensure_file_loc(FilePath) :-
+    directory_file_path(Dir, _, FilePath),
+    ensure_dir(Dir).
+
+% ensure_dir ensures that the specified directory exists.
+ensure_dir(Dir) :- directory_file_path(Top, Top, Dir), !.
+ensure_dir(Dir) :- directory_file_path(Parent, _, Dir),
+                   ensure_dir(Parent),
+                   (exists_directory(Dir), !; make_directory(Dir)).
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -30,6 +30,7 @@ lando(LandoSource, [], Sts) :-
 lando(LandoSource, ['to-json', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     !,
+    ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
     write_lando_json(OutStrm, SSL),
     print_message(informational, wrote_lando_as("JSON", LandoSource, OutFile)).
@@ -37,6 +38,7 @@ lando(LandoSource, ['to-json', OutFile], 0) :-
 lando(LandoSource, ['to-markdown', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     !,
+    ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
     write_lando_markdown(OutStrm, SSL),
     print_message(informational, wrote_lando_as("Markdown", LandoSource, OutFile)).
@@ -44,6 +46,7 @@ lando(LandoSource, ['to-markdown', OutFile], 0) :-
 lando(LandoSource, ['to-fret', OutFile], 0) :-
     parse_lando_file(LandoSource, SSL),
     !,
+    ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
     write_lando_fret(OutStrm, SSL),
     print_message(informational, wrote_lando_as("FRET", LandoSource, OutFile)).
@@ -51,6 +54,7 @@ lando(LandoSource, ['to-fret', OutFile], 0) :-
 lando(LandoSource, ['to-fret-kind2', OutDir], 0) :-
     parse_lando_file(LandoSource, SSL),
     !,
+    ensure_dir(OutDir),
     write_lando_fret_kind2(OutDir, SSL, _),
     print_message(informational, wrote_lando_as("Kind2", LandoSource, OutDir, dir)).
 
@@ -96,6 +100,7 @@ write_kind2(OutDir, Kind2Comp, NameFmt, Kind2FName) :-
     get_dict(compNum, Kind2Comp, CNum),
     get_dict(compName, Kind2Comp, PName),
     format(atom(FName), NameFmt, [ PName, CNum ]),
+    ensure_dir(OutDir),
     directory_file_path(OutDir, FName, Kind2FName),
     open(Kind2FName, write, OutStrm),
     get_dict(kind2, Kind2Comp, Lustre),
