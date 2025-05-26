@@ -1,11 +1,11 @@
-% Parses the FRETtish statements supported by the NASA Fret tool
+% Parses the FRETish statements supported by the NASA Fret tool
 % (https://github.com/NASA-SW-VnV/fret).
 
 :- module(frettish, [ parse_fret/3 ]).
 
 :- use_module('../englib').
 
-%% Parses a Frettish English requirement to a Fret structured requirement, using
+%% Parses a FRETish English requirement to a Fret structured requirement, using
 %% the definitions and templates provided to enhance the structured requirement.
 %
 %  Returns: fretment(scope_info({scope:{type:},[SCOPE_VAR_NAMES]),
@@ -26,7 +26,7 @@
 parse_fret(Context, English, FretMent) :-
     string_chars(English, ECodes),
     enumerate(ECodes, Input),
-    phrase(frettish(FretMent), Input, Remaining),
+    phrase(fretish(FretMent), Input, Remaining),
     !,
     ( Remaining == []
     -> true
@@ -41,19 +41,19 @@ show_remaining(Context, [(P,C)|CS]) :-
     string_chars(RStr, Chars),
     string_chars(SS, [C]),
     string_concat(SS, RStr, Str),
-    format('Unexpected frettish extra not parsed @ ~w, offset ~w: "~w"~n',
+    format('Unexpected fretish extra not parsed @ ~w, offset ~w: "~w"~n',
            [ Context, P, Str ]).
 
 unenumerate([], []).
 unenumerate([C|OS], [(_,C)|CS]) :- unenumerate(OS, CS).
 
 % scope conditions component shall timing responses
-frettish(fretment(scope_info(Scope, ScopeVars),
-                  condition_info(Condition, CondVars),
-                  component_info(Comp),
-                  timing_info(Timing, TimingVars),
-                  response_info(Responses, RespVars)
-                 )) -->
+fretish(fretment(scope_info(Scope, ScopeVars),
+                 condition_info(Condition, CondVars),
+                 component_info(Comp),
+                 timing_info(Timing, TimingVars),
+                 response_info(Responses, RespVars)
+                )) -->
     scope(Scope, ScopeVars),
     %% {format('....scope: ~w~n', [Scope])},
     conditions(Condition, CondVars),
@@ -71,12 +71,12 @@ frettish(fretment(scope_info(Scope, ScopeVars),
     ).
 
 % scope conditions shall component timing responses
-frettish(fretment(scope_info(Scope, ScopeVars),
-                  condition_info(Condition, CondVars),
-                  component_info(Comp),
-                  timing_info(Timing, TimingVars),
-                  response_info(Responses, RespVars)
-                 )) -->
+fretish(fretment(scope_info(Scope, ScopeVars),
+                 condition_info(Condition, CondVars),
+                 component_info(Comp),
+                 timing_info(Timing, TimingVars),
+                 response_info(Responses, RespVars)
+                )) -->
     scope(Scope, ScopeVars),
     %% {format('....scope: ~w~n', [Scope])},
     conditions(Condition, CondVars),
@@ -95,7 +95,7 @@ frettish(fretment(scope_info(Scope, ScopeVars),
 
 
 prolog:message(bad_response_text(EW, EP)) -->
-    [ 'Invalid FRETTISH Response specification at character ~w: ~w~n'
+    [ 'Invalid FRETish Response specification at character ~w: ~w~n'
       - [ EP, EW ] ].
 
 % --------------------------------------------------
