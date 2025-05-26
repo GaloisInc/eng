@@ -7,27 +7,33 @@ test(empty_no_components, [nondet]) :-
     assertion(C == []).
 
 test(one_rel_one_component, [nondet]) :-
-    R1 = _{semantics:_{component_name: "comp1",
-                       variables: []
-                      }
-          },
+    JR1 = _{semantics:_{variables: []}},
+    R1 = _{requirement:JR1,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
     connected_components([R1], [], 0, C),
     assertion(C == [comp(0, "comp1", [R1], [])]).
 
 test(one_rel_one_outvar_one_component, [nondet]) :-
-    R1 = _{semantics:_{component_name: "comp1",
-                       variables: ["var1"]
-                      }
-          },
+    JR1 = _{semantics:_{variables: ["var1"]}},
+    R1 = _{requirement:JR1,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
     V1 = _{variable_name: "var1", idType: "Output"},
     connected_components([R1], [V1], 0, C),
     assertion(C == [comp(0, "comp1", [R1], ["var1"])]).
 
 test(one_rel_four_outvar_one_component, [nondet]) :-
-    R1 = _{semantics:_{component_name: "comp1",
-                       variables: ["var1", "var2", "var3", "var4"]
-                      }
-          },
+    JR1 = _{semantics:_{variables: ["var1", "var2", "var3", "var4"]}},
+    R1 = _{requirement:JR1,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
     V1 = _{variable_name: "var1", idType: "Output"},
     V2 = _{variable_name: "var2", idType: "Internal"},
     V3 = _{variable_name: "var3", idType: "Input"},
@@ -36,18 +42,24 @@ test(one_rel_four_outvar_one_component, [nondet]) :-
     assertion(C == [comp(0, "comp1", [R1], ["var1", "var4"])]).
 
 test(three_rel_four_outvar_two_component, [nondet]) :-
-    R1 = _{semantics:_{component_name: "comp1",
-                       variables: ["var1", "var2", "var3", "var4"]
-                      }
-          },
-    R2 = _{semantics:_{component_name: "comp1",
-                       variables: ["var3", "var4"]
-                      }
-          },
-    R3 = _{semantics:_{component_name: "comp1",
-                       variables: ["var3", "var2"]
-                      }
-          },
+    JR1 = _{semantics:_{variables: ["var1", "var2", "var3", "var4"]}},
+    R1 = _{requirement:JR1,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR2 = _{semantics:_{variables: ["var3", "var4"]}},
+    R2 = _{requirement:JR2,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR3 = _{semantics:_{variables: ["var3", "var2"]}},
+    R3 = _{requirement:JR3,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
     V1 = _{variable_name: "var1", idType: "Output"},
     V2 = _{variable_name: "var2", idType: "Internal"},
     V3 = _{variable_name: "var3", idType: "Input"},
@@ -58,30 +70,42 @@ test(three_rel_four_outvar_two_component, [nondet]) :-
                    ]).
 
 test(five_rel_six_outvar_four_component, [nondet]) :-
-    R1 = _{reqid:"R1", semantics:_{component_name: "comp1",
-                       variables: ["var1", "var2", "var3", "var4"]
-                      }
-          },
-    R2 = _{reqid:"R2", semantics:_{component_name: "comp1",
-                       variables: ["var3", "var4"]
-                      }
-          },
-    R3 = _{reqid:"R3", semantics:_{component_name: "comp1",
-                       variables: ["var3", "var2"]
-                      }
-          },
-    R4 = _{reqid:"R4", semantics:_{component_name: "comp1",
-                       variables: ["var5"]
-                      }
-          },
-    R5 = _{reqid:"R5", semantics:_{component_name: "comp1",
-                       variables: ["var6", "var5"]
-                      }
-          },
-    R6 = _{reqid:"R6", semantics:_{component_name: "comp1",
-                                   variables: ["var2"]
-                                  }
-          },
+    JR1 = _{semantics:_{variables: ["var1", "var2", "var3", "var4"]}},
+    R1 = _{requirement:JR1,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR2 = _{semantics:_{variables: ["var3", "var4"]}},
+    R2 = _{requirement:JR2,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR3 = _{semantics:_{variables: ["var3", "var2"]}},
+    R3 = _{requirement:JR3,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR4 = _{semantics:_{variables: ["var5"]}},
+    R4 = _{requirement:JR4,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR5 = _{semantics:_{variables: ["var6", "var5"]}},
+    R5 = _{requirement:JR5,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR6 = _{semantics:_{variables: ["var2"]}},
+    R6 = _{requirement:JR6,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
     V1 = _{variable_name: "var1", idType: "Output"},
     V2 = _{variable_name: "var2", idType: "Internal"},
     V3 = _{variable_name: "var3", idType: "Input"},
@@ -97,30 +121,42 @@ test(five_rel_six_outvar_four_component, [nondet]) :-
                    ]).
 
 test(five_rel_six_outvar_two_component, [nondet]) :-
-    R1 = _{reqid:"R1", semantics:_{component_name: "comp1",
-                       variables: ["var1", "var2", "var3", "var4"]
-                      }
-          },
-    R2 = _{reqid:"R2", semantics:_{component_name: "comp1",
-                       variables: ["var3", "var4"]
-                      }
-          },
-    R3 = _{reqid:"R3", semantics:_{component_name: "comp1",
-                       variables: ["var3", "var2"]
-                      }
-          },
-    R4 = _{reqid:"R4", semantics:_{component_name: "comp1",
-                       variables: ["var5"]
-                      }
-          },
-    R5 = _{reqid:"R5", semantics:_{component_name: "comp1",
-                       variables: ["var4", "var5"]
-                      }
-          },
-    R6 = _{reqid:"R6", semantics:_{component_name: "comp1",
-                                   variables: ["var2"]
-                                  }
-          },
+    JR1 = _{semantics:_{variables: ["var1", "var2", "var3", "var4"]}},
+    R1 = _{requirement:JR1,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR2 = _{semantics:_{variables: ["var3", "var4"]}},
+    R2 = _{requirement:JR2,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR3 = _{semantics:_{variables: ["var3", "var2"]}},
+    R3 = _{requirement:JR3,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR4 = _{semantics:_{variables: ["var5"]}},
+    R4 = _{requirement:JR4,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR5 = _{semantics:_{variables: ["var4", "var5"]}},
+    R5 = _{requirement:JR5,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
+    JR6 = _{semantics:_{variables: ["var2"]}},
+    R6 = _{requirement:JR6,
+           lando_req:lando_requirement{
+                         fret_req: fretment(unused, unused,
+                                            component_info(_{component_name: "comp1"}),
+                                            unused, unused)}},
     V1 = _{variable_name: "var1", idType: "Output"},
     V2 = _{variable_name: "var2", idType: "Internal"},
     V3 = _{variable_name: "var3", idType: "Input"},

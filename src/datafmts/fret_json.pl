@@ -1,13 +1,42 @@
 % Converts parsed fretish into the on-disk JSON stored format.
 
-:- module(fret_json, [ fretish_to_jsondict/2,
+:- module(fret_json, [ lando_reqs_to_fret_json/3,
+                       fretment_to_fretsemantics/2,
                        replace_template_vars/5
                      ]).
 
+:- use_module(library('apply')).
 :- use_module('../englib').
 :- use_module('ltl').
+:- use_module('frettish').
 
-fretish_to_jsondict(Fretment, JSONDict) :-
+lando_reqs_to_fret_json(Lando_Reqs, Vars, JSONDict) :-
+    maplist(lando_req_to_fret_json, Lando_Reqs, JSONReqs),
+    something_with(Vars, JSONVars),
+    JSONDict = _{requirements: JSONReqs, variables: JSONVars}.
+
+something_with(Vars, Vars).
+lando_req_to_fret_json(Lando_Req, JSONDict) :-
+    get_dict(lando_req, Lando_Req, R),
+    get_dict(req_id, R, RI),
+    get_dict(req_parent_id, R, PI),
+    get_dict(req_name, R, RN),
+    get_dict(req_desc, R, RD),
+    get_dict(req_project, R, RP),
+    get_dict(fret_req, R, RF),
+    fretment_to_fretsemantics(RF, FJ),
+    emit_fretish(RF, FT),
+    JSONDict = _{ '_id': RI, reqid: RN, parent_reqid: PI, project: RP,
+                  fulltext: FT,
+                  rationale: RD, status: "", comments: "", semantics: FJ }.
+
+
+% Given a fretment(scope_info(..), condition_info(..), component_info(..),
+%                  timing_info(..), response_info(..))
+% returns:
+%   dictionary of "semantics" portion of FRET JSON for that fretment.
+%
+fretment_to_fretsemantics(Fretment, JSONDict) :-
     Fretment = fretment(scope_info(Scope, ScopeVars),
                         condition_info(Condition, CondVars),
                         component_info(Comp),
@@ -20,7 +49,6 @@ fretish_to_jsondict(Fretment, JSONDict) :-
                                % requirement; n.b. referenced by name and not
                                % by the _id.
                                variables: Vars
-                               %% KWQ: diagram "_media/user-interface/examples/svgDiagrams/null_regular_next_satisfaction.svg"
                              },
     put_dict(SemanticsBase, Scope, Sem1),
     put_dict(Sem1, Condition, Sem2),  % TODO: if no condition, this is null and breaks the next

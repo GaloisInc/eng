@@ -1,7 +1,7 @@
 % Parses the FRETish statements supported by the NASA Fret tool
 % (https://github.com/NASA-SW-VnV/fret).
 
-:- module(frettish, [ parse_fret/3 ]).
+:- module(frettish, [ parse_fret/3, emit_fretish/2 ]).
 
 :- use_module('../englib').
 
@@ -46,6 +46,54 @@ show_remaining(Context, [(P,C)|CS]) :-
 
 unenumerate([], []).
 unenumerate([C|OS], [(_,C)|CS]) :- unenumerate(OS, CS).
+
+
+%% Emits a fretment(..) as a FRETish English string
+emit_fretish(Fretment, English) :-
+    Fretment = fretment(scope_info(Scope, _ScopeVars),
+                        condition_info(Condition, _CondVars),
+                        component_info(Comp),
+                        timing_info(Timing, _TimingVars),
+                        response_info(Response, _RespVars)),
+
+    ScopeText = "",  %% KWQ: TODO, and provide trailing space if non-empty
+
+    get_dict(qualifier_word, Condition, QW),
+    get_dict(regular_condition, Condition, RC),
+    format(atom(CondText), '~w ~w', [ QW, RC ]),
+
+    get_dict(component, Comp, CompText),
+
+    timing_fretish(Timing, TimingText),
+
+    get_dict(post_condition, Response, ResponseText),
+
+    format(atom(English), '~w~w the ~w shall ~w satisfy ~w.',
+           [ ScopeText, CondText, CompText, TimingText, ResponseText ]).
+
+timing_fretish(Timing, "at the next timepoint") :- get_dict(timing, Timing, "next"), !.
+timing_fretish(Timing, Text) :- get_dict(timing, Timing, "after"), !,
+                                get_dict(duration, Timing, D),
+                                (D == 1 -> U = tick ; U = ticks),
+                                format(atom(Text), 'after ~w ~w', [D, U]).
+timing_fretish(Timing, Text) :- get_dict(timing, Timing, "before"), !,
+                                get_dict(stop_condition, Timing, C),
+                                format(atom(Text), 'before ~w', [C]).
+timing_fretish(Timing, Text) :- get_dict(timing, Timing, "for"), !,
+                                get_dict(duration, Timing, D),
+                                (D == 1 -> U = tick ; U = ticks),
+                                format(atom(Text), 'for ~w ~w', [D, U]).
+timing_fretish(Timing, Text) :- get_dict(timing, Timing, "until"), !,
+                                get_dict(stop_condition, Timing, C),
+                                format(atom(Text), 'until ~w', [C]).
+timing_fretish(Timing, Text) :- get_dict(timing, Timing, "within"), !,
+                                get_dict(duration, Timing, D),
+                                (D == 1 -> U = tick ; U = ticks),
+                                format(atom(Text), 'for ~w ~w', [D, U]).
+timing_fretish(Timing, "") :- get_dict(timing, Timing, "always"), !.
+timing_fretish(Timing, Text) :- get_dict(timing, Timing, Text).
+
+
 
 % scope conditions component shall timing responses
 fretish(fretment(scope_info(Scope, ScopeVars),

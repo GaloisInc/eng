@@ -16,7 +16,13 @@
 % FretRequirements returns an array of dictionaries where each element is the
 % requirement dictionary as:
 %     {added_vars:[VDICT],
-%      fretment:FMENT
+%      lando_req:{ req_id: ReqID,
+%                  req_parent_id: ParID,
+%                  req_name: RName,
+%                  req_desc: Expl,
+%                  req_project: ProjName
+%                  fret_req: FRETMENT
+%                },
 %      requirement:{..FRET json entry..}
 %     }
 %
@@ -47,21 +53,16 @@
 %                                           responseTextRange:,
 %                                           post_condition:},[RESPONSE_VAR_NAMES]),
 %
-% FretJSONs returns the JSON form -- KWQ: RMV: fret{ requirements:OutReqs, variables: FretVars }
-%
 % SrcRefs returns a list of (reqsrc(FRET_REQ_ID, srcref(REQID, REQDOC)))
 
-lando_to_fret(LandoSSL, FretRequirements, FretJSONs, SrcRefs) :-
+lando_to_fret(LandoSSL, FretRequirements, FretVariables, SrcRefs) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(SemanticDefs),
     (extract_fret(SemanticDefs, Body, Reqs, Refs, Status)
     -> ( fret_results(SemanticDefs, Body, Status, Reqs,
                       FretRequirements, FretVariables),
-         fretOut(FretRequirements, OutRequirements),
          append(Refs, SrcRefs),
-         FretJSONs = fret{ requirements: OutRequirements,
-                           variables: FretVariables
-                         }
+         !  %% green cut to not retry now that it has been successfully converted
        )
     ; print_message(error, fret_conversion_failed()), fail
     ).
@@ -76,11 +77,6 @@ fret_results(_, _, Status, _, _, _) :-
     !,
     print_message(error, fret_conversion_errors(Status)),
     fail.
-
-fretOut([], []).
-fretOut([FullReq|FReqs], [R|RS]) :-
-    get_dict(requirement, FullReq, R),
-    fretOut(FReqs, RS).
 
 resource(fret_semantics, 'src/semantics.json').
 
@@ -184,8 +180,8 @@ existing_var(VName, [V|Vars], Var, [V|VSNoV]) :-
     existing_var(VName, Vars, Var, VSNoV).
 
 add_var_ref(Var, inputs(FretReq, _), UpdVar) :-
-    get_dict(requirement, FretReq, Req),
-    get_dict('_id', Req, ReqID),
+    get_dict(lando_req, FretReq, FR),
+    get_dict(req_id, FR, ReqID),
     add_var_ref_(Var, ReqID, UpdVar).
 add_var_ref_(Var, ReqID, UpdVar) :-
     (get_dict(reqs, Var, Reqs) ; Reqs = []),
@@ -197,12 +193,13 @@ add_var_ref_(Var, ReqID, UpdVar) :-
 update_req_with_var(inputs(FretReq, SSL), RV, InitialSV, FinalSV,
                     inputs(UpdReq, SSL), VarAdds) :-
     get_dict(requirement, FretReq, Req),
+    get_dict(lando_req, FretReq, LandoReq),
     % If the user referenced a var in the original, then assume they have
     % responsibility for the proper format, otherwise we add a "SV = " to the RV
     % instances in the fret and then re-parse.
     req_needs_var(FretReq, Req, InitialSV, PreVar),
     req_needs_var(FretReq, Req, FinalSV, PostVar),
-    update_req_with_var_(Req, RV, PreVar, PostVar, OutReq, VarAdds),
+    update_req_with_var_(Req, LandoReq, RV, PreVar, PostVar, OutReq, VarAdds),
     (get_dict(added_vars, FretReq, AddedVars) ; AddedVars = []),
     append(AddedVars, VarAdds, VAS),
     ((OutReq == no_update ; OutReq == noreq)
@@ -210,34 +207,34 @@ update_req_with_var(inputs(FretReq, SSL), RV, InitialSV, FinalSV,
     ; put_dict(_{added_vars:VAS}, OutReq, UpdReq)
     ).
 
-update_req_with_var_(_, _, hasvar, hasvar, no_update, []) :- !.
-update_req_with_var_(Req, RV, hasvar, PostVar, UpdReq, [PostVar|AddVars]) :-
+update_req_with_var_(_, _, _, hasvar, hasvar, no_update, []) :- !.
+update_req_with_var_(Req, LandoReq, RV, hasvar, PostVar, UpdReq, [PostVar|AddVars]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(Req, RV, PostVar, Post, UpdPost, AddVars),
-    update_req_with_newfret(Pre, UpdPost, Req, UpdReq).
-update_req_with_var_(Req, RV, PreVar, hasvar, UpdReq, [PreVar|AddVars]) :-
+    update_req_with_newfret(Pre, UpdPost, Req, LandoReq, UpdReq).
+update_req_with_var_(Req, LandoReq, RV, PreVar, hasvar, UpdReq, [PreVar|AddVars]) :-
     !,
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(Req, RV, PreVar, Pre, UpdPre, AddVars),
-    update_req_with_newfret(UpdPre, Post, Req, UpdReq).
-update_req_with_var_(Req, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar|AddVars]) :-
+    update_req_with_newfret(UpdPre, Post, Req, LandoReq, UpdReq).
+update_req_with_var_(Req, LandoReq, RV, PreVar, PostVar, UpdReq, [PreVar, PostVar|AddVars]) :-
     get_dict(fulltext, Req, OrigEnglish),
     split_frettish(OrigEnglish, Pre, Post),
     add_var_state_access(Req, RV, PreVar, Pre, UpdPre, AddVars1),
     add_var_state_access(Req, RV, PostVar, Post, UpdPost, AddVars2),
     append([AddVars1, AddVars2], AddVars),
-    update_req_with_newfret(UpdPre, UpdPost, Req, UpdReq).
+    update_req_with_newfret(UpdPre, UpdPost, Req, LandoReq, UpdReq).
 
-update_req_with_newfret(UpdPre, UpdPost, Req, UpdReq) :-
+update_req_with_newfret(UpdPre, UpdPost, Req, LandoReq, UpdReq) :-
     frettish_splitword(SplitWord),
     format(atom(English), '~w~w~w', [ UpdPre, SplitWord, UpdPost ]),
     get_dict(reqid, Req, RName),
     format(atom(Context), 'Add state references into FRET req ~w~n', [RName]),
     !,
-    parse_fret_into_req(Context, Req, English, UpdReq).
+    parse_fret_into_req(Context, Req, LandoReq, English, UpdReq).
 
 split_frettish(Frettish, PreCond, PostCond) :-
     string_chars(Frettish, CS),
@@ -482,8 +479,8 @@ is_lando_req(E) :- is_dict(E, requirement).
 
 mkReqRef([], _, []).
 mkReqRef(SRefs, Req, ReqRefs) :-
-    get_dict(requirement, Req, R),
-    get_dict('_id', R, RID),
+    get_dict(lando_req, Req, LR),
+    get_dict(req_id, LR, RID),
     mkReqRef_(SRefs, RID, ReqRefs).
 mkReqRef_([], _, []).
 mkReqRef_([S|SR], RID, [reqsrc(RID, S)|RSRS]) :-
@@ -607,6 +604,12 @@ parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
       format(atom(RName), '~w-~w', [ ReqName, Num ]),
       ParID = ParentID
     ),
+    LandoReqBase = lando_requirement{ req_id: ReqID,
+                                      req_parent_id: ParID,
+                                      req_name: RName,
+                                      req_desc: Expl,
+                                      req_project: ProjName
+                                    },
     ReqBase = requirement{ reqid: RName,
                            parent_reqid: ParID,
                            project: ProjName,
@@ -616,13 +619,15 @@ parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
                            '_id': ReqID
                          },
     !,
-    parse_fret_into_req(Context, ReqBase, English, Req).
-parse_fret_into_req(Context, ReqBase, English, Req) :-
+    parse_fret_into_req(Context, ReqBase, LandoReqBase, English, Req).
+parse_fret_into_req(Context, ReqBase, LandoReqBase, English, Req) :-
     parse_fret(Context, English, FretMent),
     !,
     ( fretment_semantics(FretMent, FretReq), !
     -> put_dict(_{fulltext: English, semantics: FretReq}, ReqBase, Requirement),
-       Req = _{requirement:Requirement, fretment:FretMent}
+       put_dict(_{fret_req: FretMent}, LandoReqBase, LandoReq),
+       Req = _{requirement:Requirement,  % KWQ: deprecated
+               lando_req:LandoReq}
     ; print_message(error, no_semantics(Context, English, FretMent)), fail
     ).
 parse_fret_into_req(Context, _, English, noreq) :-
@@ -637,7 +642,7 @@ prolog:message(bad_frettish(Context, English)) -->
       - [ Context, English ] ].
 
 fretment_semantics(Fretment, Semantics) :-
-    fretish_to_jsondict(Fretment, Semantics).
+    fretment_to_fretsemantics(Fretment, Semantics).
 
 % --------------------
 

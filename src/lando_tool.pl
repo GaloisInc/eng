@@ -10,6 +10,8 @@
 :- use_module(library(lists)).
 :- use_module(library(http/json)).
 :- use_module('src/datafmts/lando').
+:- use_module('src/datafmts/frettish').
+:- use_module('src/datafmts/fret_json').
 :- use_module('englib').
 :- use_module(lando_fret).
 :- use_module(fret_kind2).
@@ -75,14 +77,15 @@ prolog:message(wrote_lando_as(FType, Src, OutDir, dir)) -->
 write_lando_json(Strm, SSL) :- json_write_dict(Strm, SSL, [tag(type)]).
 
 write_lando_fret(OutStrm, SSL) :-
-    lando_to_fret(SSL, _, FretProject, _),
-    json_write_dict(OutStrm, FretProject, []),
+    lando_to_fret(SSL, LandoReqs, FretVars, _),
+    lando_reqs_to_fret_json(LandoReqs, FretVars, FretJSON),
+    json_write_dict(OutStrm, FretJSON, []),
     format(OutStrm, '~n', []).
 
 write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
-    lando_to_fret(SSL, Reqs, FretProject, _),
+    lando_to_fret(SSL, Reqs, FretVars, _),
     enumerated_values(SSL, EnumVals),
-    fret_kind2(EnumVals, Reqs, FretProject, Kind2ConnComps),
+    fret_kind2(EnumVals, Reqs, FretVars, Kind2ConnComps),
     !,
     maplist(write_kind2(OutDir), Kind2ConnComps, OutFiles).
 
@@ -167,18 +170,19 @@ write_rack_csv(OutStrm, SrcRefs, [R|Reqs]) :-
     (SR == [] -> SRS = [srcref("", "")] ; SRS = SR),
     maplist(ww_csv(OutStrm, R), SRS, _).
 ww_csv(OutStrm, R, srcref(ReqTag, ReqSrc), ReqTag) :-
-    get_dict(requirement, R, D),
-    get_dict(project, D, P),
-    get_dict(reqid, D, I),
-    get_dict(fulltext, D, T),
-    get_dict(semantics, D, S),
-    get_dict(component, S, C),
+    get_dict(lando_req, R, LR),
+    get_dict(req_project, LR, P),
+    get_dict(req_name, LR, I),
+    get_dict(fret_req, LR, Fretment),
+    Fretment = fretment(_, _, component_info(Comp), _, _),
+    get_dict(component_name, Comp, C),
+    emit_fretish(Fretment, T),
     format(OutStrm, '~w,~w,~w,~w,~w,~w,"~w"~n',
            [P, C, ReqTag, ReqSrc, I, "UNCHECKED", T]).
 
 get_srcrefs_for_req(SrcRefs, R, SR) :-
-    get_dict(requirement, R, X),
-    get_dict('_id', X, RID),
+    get_dict(lando_req, R, X),
+    get_dict(req_id, X, RID),
     findall(Y, member(reqsrc(RID, Y), SrcRefs), SR).
 
 

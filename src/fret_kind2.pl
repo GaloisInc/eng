@@ -11,6 +11,7 @@
 :- use_module(library(strings)).
 :- use_module('src/datafmts/lando').
 :- use_module('src/lando_fret').
+:- use_module('src/datafmts/frettish').
 :- use_module('englib').
 :- use_module('commands/exec_subcmds').
 :- use_module(lando_fret).
@@ -22,19 +23,18 @@
 % statements.
 %
 %  EnumVals: (input) a list of enumeration definitions as (VarName, [VarValues])
-%  _FretReqs: unused
-%  FretMents: (input) FRETtish JSON export of requirements
+%
+%  FretReqs: list of dict:{added_vars:[..], lando_req:{lando_requirement:{fret_req:fretment(..)}}},
+%
+%  Vars: FRET JSON vars
 %
 %  Kind2Comps: output list of dicts for each connected component (compNum,
 %  compName, kind2, files).  The kind2 field is the output kind2 contract and
 %  node body, and files are all the implementation files referenced by the node
 %  body.
 %
-fret_kind2(EnumVals, _FretReqs, FretMents, Kind2Comps) :-
-    get_dict(requirements, FretMents, Reqs),
-    get_dict(variables, FretMents, Vars),
-    !,
-    connected_components(Reqs, Vars, 0, CComps),
+fret_kind2(EnumVals, FretReqs, Vars, Kind2Comps) :-
+    connected_components(FretReqs, Vars, 0, CComps),
     fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps),
     warn_about_skipped_models(Kind2Comps).
 
@@ -124,10 +124,13 @@ collect_out_vars(Vars, [R|RS], O) :-
     append(H, S, O).
 
 req_comp_name(Req, CompName) :-
-    get_dict(semantics, Req, S),
-    get_dict(component_name, S, CompName).
+    get_dict(lando_req, Req, LR),
+    get_dict(fret_req, LR, Fretment),
+    Fretment = fretment(_, _, component_info(Comp), _, _),
+    get_dict(component_name, Comp, CompName).
 
-req_out_varnames(Vars, Req, VS) :-
+req_out_varnames(Vars, FretReq, VS) :-
+    get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, ReqSem),
     get_dict(variables, ReqSem, ReqVars),
     out_varnames(Vars, ReqVars, VS).
@@ -270,18 +273,25 @@ convert_type(Other, Other).
 
 req_internalvars([], [], []).
 req_internalvars([R|RS], [G|GS], [D|DS]) :-
-    get_dict(reqid, R, RID),
+    get_dict(lando_req, R, LR),
+    get_dict(req_name, LR, RID),
     normalize_kind2_var(RID, V),
-    get_dict(fulltext, R, FT),
-    get_dict(semantics, R, Sem),
+
+    get_dict(fret_req, LR, Fretish),
+    emit_fretish(Fretish, FT),
+
+    get_dict(requirement, R, JReq),
+    get_dict(semantics, JReq, Sem),
     get_dict('CoCoSpecCode', Sem, E),
+
     format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, E ]),
     format(atom(G), 'guarantee "~w" ~w;', [RID, V]),
     req_internalvars(RS, GS, DS).
 
 is_req_var(VName, Reqs) :-
     member(Req, Reqs),
-    get_dict(semantics, Req, ReqSem),
+    get_dict(requirement, Req, JReq),
+    get_dict(semantics, JReq, ReqSem),
     get_dict(variables, ReqSem, Vars),
     member(VName, Vars),
     !.
