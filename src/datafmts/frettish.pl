@@ -302,8 +302,7 @@ duration_upper(D, P) --> lexeme(number, Dur, SP),
                          { pos(SP, LP, P),
                            % ensure JSON outputs numbers as a string because
                            % that's how FRET does it.
-                           format(atom(DA), "~w ", [Dur]),
-                           atom_string(DA, D)
+                           format_str(D, "~w ", [Dur])
                          }.
 
 timeunit(P) --> lexeme(token, "tick", P).
@@ -347,26 +346,24 @@ bool_term("true", [], P) --> lexeme(true, P).
 bool_term("false", [], P) --> lexeme(false, P).
 bool_term(V, Vars, P) --> lexeme(if, IP), bool_expr(Cnd, CVars, _CP),
                           lexeme(then, _), bool_expr(Thn, TVars, TP),
-                          { format(atom(X), '(~w) => (~w)', [ Cnd, Thn ]),
-                            atom_string(X, V),
+                          { format_str(V, '(~w) => (~w)', [ Cnd, Thn ]),
                             append(CVars, TVars, Vars),
                             pos(IP, TP, P)
                           }.
 bool_term(V, [], P) --> lexeme(num, V, P).
 bool_term(V, Vars, P) --> lexeme(not_, LP),
                           bool_term(NV, Vars, NP),
-                          { format(atom(X), '(! ~w)', [NV]), atom_string(X, V) },
+                          { format_str(V, '(! ~w)', [NV]) },
                           { pos(LP, NP, P) }.
 bool_term(V, Vars, P) --> lexeme(lparen, LP),
                           bool_expr(PV, Vars, _),
-                          { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
+                          { format_str(V, '(~w)', [PV]) },
                           lexeme(rparen, RP),
                           { pos(LP, RP, P) }.
 bool_term(V, VS, P) --> lexeme(word, I, SP),
                         lexeme(lparen, _), args(AV, VS), lexeme(rparen, RP),
                         {
-                            format(atom(X), '~w(~w)', [I, AV]),
-                            atom_string(X, V),
+                            format_str(V, '~w(~w)', [I, AV]),
                             pos(SP, RP, P)
                         }.
 bool_term(V, [V], P) --> lexeme(word, V, P).
@@ -388,8 +385,7 @@ bool_exprMoreBin(LT, LV, LP, Matcher, Op, V, Vars, P) -->
 %%     bool_exprMore(XS, XV, XP, V, Vars, P).
 
 args(A, AV) --> arg(FA, FAV), lexeme(comma, _), args(MA, MAV),
-                { format(atom(X), "~w, ~w", [FA, MA]),
-                  atom_string(X, A),
+                { format_str(A, "~w, ~w", [FA, MA]),
                   append(FAV, MAV, AV)
                 }.
 args(A, AV) --> arg(A, AV).
@@ -404,11 +400,11 @@ numeric_term(V, [], P) --> lexeme(num, V, P).
 numeric_term(V, [V], P) --> lexeme(word, V, P).
 numeric_term(V, Vars, P) --> lexeme(minus_, LP),
                              numeric_term(NV, Vars, NP),
-                             { format(atom(X), '(-~w)', [NV]), atom_string(X, V) },
+                             { format_str(V, '(-~w)', [NV]) },
                              { pos(LP, NP, P) }.
 numeric_term(V, Vars, P) --> lexeme(lparen, LP),
                              numeric_expr(PV, Vars, _),
-                             { format(atom(X), '(~w)', [PV]), atom_string(X, V) },
+                             { format_str(V, '(~w)', [PV]) },
                              lexeme(rparen, RP),
                              { pos(LP, RP, P) }.
 % KWQ: ^ - * / + - (E)
@@ -431,8 +427,7 @@ num(N, P) --> dig(N, P).
 dig(D, span(P, P)) --> [ (P,D) ], { char_type(D, digit) }.
 
 binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) :-
-    format(atom(X), '~w ~w ~w', [ LT, Op, RT ]),
-    atom_string(X, XS),
+    format_str(XS, '~w ~w ~w', [ LT, Op, RT ]),
     pos(LP, RP, XP),
     append(LV, RV, XV).
 

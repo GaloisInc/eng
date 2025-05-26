@@ -12,6 +12,7 @@
                     get_dict_or/4,
                     ensure_dir/1,
                     ensure_file_loc/1,
+                    format_str/3,
                     format_lines/2,
                     write_strings/2,
                     %% classification_marks/1,
@@ -118,6 +119,11 @@ string_contains(Str, Part) :-
 get_dict_or(Key, Dict, _, Val) :- get_dict(Key, Dict, Val), !.
 get_dict_or(_, _, Def, Def).
 
+% Given a format specification, arguments, and a Variable, return the application
+% of the arguments to the format specification as a string result.
+format_str(V, Fmt, Args) :- format(atom(A), Fmt, Args), atom_string(A, V).
+
+% Given a format specification and a list, print each list element using the format.
 format_lines(_, []).
 format_lines(Fmt, [E|ES]) :-
     format(Fmt, E),
