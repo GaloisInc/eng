@@ -338,7 +338,7 @@ scenarios_var_name(SpecElement, VName, "Output") :-
     scenarios_final_var_name(SName, VName).
 
 scenarios_final_var_name(InitName, FinalName) :-
-    string_concat("_", InitName, FinalName).
+    string_concat(InitName, "__NXT", FinalName).
 
 % ----------
 
