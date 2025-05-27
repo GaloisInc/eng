@@ -117,6 +117,8 @@ test(stage_change_natural, [nondet]) :-
                                 responseTextRange:[41, 68]
                               }).
 
+%% ---------------------------------------- SCOPE TESTS
+
 test(stage_change_scope, [nondet]) :-
     Inp = "In awake upon wet the frog shall always satisfy (noise = croaking)",
     ExpOut = "in awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
@@ -130,14 +132,26 @@ test(stage_change_scope, [nondet]) :-
 
 test(expr_scope, [nondet]) :-
     Inp = "while mind = awake upon wet the frog shall always satisfy (noise = croaking)",
-    ExpOut = "in mind = awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    ExpOut = "while mind = awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
     parse_fret("test", Inp, FretMent),
     check_scs_scope(FretMent, "in", [ "mind", "awake" ], ExpOut,
-                    ranges{ scopeTextRange:[0, 14],
-                            conditionTextRange:[16, 25],
-                            componentTextRange:[27, 34],
-                            timingTextRange:[42, 47],
-                            responseTextRange:[49, 76]
+                    ranges{ scopeTextRange:[0, 17],
+                            conditionTextRange:[19, 28],
+                            componentTextRange:[30, 37],
+                            timingTextRange:[45, 50],
+                            responseTextRange:[52, 79]
+                          }).
+
+test(expr_inv_scope, [nondet]) :-
+    Inp = "except while mind = awake upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "except while mind = awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "notin", [ "mind", "awake" ], ExpOut,
+                    ranges{ scopeTextRange:[0, 24],
+                            conditionTextRange:[26, 35],
+                            componentTextRange:[37, 44],
+                            timingTextRange:[52, 57],
+                            responseTextRange:[59, 86]
                           }).
 
 test(stage_change_scope_during, [nondet]) :-
@@ -150,6 +164,78 @@ test(stage_change_scope_during, [nondet]) :-
                             componentTextRange:[20, 27],
                             timingTextRange:[35, 40],
                             responseTextRange:[42, 69]
+                          }).
+
+test(stage_change_scope_when_in, [nondet]) :-
+    Inp = "when in awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "in awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "in", ExpOut,
+                    ranges{ scopeTextRange:[0, 7],
+                            conditionTextRange:[9, 18],
+                            componentTextRange:[20, 27],
+                            timingTextRange:[35, 40],
+                            responseTextRange:[42, 69]
+                          }).
+
+test(stage_change_scope_if_in, [nondet]) :-
+    Inp = "if in awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "in awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "in", ExpOut,
+                    ranges{ scopeTextRange:[0, 7],
+                            conditionTextRange:[9, 18],
+                            componentTextRange:[20, 27],
+                            timingTextRange:[35, 40],
+                            responseTextRange:[42, 69]
+                          }).
+
+test(stage_change_scope_only_in, [nondet]) :-
+    Inp = "only in awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "only in awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "onlyIn", ExpOut,
+                    ranges{ scopeTextRange:[0, 12],
+                            conditionTextRange:[14, 23],
+                            componentTextRange:[25, 32],
+                            timingTextRange:[40, 45],
+                            responseTextRange:[47, 74]
+                          }).
+
+test(stage_change_scope_only_if_in, [nondet]) :-
+    Inp = "only if in awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "only in awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "onlyIn", ExpOut,
+                    ranges{ scopeTextRange:[0, 12],
+                            conditionTextRange:[14, 23],
+                            componentTextRange:[25, 32],
+                            timingTextRange:[40, 45],
+                            responseTextRange:[47, 74]
+                          }).
+
+test(stage_change_scope_only_when_in, [nondet]) :-
+    Inp = "only when in awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "only in awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "onlyIn", ExpOut,
+                    ranges{ scopeTextRange:[0, 12],
+                            conditionTextRange:[14, 23],
+                            componentTextRange:[25, 32],
+                            timingTextRange:[40, 45],
+                            responseTextRange:[47, 74]
+                          }).
+
+test(stage_change_scope_only_during, [nondet]) :-
+    Inp = "only during awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "only in awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "onlyIn", ExpOut,
+                    ranges{ scopeTextRange:[0, 12],
+                            conditionTextRange:[14, 23],
+                            componentTextRange:[25, 32],
+                            timingTextRange:[40, 45],
+                            responseTextRange:[47, 74]
                           }).
 
 test(stage_change_scope_in, [nondet]) :-
@@ -177,6 +263,19 @@ test(stage_change_scope_after, [nondet]) :-
                           },
                     false, false).
 
+test(stage_change_scope_only_after, [nondet]) :-
+    Inp = "Only after awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "only after awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "onlyAfter", ExpOut,
+                    ranges{ scopeTextRange:[0, 15],
+                            conditionTextRange:[17, 26],
+                            componentTextRange:[28, 35],
+                            timingTextRange:[43, 48],
+                            responseTextRange:[50, 77]
+                          },
+                    false, false).
+
 test(stage_change_scope_before, [nondet]) :-
     Inp = "Before awake mode upon wet the frog shall always satisfy (noise = croaking)",
     ExpOut = "before awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
@@ -187,6 +286,19 @@ test(stage_change_scope_before, [nondet]) :-
                             componentTextRange:[24, 31],
                             timingTextRange:[39, 44],
                             responseTextRange:[46, 73]
+                          },
+                    false, false).
+
+test(stage_change_scope_only_before, [nondet]) :-
+    Inp = "Only before awake mode upon wet the frog shall always satisfy (noise = croaking)",
+    ExpOut = "only before awake upon (wet) the frog shall always satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scs_scope(FretMent, "onlyBefore", ExpOut,
+                    ranges{ scopeTextRange:[0, 16],
+                            conditionTextRange:[18, 27],
+                            componentTextRange:[29, 36],
+                            timingTextRange:[44, 49],
+                            responseTextRange:[51, 78]
                           },
                     false, false).
 
@@ -204,9 +316,6 @@ test(stage_change_scope_before_cond, [nondet]) :-
                           },
                     false, false).
 
-% TODO scope only ...
-% TODO scope except ...
-
 check_scs_scope(FretMent, ScopeType, ExpOut, Ranges, Exclusive, Required) :-
     check_scs_scope(FretMent, ScopeType, ExpOut, Ranges),
     FretMent = fretment(scope_info(SFret, _SVars),
@@ -214,9 +323,10 @@ check_scs_scope(FretMent, ScopeType, ExpOut, Ranges, Exclusive, Required) :-
                         component_info(_Comp),
                         timing_info(_Timing, _TVars),
                         response_info(_Responses, _RespVars)),
-    get_dict(exclusive, SFret, Excl),
+    get_dict(scope, SFret, Scp),
+    get_dict(exclusive, Scp, Excl),
     assertion(Excl == Exclusive),
-    get_dict(required, SFret, Rqrd),
+    get_dict(required, Scp, Rqrd),
     assertion(Rqrd == Required).
 
 check_scs_scope(F, S, ExpOut, Ranges) :- check_scs_scope(F, S, ["awake"], ExpOut, Ranges).
@@ -259,57 +369,6 @@ check_scs_scope(FretMent, ScopeType, ScopeVars, ExpOut, Ranges) :-
     assertion(Out == Out2),
     assertion(OutRanges == Ranges).
 
-test(bool_exprs, [nondet]) :-
-    Inp = "Before awake | light | !true upon wet | persisted(3, damp) the frog shall always satisfy (noise = croaking & (!asleep) | (noise != silent) & (noise > silent) & (noise = (307 - 5 + 6 / 1 * 2 ^ 32345)) & !false)",
-    ExpOut = "before awake | light | (! true) upon (wet | persisted(3, damp)) the frog shall always satisfy ((noise = croaking & ((! asleep)) | (noise != silent) & (noise > silent) & (noise = (307 - 5 + 6 / 1 * 2 ^ 32345)) & (! false))).",
-    Ranges = ranges{ scopeTextRange:[0, 30],
-                     conditionTextRange:[32, 62],
-                     componentTextRange:[64, 71],
-                     timingTextRange:[79, 84],
-                     responseTextRange:[86, 221]
-                   },
-    parse_fret("test", Inp, FretMent),
-    ScopeVars = ["awake", "light"],
-    FretMent = fretment(scope_info(SFret, SVars),
-                        condition_info(CFret, CVars),
-                        component_info(Comp),
-                        timing_info(Timing, TVars),
-                        response_info(Responses, RespVars)),
-    get_dict(scope, SFret, Scope),
-    get_dict(type, Scope, SType),
-    assertion(SType == "before"),
-    get_dict(scope_mode, SFret, SMode),
-    assertion(SMode == "awake | light | (! true)"),
-    assertion(SVars == ScopeVars),
-    get_dict(condition, CFret, Condition),
-    get_dict(qualifier_word, CFret, Qualifier),
-    get_dict(pre_condition, CFret, PreCond),
-    get_dict(regular_condition, CFret, RegCond),
-    assertion(Condition == "regular"),
-    assertion(Qualifier == "upon"),
-    assertion(PreCond == "(wet | persisted(3, damp))"),
-    assertion(RegCond == "(wet | persisted(3, damp))"),
-    assertion(CVars == ["wet", "damp"]),
-    get_dict(component, Comp, CompName),
-    assertion(CompName == "frog"),
-    get_dict(timing, Timing, Tmng),
-    assertion(Tmng == "always"),
-    assertion(TVars == []),
-    get_dict(response, Responses, Rspns),
-    get_dict(post_condition, Responses, PostCond),
-    assertion(Rspns == "satisfaction"),
-    assertion(PostCond == "((noise = croaking & ((! asleep)) | (noise != silent) & (noise > silent) & (noise = (307 - 5 + 6 / 1 * 2 ^ 32345)) & (! false)))"),
-    assertion(RespVars == [ "noise", "croaking", "asleep", "silent" ]),
-    emit_fretish(FretMent, Out),
-    assertion(Out == ExpOut),
-    emit_fretish(FretMent, Out2, OutRanges),
-    assertion(Out == Out2),
-    assertion(OutRanges == Ranges),
-    get_dict(exclusive, SFret, Excl),
-    assertion(Excl == false),
-    get_dict(required, SFret, Rqrd),
-    assertion(Rqrd == false).
-
 test(stage_change_scope_invert, [nondet]) :-
     Inp = "When not in awake mode whenever wet the frog shall never satisfy (noise = croaking)",
     ExpOut = "unless in awake whenever (wet) the frog shall never satisfy ((noise = croaking)).",
@@ -336,6 +395,54 @@ test(stage_change_scope_invert_if, [nondet]) :-
 
 test(stage_change_scope_invert_unless, [nondet]) :-
     Inp = "unless in awake mode whenever wet the frog shall never satisfy (noise = croaking)",
+    ExpOut = "unless in awake whenever (wet) the frog shall never satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scsi_with_timing(FretMent, "never", ExpOut,
+                           ranges{ scopeTextRange:[0, 14],
+                                   conditionTextRange:[16, 29],
+                                   componentTextRange:[31, 38],
+                                   timingTextRange:[46, 50],
+                                   responseTextRange:[52, 79]
+                                 }).
+
+test(stage_change_scope_except_in, [nondet]) :-
+    Inp = "Except in awake mode whenever wet the frog shall never satisfy (noise = croaking)",
+    ExpOut = "unless in awake whenever (wet) the frog shall never satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scsi_with_timing(FretMent, "never", ExpOut,
+                           ranges{ scopeTextRange:[0, 14],
+                                   conditionTextRange:[16, 29],
+                                   componentTextRange:[31, 38],
+                                   timingTextRange:[46, 50],
+                                   responseTextRange:[52, 79]
+                                 }).
+
+test(stage_change_scope_except_if_in, [nondet]) :-
+    Inp = "Except if in awake mode whenever wet the frog shall never satisfy (noise = croaking)",
+    ExpOut = "unless in awake whenever (wet) the frog shall never satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scsi_with_timing(FretMent, "never", ExpOut,
+                           ranges{ scopeTextRange:[0, 14],
+                                   conditionTextRange:[16, 29],
+                                   componentTextRange:[31, 38],
+                                   timingTextRange:[46, 50],
+                                   responseTextRange:[52, 79]
+                                 }).
+
+test(stage_change_scope_except_when_in, [nondet]) :-
+    Inp = "Except when in awake mode whenever wet the frog shall never satisfy (noise = croaking)",
+    ExpOut = "unless in awake whenever (wet) the frog shall never satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scsi_with_timing(FretMent, "never", ExpOut,
+                           ranges{ scopeTextRange:[0, 14],
+                                   conditionTextRange:[16, 29],
+                                   componentTextRange:[31, 38],
+                                   timingTextRange:[46, 50],
+                                   responseTextRange:[52, 79]
+                                 }).
+
+test(stage_change_scope_except_during, [nondet]) :-
+    Inp = "Except during awake mode whenever wet the frog shall never satisfy (noise = croaking)",
     ExpOut = "unless in awake whenever (wet) the frog shall never satisfy ((noise = croaking)).",
     parse_fret("test", Inp, FretMent),
     check_scsi_with_timing(FretMent, "never", ExpOut,
@@ -403,6 +510,61 @@ check_scsi_with_timing_common(FretMent, Timing, TimingVars, ExpOut, Ranges) :-
     emit_fretish(FretMent, Out2, OutRanges),
     assertion(Out == Out2),
     assertion(OutRanges == Ranges).
+
+%% ---------------------------------------- EXPRESSION TESTS
+
+test(bool_exprs, [nondet]) :-
+    Inp = "Before awake | light | !true upon wet | persisted(3, damp) the frog shall always satisfy (noise = croaking & (!asleep) | (noise != silent) & (noise > silent) & (noise = (307 - 5 + 6 / 1 * 2 ^ 32345)) & !false)",
+    ExpOut = "before awake | light | (! true) upon (wet | persisted(3, damp)) the frog shall always satisfy ((noise = croaking & ((! asleep)) | (noise != silent) & (noise > silent) & (noise = (307 - 5 + 6 / 1 * 2 ^ 32345)) & (! false))).",
+    Ranges = ranges{ scopeTextRange:[0, 30],
+                     conditionTextRange:[32, 62],
+                     componentTextRange:[64, 71],
+                     timingTextRange:[79, 84],
+                     responseTextRange:[86, 221]
+                   },
+    parse_fret("test", Inp, FretMent),
+    ScopeVars = ["awake", "light"],
+    FretMent = fretment(scope_info(SFret, SVars),
+                        condition_info(CFret, CVars),
+                        component_info(Comp),
+                        timing_info(Timing, TVars),
+                        response_info(Responses, RespVars)),
+    get_dict(scope, SFret, Scope),
+    get_dict(type, Scope, SType),
+    assertion(SType == "before"),
+    get_dict(scope_mode, SFret, SMode),
+    assertion(SMode == "awake | light | (! true)"),
+    assertion(SVars == ScopeVars),
+    get_dict(condition, CFret, Condition),
+    get_dict(qualifier_word, CFret, Qualifier),
+    get_dict(pre_condition, CFret, PreCond),
+    get_dict(regular_condition, CFret, RegCond),
+    assertion(Condition == "regular"),
+    assertion(Qualifier == "upon"),
+    assertion(PreCond == "(wet | persisted(3, damp))"),
+    assertion(RegCond == "(wet | persisted(3, damp))"),
+    assertion(CVars == ["wet", "damp"]),
+    get_dict(component, Comp, CompName),
+    assertion(CompName == "frog"),
+    get_dict(timing, Timing, Tmng),
+    assertion(Tmng == "always"),
+    assertion(TVars == []),
+    get_dict(response, Responses, Rspns),
+    get_dict(post_condition, Responses, PostCond),
+    assertion(Rspns == "satisfaction"),
+    assertion(PostCond == "((noise = croaking & ((! asleep)) | (noise != silent) & (noise > silent) & (noise = (307 - 5 + 6 / 1 * 2 ^ 32345)) & (! false)))"),
+    assertion(RespVars == [ "noise", "croaking", "asleep", "silent" ]),
+    emit_fretish(FretMent, Out),
+    assertion(Out == ExpOut),
+    emit_fretish(FretMent, Out2, OutRanges),
+    assertion(Out == Out2),
+    assertion(OutRanges == Ranges),
+    get_dict(exclusive, Scope, Excl),
+    assertion(Excl == false),
+    get_dict(required, Scope, Rqrd),
+    assertion(Rqrd == false).
+
+%% ---------------------------------------- TIMING TESTS
 
 test(stage_change_scope_invert_eventually, [nondet]) :-
     % n.b. identical to stage_change_scope_invert except timing
@@ -526,6 +688,20 @@ test(stage_change_scope_invert_within_3s, [nondet]) :-
                                    componentTextRange:[31, 38],
                                    timingTextRange:[46, 60],
                                    responseTextRange:[62, 89]
+                                 }).
+
+test(stage_change_scope_invert_within_321s, [nondet]) :-
+    % n.b. identical to stage_change_scope_invert except timing
+    Inp = "When not in awake mode whenever wet the frog shall within 321 seconds satisfy (noise = croaking)",
+    ExpOut = "unless in awake whenever (wet) the frog shall within 321  ticks satisfy ((noise = croaking)).",
+    parse_fret("test", Inp, FretMent),
+    check_scsi_with_timing(FretMent, "within", "321 ",
+                           ExpOut,
+                           ranges{ scopeTextRange:[0, 14],
+                                   conditionTextRange:[16, 29],
+                                   componentTextRange:[31, 38],
+                                   timingTextRange:[46, 62],
+                                   responseTextRange:[64, 91]
                                  }).
 
 test(stage_change_scope_invert_for_3s, [nondet]) :-

@@ -8,7 +8,9 @@
 %% Parses a FRETish English requirement to a Fret structured requirement, using
 %% the definitions and templates provided to enhance the structured requirement.
 %
-%  Returns: fretment(scope_info({scope:{type:},[SCOPE_VAR_NAMES]),
+%  Returns: fretment(scope_info({scope:{type:},
+%                               [,scope_mode:[, exclusive:bool, required:bool]]
+%                               }, [SCOPE_VAR_NAMES]),
 %                    condition_info({condition:,
 %                                    pre_condition:,
 %                                    qualifier_word:,
@@ -99,16 +101,50 @@ fretish_parts(Fretment, ScopeText, CondText, CompText, TimingText, ResponseText)
 scope_fretish(Scope, ScopeText) :-
     get_dict(scope, Scope, SC),
     get_dict(type, SC, ST),
-    member(ST, ["in", "after", "before"]),
+    member(ST, ["after", "before"]),
     !,
     get_dict(scope_mode, Scope, M),
     format_str(ScopeText, '~w ~w ', [ST, M]).
 scope_fretish(Scope, ScopeText) :-
     get_dict(scope, Scope, SC),
+    get_dict(type, SC, "in"),
+    !,
+    get_dict(scope_mode, Scope, M),
+    split_string(M, " ", "", W),
+    length(W, NumWords),
+    (NumWords == 1
+    -> format_str(ScopeText, 'in ~w ', [M])
+    ;  format_str(ScopeText, 'while ~w ', [M])
+    ).
+scope_fretish(Scope, ScopeText) :-
+    get_dict(scope, Scope, SC),
     get_dict(type, SC, "notin"),
     !,
     get_dict(scope_mode, Scope, M),
-    format_str(ScopeText, 'unless in ~w ', [M]).
+    split_string(M, " ", "", W),
+    length(W, NumWords),
+    (NumWords == 1
+    -> format_str(ScopeText, 'unless in ~w ', [M])
+    ;  format_str(ScopeText, 'except while ~w ', [M])
+    ).
+scope_fretish(Scope, ScopeText) :-
+    get_dict(scope, Scope, SC),
+    get_dict(type, SC, "onlyIn"),
+    !,
+    get_dict(scope_mode, Scope, M),
+    format_str(ScopeText, 'only in ~w ', [M]).
+scope_fretish(Scope, ScopeText) :-
+    get_dict(scope, Scope, SC),
+    get_dict(type, SC, "onlyAfter"),
+    !,
+    get_dict(scope_mode, Scope, M),
+    format_str(ScopeText, 'only after ~w ', [M]).
+scope_fretish(Scope, ScopeText) :-
+    get_dict(scope, Scope, SC),
+    get_dict(type, SC, "onlyBefore"),
+    !,
+    get_dict(scope_mode, Scope, M),
+    format_str(ScopeText, 'only before ~w ', [M]).
 scope_fretish(_, "").
 
 condition_fretish(Condition, "") :- get_dict(condition, Condition, "null"), !.
@@ -148,6 +184,9 @@ response_fretish(Response, ResponseText) :-
 
 %% ----------------------------------------------------------------------
 %% Parsing
+%
+% see FRET: fret/fret-electron/app/parser/Requirement.g4
+%           fret/fret-electron/app/parser/SemanticsAnalyzer.js
 
 % scope conditions component shall timing responses
 fretish(fretment(scope_info(Scope, ScopeVars),
@@ -202,34 +241,123 @@ prolog:message(bad_response_text(EW, EP)) -->
 
 % --------------------------------------------------
 
-scope(Scope, Vars) -->
-    scope_(Scope, Vars), opt_comma.
+% FRET semantics handles "globally" and "strictly", but these are not supported
+% by the FRET parser, so they are not implemented.  The word "strictly" is the
+% only way that exclusive: can be true (so it is never true).
+
+scopeHelp("
+| Scope Type | FRETish               |
+|------------+-----------------------|
+| null       |                       |
+|------------+-----------------------|
+| in         | in MODE               |
+|            | if in MODE            |
+|            | when in MODE          |
+|            | during MODE           |
+|            | while COND            |
+|------------+-----------------------|
+| notin      | except in MODE        |
+|            | except if in MODE     |
+|            | except when in MODE   |
+|            | except during MODE    |
+|            | if not in MODE        |
+|            | when not in MODE      |
+|            | unless in MODE        |
+|            | except while COND     |
+|------------+-----------------------|
+| onlyIn     | only in MODE          |
+|            | only if in MODE       |
+|            | only when in MODE     |
+|            | only during MODE      |
+|------------+-----------------------|
+| after      | after MODE/COND       |
+|------------+-----------------------|
+| onlyAfter  | only after MODE/COND  |
+|------------+-----------------------|
+| before     | before MODE/COND      |
+|------------+-----------------------|
+| onlyBefore | only before MODE/COND |
+|------------+-----------------------|
+").
+
+scope(Scope, Vars) --> scope_(Scope, Vars), opt_comma.
 scope(_{scope:_{type: null}}, []) --> [].
 
-scope_(_{scope:_{type: "after"}, scope_mode:Mode,
-         exclusive: false, required: false}, Vars) -->
-    tok(after), scope_mode(allow_expr, Mode, Vars).
-scope_(_{scope:_{type: "before"}, scope_mode:Mode,
-         exclusive: false, required: false}, Vars) -->
-    tok(before), scope_mode(allow_expr, Mode, Vars).
+scope_(_{scope:_{type: "after", exclusive: false, required: false},
+         scope_mode:Mode}, Vars) -->
+    tok(after),
+    scope_mode(allow_expr, Mode, Vars).
+scope_(_{scope:_{type: "onlyAfter",exclusive: false, required: false},
+         scope_mode:Mode}, Vars) -->
+    tok(only), lexeme(tok(after)),
+    scope_mode(allow_expr, Mode, Vars).
+scope_(_{scope:_{type: "before",exclusive: false, required: false},
+         scope_mode:Mode}, Vars) -->
+    tok(before),
+    scope_mode(allow_expr, Mode, Vars).
+scope_(_{scope:_{type: "onlyBefore",exclusive: false, required: false},
+         scope_mode:Mode}, Vars) -->
+    tok(only), lexeme(tok(before)),
+    scope_mode(allow_expr, Mode, Vars).
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars) -->
-    tok(during), scope_mode(allow_expr, Mode, Vars).
+    tok(during),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
+    tok(except), lexeme(tok(during)),
+    scope_mode(mode_only, Mode, Vars).
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars) -->
-    tok(while), scope_mode(allow_expr, Mode, Vars).
-scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
-    tok(if), lexeme(tok(not)), lexeme(tok(in)), scope_mode(mode_only, Mode, Vars).
+    tok(in),
+    scope_mode(mode_only, Mode, Vars).
 scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars) -->
-    tok(in), scope_mode(mode_only, Mode, Vars).
+    tok(when), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars) -->
+    tok(if), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
 scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
-    tok(when), lexeme(tok(not)), lexeme(tok(in)), scope_mode(mode_only, Mode, Vars).
+    tok(except), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
 scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
-    tok(unless), lexeme(tok(in)), scope_mode(mode_only, Mode, Vars).
+    tok(except), lexeme(tok(if)), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
+    tok(except), lexeme(tok(when)), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "onlyIn"}, scope_mode:Mode}, Vars) -->
+    tok(only), lexeme(tok(during)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "onlyIn"}, scope_mode:Mode}, Vars) -->
+    tok(only), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "onlyIn"}, scope_mode:Mode}, Vars) -->
+    tok(only), lexeme(tok(if)), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "onlyIn"}, scope_mode:Mode}, Vars) -->
+    tok(only), lexeme(tok(when)), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "in"}, scope_mode:Mode}, Vars) -->
+    tok(while),
+    scope_mode(allow_expr, Mode, Vars).
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
+    tok(except), lexeme(tok(while)),
+    scope_mode(allow_expr, Mode, Vars).
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
+    tok(if), lexeme(tok(not)), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
+    tok(when), lexeme(tok(not)), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
+scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
+    tok(unless), lexeme(tok(in)),
+    scope_mode(mode_only, Mode, Vars).
 
 % scope_mode: mode WORD | WORD mode | WORD   % KWQ: make vars for word (state = val)?
 scope_mode(_, Mode, [Mode]) --> lexeme(tok(mode)), lexeme(word, Mode).
 scope_mode(_, Mode, [Mode]) --> lexeme(word, Mode), lexeme(tok(mode)).
 scope_mode(allow_expr, E, V) --> bool_expr(E, V).
 scope_mode(_, Mode, [Mode]) --> lexeme(word, Mode).
+scope_mode(_, "bad", []) -->
+    any(20, I, P), { print_message(error, bad_scope_mode(I, P)), !, fail }.
 
 % --------------------------------------------------
 
@@ -555,5 +683,7 @@ pos(span(S,_), span(_,E), span(S,E)) :- !.
 pos(S, span(0,0), span(S,S)) :- !.
 pos(S, span(_,E), span(S,E)).
 
+prolog:message(bad_scope_mode(V, S)) -->
+    [ 'Expected scope mode at ~w: ~w' - [S, V]].
 prolog:message(invalid_bool_expr(V, S)) -->
     [ 'Expected boolean expression at character ~w: ~w' - [S, V]].
