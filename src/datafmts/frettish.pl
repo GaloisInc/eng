@@ -544,7 +544,8 @@ any_case_match(Candidates, Word) :- to_lower(Word, LCWord),
 
 to_lower(I, O) :- atom_string(IA, I), downcase_atom(IA, OA), atom_string(OA, O).
 
-word(W,P) --> [(N,C)], { word_char(C) }, wc(CS,PE),
+word(W,P) --> [(N,C)], { word_char(C), \+ char_type(C, digit) },
+              wc(CS,PE),
               { string_codes(W, [C|CS]), pos(N, PE, P) }.
 wc([C|CS],P) --> [(N,C)], { word_char(C) }, !, wc(CS,LP), { pos(N, LP, P) }.
 wc([],span(0,0)) --> [].
