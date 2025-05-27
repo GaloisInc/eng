@@ -649,9 +649,3 @@ prolog:message(bad_frettish(Context, English)) -->
 
 fretment_semantics(Fretment, Ranges, Semantics) :-
     fretment_to_fretsemantics(Fretment, Ranges, Semantics).
-
-% --------------------
-
-xform_past_temporal_unbounded(I, I).  % TODO (only for scope mode)
-xform_future_temporal_unbounded(I, I). % TODO
-

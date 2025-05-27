@@ -411,6 +411,9 @@ last_is_FALSE(I, O) :- subst(' LAST ', 'FALSE', I, O).
 
 % --------------------
 
+xform_past_temporal_unbounded(I, I).  % TODO (only for scope mode)
+xform_future_temporal_unbounded(I, I). % TODO
+
 xform_past_temporal(I, O) :-  % provided/returns string
     parse_ltl(I, AST),
     fmap(fret_json:xpt, AST, XAST),
