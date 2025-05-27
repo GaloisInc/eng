@@ -188,6 +188,15 @@ response_fretish(Response, ResponseText) :-
 % see FRET: fret/fret-electron/app/parser/Requirement.g4
 %           fret/fret-electron/app/parser/SemanticsAnalyzer.js
 
+fretishHelp("
+Specify a FRETish statement like one of:
+  [SCOPE] [CONDITION] [the] COMPONENT shall TIMING satisfy RESPONSES
+  [SCOPE] [CONDITION] shall [the] COMPONENT TIMING satisfy RESPONSES
+
+Note: use help! for any of the capitalized sections above to get more
+information on specifying that portion of the FRETish statement.
+").
+
 % scope conditions component shall timing responses
 fretish(fretment(scope_info(Scope, ScopeVars),
                  condition_info(Condition, CondVars),
@@ -231,9 +240,18 @@ fretish(fretment(scope_info(Scope, ScopeVars),
     lexeme(tok(satisfy)),
     !,
     ( responses(Responses, RespVars)
-    ; word(EW, EP), { print_message(error, bad_response_text(EW, EP)) }
+    ; any(20, EW, EP), { print_message(error, bad_response_text(EW, EP)) }
     ).
 
+fretish(help) --> tok(help), [(_, '!')], !,
+                  { print_message(help, fretish_help), fail }.
+fretish(invalid) --> any(40, T, P), !,
+                     { print_message(error, bad_fretish(T, P)), fail }.
+
+prolog:message(fretish_help) --> { fretishHelp(H), scopeHelp(SH) },
+                                 [ '~w~w' - [H, SH] ].
+prolog:message(bad_fretish(T, P)) --> { fretishHelp(H) },
+                                [ 'Bad FRETish statement @ ~w: ~w~n~w' - [P, T, H] ].
 
 prolog:message(bad_response_text(EW, EP)) -->
     [ 'Invalid FRETish Response specification at character ~w: ~w~n'
@@ -278,9 +296,16 @@ scopeHelp("
 |------------+-----------------------|
 | onlyBefore | only before MODE/COND |
 |------------+-----------------------|
+
+MODE is:
+    NAME
+    NAME mode
+    mode NAME
+
+COND is a boolean expression
 ").
 
-scope(Scope, Vars) --> scope_(Scope, Vars), opt_comma.
+scope(Scope, Vars) --> scope_(Scope, Vars), opt_comma, !.
 scope(_{scope:_{type: null}}, []) --> [].
 
 scope_(_{scope:_{type: "after", exclusive: false, required: false},
@@ -352,12 +377,12 @@ scope_(_{scope:_{type: "notin"}, scope_mode:Mode}, Vars) -->
     scope_mode(mode_only, Mode, Vars).
 
 % scope_mode: mode WORD | WORD mode | WORD   % KWQ: make vars for word (state = val)?
-scope_mode(_, Mode, [Mode]) --> lexeme(tok(mode)), lexeme(word, Mode).
-scope_mode(_, Mode, [Mode]) --> lexeme(word, Mode), lexeme(tok(mode)).
-scope_mode(allow_expr, E, V) --> bool_expr(E, V).
+scope_mode(_, Mode, [Mode]) --> lexeme(tok(mode)), lexeme(word, Mode), !.
+scope_mode(_, Mode, [Mode]) --> lexeme(word, Mode), lexeme(tok(mode)), !.
+scope_mode(allow_expr, E, V) --> bool_expr(E, V), !.
 scope_mode(_, Mode, [Mode]) --> lexeme(word, Mode).
 scope_mode(_, "bad", []) -->
-    any(20, I, P), { print_message(error, bad_scope_mode(I, P)), !, fail }.
+    lexeme(any(20, I, P)), { print_message(error, bad_scope_mode(I, P)), !, fail }.
 
 % --------------------------------------------------
 
@@ -665,7 +690,7 @@ word_char(C) :- \+ char_type(C, space),
 any(N, S, P) --> any_(N, L, P), {string_codes(S, L)}.
 any_(N, [C|CS], P) --> [(P,C)], {succ(M, N)}, any_(M, CS, _).
 any_(0, [], span(99,99)) --> [].
-any_(_, "", span(98,98)) --> [].
+any_(_, [], span(98,98)) --> [].
 
 lexeme(R) --> ws(_), !, lexeme(R).
 lexeme(R) --> call(R).
