@@ -618,6 +618,24 @@ timeunit --> lexeme(tok(microsecond)).
 
 % --------------------------------------------------
 
+responsesHelp("
+Specify the responses as one or more boolean expressions
+that specify the set of OUTPUT values that should hold
+when this statement is effective.
+
+Note that this is effectively 'scope+cond => responses', so if scope+cond is
+true, responses must be true, but if scope+cond is false, the overall FRETish
+statement is true.  Thus it may be possible (although confusing) to see a
+realizability conflict with a FRETish statement whose scope+cond is false and
+therefore whose responses portion is NOT true.
+").
+
+prolog:message(responses_help) -->
+    { responsesHelp(H) },
+    [ 'Help for specifying a FRETish responses phrase:~w' - [H] ].
+
+responses(fail, []) --> lexeme(tok(help)), [(_, '!')], !,
+                        { print_message(help, responses_help), fail }.
 responses(_{response: "satisfaction", post_condition: E}, Vars) -->
     postcond(EP, AllVars),
     { format(atom(EA), '(~w)', [EP]), atom_string(EA, E),
@@ -628,18 +646,80 @@ postcond(E, V) --> bool_expr(E, V).
 
 % --------------------------------------------------
 
+bool_exprHelp("
+Boolean expressions:
+
+  | FRETish expr                   | Meaning                   |
+  |--------------------------------+---------------------------|
+  | true                           | literal true              |
+  | false                          | literal false             |
+  | ! EXPR                         | invert                    |
+  | ~ EXPR                         | invert                    |
+  | EXPR & EXPR                    | conjunction               |
+  | EXPR <PIPE> EXPR               | disjunction               |
+  | EXPR xor EXPR                  | exclusive-or              |
+  | if EXPR then EXPR              | implication               |
+  | EXPR -> EXPR                   | implication               |
+  | EXPR => EXPR                   | implication               |
+  | EXPR <-> EXPR                  | biconditional equivalence |
+  | EXPR <=> EXPR                  | biconditional equivalence |
+  | (EXPR)                         | grouping                  |
+  | NUMEXPR RELOP NUMEXPR          | numeric predicate         |
+  | IDENT( BOOL_OR_NUMEXPR [,...]) | function call             |
+
+Numeric expressions (NUMEXPR):
+  |                              |                       |
+  | FRETish expr                 | Meaning               |
+  |------------------------------+-----------------------|
+  | NUMBERS                      | literal numeric value |
+  | NUMEXPR ^ NUMEXPR            | raise to the power    |
+  | - NUMEXPR                    | negation              |
+  | NUMEXPR + NUMEXPR            | addition              |
+  | NUMEXPR - NUMEXPR            | subtraction           |
+  | NUMEXPR * NUMEXPR            | multiplication        |
+  | NUMEXPR / NUMEXPR            | whole division        |
+  | NUMEXPR mod NUMEXPR          | remainder             |
+  | (NUMEXPR)                    | grouping              |
+  | IDENT(BOOL_OR_NUMEXPR [,...] | function call         |
+
+Known functions:
+
+  | Function                     | Meaning                                 |
+  |------------------------------+-----------------------------------------|
+  | occurred(number, BOOL_EXPR)  | The expression was true at least once   |
+  |                              | in the period from the nth-previous     |
+  |                              | tick through the current tick.          |
+  |------------------------------+-----------------------------------------|
+  | persisted(number, BOOL_EXPR) | The expression has been constantly true |
+  |                              | in the period from the nth-previous     |
+  |                              | tick through the current tick.          |
+  |------------------------------+-----------------------------------------|
+
+Note that all boolean and numeric expressions are strictly left associative
+except for explicit sub-expressions in parentheses; there is no operator
+precedence.
+").
+
 bool_expr(V, Vars) --> numeric_expr(LT, LV),
                        relational_op(Op),
-                       numeric_expr(RT, RV),
-                       { binary_(Op, LT, LV, RT, RV, XT, XV) },
-                       bool_exprMore(XT, XV, V, Vars).
+                       !,
+                       bool_expr_(V, Vars, Op, LT, LV).
 bool_expr(V, Vars) --> bool_term(LT, LV),
                        !,
                        bool_exprMore(LT, LV, V, Vars).
 bool_expr(V, []) --> any(20, V, P),
                      { print_message(error, invalid_bool_expr(V, P)), !, fail }.
-bool_term("true", []) --> lexeme(tok("true")).
-bool_term("false", []) --> lexeme(tok("false")).
+bool_expr_(V, Vars, Op, LT, LV) -->
+    numeric_expr(RT, RV),
+    !,
+    { binary_(Op, LT, LV, RT, RV, XT, XV) },
+    bool_exprMore(XT, XV, V, Vars).
+bool_expr_(bad, [], Op, LT, _) -->
+    any(20, V, P),
+    { print_message(error, invalid_partial_bool_expr(Op, LT, V, P)), !, fail }.
+
+bool_term("true", []) --> lexeme(tok(true)).
+bool_term("false", []) --> lexeme(tok(false)).
 bool_term(V, Vars) --> lexeme(tok(if)),   bool_expr(Cnd, CVars),
                        lexeme(tok(then)), bool_expr(Thn, TVars),
                        { format_str(V, '(~w) => (~w)', [ Cnd, Thn ]),
@@ -781,12 +861,13 @@ word_char(C) :- \+ char_type(C, space),
                 \+ member(C, ['(', ')', '.', '!', '?', ':', ',',
                               %% '{', '}', '^', '[', ']', %% XXX?
                               '$',
+                              '=',
                               '/']).
 
 any(N, S, P) --> any_(N, L, P), {string_codes(S, L)}.
 any_(N, [C|CS], P) --> [(P,C)], {succ(M, N)}, any_(M, CS, _).
-any_(0, [], span(99,99)) --> [].
-any_(_, [], span(98,98)) --> [].
+any_(0, [], span(99999,99999)) --> [].
+any_(_, [], span(99998,99998)) --> [].
 
 lexeme(R) --> ws(_), !, lexeme(R).
 lexeme(R) --> call(R).
@@ -807,4 +888,9 @@ pos(S, span(_,E), span(S,E)).
 prolog:message(bad_scope_mode(V, S)) -->
     [ 'Expected scope mode at ~w: ~w' - [S, V]].
 prolog:message(invalid_bool_expr(V, S)) -->
-    [ 'Expected boolean expression at character ~w: ~w' - [S, V]].
+    { bool_exprHelp(H) },
+    [ 'Expected boolean expression at character ~w: ~w~w' - [S, V, H]].
+prolog:message(invalid_partial_bool_expr(Op, LT, V, S)) -->
+    { bool_exprHelp(H) },
+    [ 'Incomplete boolean expression at character ~w: ~w~n  Preceeded by: ~w ~w~w'
+      - [S, V, LT, Op, H]].
