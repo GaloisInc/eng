@@ -450,17 +450,17 @@ arg(A, AV) --> numeric_expr(A, AV, _).
 numeric_expr(E, Vars, P) --> numeric_term(LT, LV, LP),
                              numeric_exprMore(LT, LV, LP, E, Vars, P).
 numeric_term(V, [], P) --> lexeme(num, V, P).
-numeric_term(V, [V], P) --> lexeme(word, V, P).
 numeric_term(V, Vars, P) --> lexeme(minus_, LP),
                              numeric_term(NV, Vars, NP),
                              { format_str(V, '(-~w)', [NV]) },
                              { pos(LP, NP, P) }.
+numeric_term(V, [V], P) --> lexeme(word, V, P).  % variable
 numeric_term(V, Vars, P) --> lexeme(lparen, LP),
                              numeric_expr(PV, Vars, _),
                              { format_str(V, '(~w)', [PV]) },
                              lexeme(rparen, RP),
                              { pos(LP, RP, P) }.
-% KWQ: ^ - * / + - (E)
+% KWQ: (E)
 numeric_exprMore(LT, LV, LP, V, Vars, P) -->
     lexeme_(relational_op, RO),
     numeric_term(RT, RV, RP),
@@ -475,9 +475,18 @@ relational_op("=") --> lexeme(eq_).
 relational_op("<") --> lexeme(lt_).
 relational_op(">") --> lexeme(gt_).
 
-num([N|NS], P) --> dig(N, PD), num(NS, PN), { pos(PD, PN, P) }.
-num(N, P) --> dig(N, P).
-dig(D, span(P, P)) --> [ (P,D) ], { char_type(D, digit) }.
+num(V, P) --> num_(Digits, P), { to_num(Digits, 0, V) }.
+num_([N|NS], P) --> dig(N, PD), num_(NS, PN), { pos(PD, PN, P) }.
+num_([N], P) --> dig(N, P).
+
+to_num([], A, A).
+to_num([D|DS], A, V) :- N is A * 10 + D, to_num(DS, N, V).
+
+dig(D, span(P, P)) --> [ (P,C) ], { char_type(C, digit),
+                                    atom_codes(C, [CS]),
+                                    atom_codes('0', [ZS]),
+                                    plus(ZS, D, CS)
+                                  }.
 
 binary_(Op, LT, LV, LP, RT, RV, RP, XS, XV, XP) :-
     format_str(XS, '~w ~w ~w', [ LT, Op, RT ]),
