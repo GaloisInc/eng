@@ -394,7 +394,7 @@ conditions(_{condition:"null"}, []) --> [].
 
 set_cond(C, AllVars, ReqCond, Vars) :-
     list_to_set(AllVars, Vars),
-    (get_dict(qualifier_word, C, "whenever") -> CND = "noTrigger" ; CND = "regular"),
+    (get_dict(qualifier_word, C, "whenever") -> CND = "holding" ; CND = "regular"),
     put_dict(C, _{condition:CND}, ReqCond).
 
 
