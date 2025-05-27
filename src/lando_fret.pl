@@ -473,6 +473,7 @@ lando_reqs_to_fret_reqs(Defs, [found(ProjName, CompName, SpecElement)|Fnd],
 is_lando_req(E) :- is_dict(E, requirement).
 
 mkReqRef([], _, []).
+mkReqRef(_, noreq, []) :- !.
 mkReqRef(SRefs, Req, ReqRefs) :-
     get_dict(lando_req, Req, LR),
     get_dict(req_id, LR, RID),
