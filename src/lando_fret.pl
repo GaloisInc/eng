@@ -38,13 +38,16 @@
 %                       project:,
 %                       variable_name:}
 %
-%           FMENT = fretment(scope_info({scope:{type:},[SCOPE_VAR_NAMES]),
+%           FMENT = fretment(scope_info({scope:{type:},
+%                                        scope_mode:[, exclusive:bool, required:bool]
+%                                       }, [SCOPE_VAR_NAMES]),
 %                            condition_info({condition:,
 %                                            pre_condition:,
 %                                            qualifier_word:,
 %                                            regular_condition:},[COND_VAR_NAMES]),
 %                            component_info({component:},
-%                            timing_info({timing:},[TIMING_VAR_NAMES]),
+%                            timing_info({timing:[,duration:|stop_condition:]},
+%                                        [TIMING_VAR_NAMES]),
 %                            response_info({response:,
 %                                           post_condition:},[RESPONSE_VAR_NAMES]),
 %

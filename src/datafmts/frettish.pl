@@ -17,7 +17,8 @@
 %                                    regular_condition:},[COND_VAR_NAMES]),
 %                    component_info({component:,
 %                                    component_name:},
-%                    timing_info({timing:},[TIMING_VAR_NAMES]),
+%                    timing_info({timing:[,duration:|stop_condition:]},
+%                                [TIMING_VAR_NAMES]),
 %                    response_info({response:,
 %                                   post_condition:},[RESPONSE_VAR_NAMES]),
 %
@@ -246,9 +247,13 @@ target(fail) -->
     any(20, EW, EP), { print_message(error, bad_component(EW, EP)), !, fail }.
 
 prolog:message(bad_component(EW, EP)) -->
-    { componentHelp(CH) },
+    { componentHelp(H) },
     [ 'Invalid FRETish Component specification at character ~w: ~w~n~w'
-      - [ EP, EW, CH ] ].
+      - [ EP, EW, H ] ].
+prolog:message(bad_timing(EW, EP)) -->
+    { timingHelp(H) },
+    [ 'Invalid FRETish timing specification at character ~w: ~w~n~w'
+      - [ EP, EW, H ] ].
 prolog:message(bad_response_text(EW, EP)) -->
     [ 'Invalid FRETish Response specification at character ~w: ~w~n'
       - [ EP, EW ] ].
@@ -519,6 +524,50 @@ component(_{component: Comp}) --> word(Comp).
 
 % --------------------------------------------------
 
+timingHelp("
+| Effect      | FRETish                |
+|-------------+------------------------|
+| always      |                        |
+|             | always                 |
+|-------------+------------------------|
+| after       | after DURATION         |
+|-------------+------------------------|
+| before      | before COND            |
+|-------------+------------------------|
+| immediately | immediately            |
+|             | initially              |
+|             | at the first timepoint |
+|             | at the same timepoint  |
+|-------------+------------------------|
+| finally     | finally                |
+|             | at the last timepoint  |
+|-------------+------------------------|
+| next        | at the next timepoint  |
+|-------------+------------------------|
+| for         | for DURATION           |
+|-------------+------------------------|
+| eventually  | eventually             |
+|-------------+------------------------|
+| never       | never                  |
+|-------------+------------------------|
+| until       | until COND             |
+|-------------+------------------------|
+| within      | within DURATION        |
+|-------------+------------------------|
+
+DURATION is a number followed by a TIMEUNIT.  The TIMEUNIT is a placeholder and
+does not perform any scaling of the time factor.  Valid TIMEUNIT words are: tick,
+microsecond, millisecond, second, minute, hour, and the plural of those words.
+
+COND is a boolean expression.
+").
+
+prolog:message(timing_help) -->
+    { timingHelp(H) },
+    [ 'Help for specifying a FRETish timing phrase:~w' - [H] ].
+
+timing(fail, []) --> lexeme(tok(help)), [(_, '!')], !,
+                     { print_message(help, timing_help), fail }.
 timing(_{ timing: "always"}, []) --> lexeme(tok(always)).
 timing(_{ timing: "after", duration: Duration }, []) --> lexeme(tok(after)),
                                                          duration_lower(Duration).
@@ -543,8 +592,8 @@ timing(_{ timing: "until", stop_condition: Cond }, Vars) --> lexeme(tok(until)),
                                                              bool_expr(Cond, Vars).
 timing(_{ timing: "within", duration: Duration }, []) --> lexeme(tok(within)),
                                                           duration_upper(Duration).
-timing(_{ timing: "always"}) --> [],
-                                 { writeln('warning, defaulting to always timing: may not have understood timing phrase') }.
+timing(fail, []) --> any(20, T, P),
+                     { print_message(error, bad_timing(T, P)), !, fail }.
 
 duration_lower(D) --> duration_upper(D).
 duration_upper(D) --> lexeme(num, Dur),
@@ -554,18 +603,18 @@ duration_upper(D) --> lexeme(num, Dur),
                         format_str(D, "~w ", [Dur])
                       }.
 
-timeunit --> lexeme(tok(tick)).
 timeunit --> lexeme(tok(ticks)).
-timeunit --> lexeme(tok(hour)).
+timeunit --> lexeme(tok(tick)).
 timeunit --> lexeme(tok(hours)).
-timeunit --> lexeme(tok(minute)).
+timeunit --> lexeme(tok(hour)).
 timeunit --> lexeme(tok(minutes)).
-timeunit --> lexeme(tok(second)).
+timeunit --> lexeme(tok(minute)).
 timeunit --> lexeme(tok(seconds)).
-timeunit --> lexeme(tok(millisecond)).
+timeunit --> lexeme(tok(second)).
 timeunit --> lexeme(tok(milliseconds)).
-timeunit --> lexeme(tok(microsecond)).
+timeunit --> lexeme(tok(millisecond)).
 timeunit --> lexeme(tok(microseconds)).
+timeunit --> lexeme(tok(microsecond)).
 
 % --------------------------------------------------
 
