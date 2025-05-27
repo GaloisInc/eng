@@ -314,8 +314,8 @@ precond(E, V) --> bool_expr(E, V), !.  % green cut for performance
 
 % --------------------------------------------------
 
-component(_{component: Comp, component_name: Comp}) --> tok(the), lexeme(word, Comp).
-component(_{component: Comp, component_name: Comp}) --> word(Comp).
+component(_{component: Comp}) --> tok(the), lexeme(word, Comp).
+component(_{component: Comp}) --> word(Comp).
 
 % --------------------------------------------------
 

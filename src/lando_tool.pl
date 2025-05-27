@@ -175,7 +175,7 @@ ww_csv(OutStrm, R, srcref(ReqTag, ReqSrc), ReqTag) :-
     get_dict(req_name, LR, I),
     get_dict(fret_req, LR, Fretment),
     Fretment = fretment(_, _, component_info(Comp), _, _),
-    get_dict(component_name, Comp, C),
+    get_dict(component, Comp, C),
     emit_fretish(Fretment, T),
     format(OutStrm, '~w,~w,~w,~w,~w,~w,"~w"~n',
            [P, C, ReqTag, ReqSrc, I, "UNCHECKED", T]).

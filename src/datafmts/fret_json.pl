@@ -42,6 +42,10 @@ fretment_to_fretsemantics(Fretment, Ranges, JSONDict) :-
                         component_info(Comp),
                         timing_info(Timing, TimingVars),
                         response_info(Response, RespVars)),
+
+    % Now "hydrate" the information with all of the additional things that the
+    % FRET tool expects to find in the JSON form.
+
     append([ScopeVars, CondVars, TimingVars, RespVars], AllVars),
     list_to_set(AllVars, Vars),
     SemanticsBase = semantics{ type: "nasa",
@@ -61,7 +65,8 @@ fretment_to_fretsemantics(Fretment, Ranges, JSONDict) :-
     put_dict(Sem1, ConditionJSON, Sem2),  % TODO: if no condition, this is null and breaks the next
 
     get_dict(componentTextRange, Ranges, CTR),
-    put_dict(Comp, _{componentTextRange: CTR}, CompJSON),
+    get_dict(component, Comp, CN),
+    put_dict(Comp, _{componentTextRange: CTR, component_name: CN}, CompJSON),
     put_dict(Sem2, CompJSON, Sem3),
 
     get_dict(timingTextRange, Ranges, TTR),

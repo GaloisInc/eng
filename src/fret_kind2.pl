@@ -127,7 +127,7 @@ req_comp_name(Req, CompName) :-
     get_dict(lando_req, Req, LR),
     get_dict(fret_req, LR, Fretment),
     Fretment = fretment(_, _, component_info(Comp), _, _),
-    get_dict(component_name, Comp, CompName).
+    get_dict(component, Comp, CompName).
 
 req_out_varnames(Vars, FretReq, VS) :-
     get_dict(requirement, FretReq, Req),
