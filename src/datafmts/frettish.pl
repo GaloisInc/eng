@@ -395,6 +395,8 @@ bool_expr(V, Vars) --> numeric_expr(LT, LV, LP),
                        bool_exprMore(XT, XV, XP, V, Vars).
 bool_expr(V, Vars) --> bool_term(LT, LV, LP),
                        bool_exprMore(LT, LV, LP, V, Vars).
+bool_expr(V, Vars, P) --> any(20, V, P),
+                          { print_message(error, invalid_bool_expr(V, P)), !, fail }.
 bool_term("true", [], P) --> lexeme(token("true", P)).
 bool_term("false", [], P) --> lexeme(token("false", P)).
 bool_term(V, Vars, P) --> lexeme(token("if", IP)), bool_expr(Cnd, CVars),
@@ -564,6 +566,11 @@ number(N) --> digit(N).
 digit(D) --> [ (_,D) ],
              { member(D, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']) }. % KWQ: char_code numeric
 
+any(N, S, P) --> any_(N, L, P), {string_codes(S, L)}.
+any_(N, [C|CS], P) --> [(P,C)], {succ(M, N)}, any_(M, CS, _).
+any_(0, [], span(99,99)) --> [].
+any_(_, "", span(98,98)) --> [].
+
 lexeme(R) --> ws(_), !, lexeme(R).
 lexeme(R) --> call(R).
 
@@ -586,3 +593,6 @@ pos(span(S,E), span(0,0), span(S,E)) :- !.
 pos(span(S,_), span(_,E), span(S,E)) :- !.
 pos(S, span(0,0), span(S,S)) :- !.
 pos(S, span(_,E), span(S,E)).
+
+prolog:message(invalid_bool_expr(V, S)) -->
+    [ 'Expected boolean expression at character ~w: ~w' - [S, V]].
