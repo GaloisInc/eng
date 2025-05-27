@@ -204,13 +204,8 @@ fretish(fretment(scope_info(Scope, ScopeVars),
                  timing_info(Timing, TimingVars),
                  response_info(Responses, RespVars)
                 )) -->
-    scope(Scope, ScopeVars),
-    %% {format('....scope: ~w~n', [Scope])},
-    conditions(Condition, CondVars),
-    %% {format('....conditions: ~w with ~w~n', [Condition, CondVars])},
-    component(Comp),
-    %% {format('....component: ~w~n', [Comp])},
-    lexeme(tok(shall)),
+    intro(Scope, ScopeVars, Condition, CondVars),
+    target(Comp),
     !,
     timing(Timing, TimingVars),
     %% {format('....timing: ~w~n', [Timing])},
@@ -220,28 +215,6 @@ fretish(fretment(scope_info(Scope, ScopeVars),
     ; word(EW, EP), { print_message(error, bad_response_text(EW, EP)) }
     ).
 
-% scope conditions shall component timing responses
-fretish(fretment(scope_info(Scope, ScopeVars),
-                 condition_info(Condition, CondVars),
-                 component_info(Comp),
-                 timing_info(Timing, TimingVars),
-                 response_info(Responses, RespVars)
-                )) -->
-    scope(Scope, ScopeVars),
-    %% {format('....scope: ~w~n', [Scope])},
-    conditions(Condition, CondVars),
-    %% {format('....conditions: ~w with ~w~n', [Condition, CondVars])},
-    lexeme(tok(shall)),
-    !,
-    component(Comp),
-    %% {format('._..component: ~w~n', [Comp])},
-    timing(Timing, TimingVars),
-    %% {format('....timing: ~w~n', [Timing])},
-    lexeme(tok(satisfy)),
-    !,
-    ( responses(Responses, RespVars)
-    ; any(20, EW, EP), { print_message(error, bad_response_text(EW, EP)) }
-    ).
 
 fretish(help) --> tok(help), [(_, '!')], !,
                   { print_message(help, fretish_help), fail }.
@@ -253,6 +226,29 @@ prolog:message(fretish_help) --> { fretishHelp(H), scopeHelp(SH) },
 prolog:message(bad_fretish(T, P)) --> { fretishHelp(H) },
                                 [ 'Bad FRETish statement @ ~w: ~w~n~w' - [P, T, H] ].
 
+intro(Scope, ScopeVars, Condition, CondVars) -->
+    scope(Scope, ScopeVars),
+    %% {format('....scope: ~w~n', [Scope])},
+    conditions(Condition, CondVars).
+    %% {format('....conditions: ~w with ~w~n', [Condition, CondVars])}.
+
+target(Comp) -->
+    component(Comp),
+    %% {format('....component: ~w~n', [Comp])},
+    lexeme(tok(shall)),
+    !.
+target(Comp) -->
+    lexeme(tok(shall)),
+    !,
+    component(Comp).
+    %% {format('....component: ~w~n', [Comp])},
+target(fail) -->
+    any(20, EW, EP), { print_message(error, bad_component(EW, EP)), !, fail }.
+
+prolog:message(bad_component(EW, EP)) -->
+    { componentHelp(CH) },
+    [ 'Invalid FRETish Component specification at character ~w: ~w~n~w'
+      - [ EP, EW, CH ] ].
 prolog:message(bad_response_text(EW, EP)) -->
     [ 'Invalid FRETish Response specification at character ~w: ~w~n'
       - [ EP, EW ] ].
@@ -386,9 +382,38 @@ scope_mode(_, "bad", []) -->
 
 % --------------------------------------------------
 
-conditions(ReqCond, Vars) --> tok(and), cond_(C,AllVars),
+conditionHelp("
+Specify a condition as one or more qualified boolean expressions
+that specify the set of input values for this statement to hold.
+
+                                         +-----repeat if desired--+
+                                         |                        |
+                                         v                        |
+| start | QUAL     | PRECOND           | separator | QUAL | PRECOND | end |
+|-------+----------+-------------------+-----------+------+---------+-----|
+|       | upon     | BOOLEXPR          | ,         | QUAL | PRECOND |     |
+| [and] | whenever | BOOLEXPR is true  | [,] and   |      |         | ,   |
+|       | when     | BOOLEXPR is false | [,] or    |      |         |     |
+|       | unless   |                   |           |      |         |     |
+|       | where    |                   |           |      |         |     |
+|       | if       |                   |           |      |         |     |
+
+The 'and' and 'or' separators have equal priority and all conditions are
+joined as left-associative.  More explicit control of the condition can
+be achieved by using a single PRECOND with appropriate parentheses to
+control order of evaluation.
+").
+
+prolog:message(condition_help) -->
+    { conditionHelp(H) },
+    [ 'Help for specifying a FRETish condition:~w' - [H] ].
+
+conditions(fail, []) --> tok(help), [(_, '!')], !,
+                         { print_message(help, condition_help), fail }.
+
+conditions(ReqCond, Vars) --> tok(and), cond_(C,AllVars), !,
                               { set_cond(C, AllVars, ReqCond, Vars) }.
-conditions(ReqCond, Vars) --> cond_(C,AllVars),
+conditions(ReqCond, Vars) --> cond_(C,AllVars), !,
                               { set_cond(C, AllVars, ReqCond, Vars) }.
 conditions(_{condition:"null"}, []) --> [].
 
@@ -403,18 +428,25 @@ cond_(C,V) --> qcond1_(C,V), opt_comma.
 
 qcond1_(C,Vars) -->
     lexeme(tok(unless)),
+    !,
     lexeme(precond, E, Vars),
     { !, qcond1_false_("unless",E,C)}.
 qcond1_(C,Vars) -->
     lexeme(qualifier, Q),
-    lexeme(precond, E, Vars), lexeme(tok(is)), lexeme(tok(true)),
-    { !, qcond1_true_(Q,E,C)}.
-qcond1_(C,Vars) -->
-    lexeme(qualifier, Q),
-    lexeme(precond, E, Vars), lexeme(tok(is)), lexeme(false),
-    { !, qcond1_false_(Q,E,C)}.
-qcond1_(C,Vars) -->
-    lexeme(qualifier, Q), lexeme(precond, E, Vars), { qcond1_true_(Q,E,C)}.
+    !,  % green cut
+    qcond1__(C, Q, Vars).
+
+qcond1__(C, Q, Vars) -->
+    lexeme(precond, E, Vars),
+    !,  % green cut
+    qcond1___(C, Q, E).
+
+qcond1___(C, Q, E) --> lexeme(tok(is)), lexeme(tok(true)), !,  % green cut
+                       { qcond1_true_(Q,E,C) }.
+qcond1___(C, Q, E) --> lexeme(tok(is)), lexeme(tok(false)), !,  % green cut
+                       { qcond1_false_(Q,E,C) }.
+qcond1___(C, Q, E) --> { qcond1_true_(Q,E,C) }.
+
 qcond1_true_(Q,E,C) :-
     format(atom(PCA), "(~w)", [E]), atom_string(PCA, PC),
     C = _{ qualifier_word:Q,
@@ -467,7 +499,22 @@ precond(E, V) --> bool_expr(E, V), !.  % green cut for performance
 
 % --------------------------------------------------
 
-component(_{component: Comp}) --> tok(the), lexeme(word, Comp).
+componentHelp("
+A FRETish component is a regular name (as an identifier: no spaces
+or unusual characters), optionally preceeded by 'the'.
+
+Note that FRETish statements and associated variables are segregated
+by the component: different components will be evaluated entirely
+separately.
+").
+
+prolog:message(component_help) -->
+    { componentHelp(H) },
+    [ 'Help for specifying a FRETish component:~w' - [H] ].
+
+component(fail) --> tok(help), [(_, '!')], !,
+                    { print_message(help, component_help), fail }.
+component(_{component: Comp}) --> tok(the), !, lexeme(word, Comp).
 component(_{component: Comp}) --> word(Comp).
 
 % --------------------------------------------------
