@@ -462,11 +462,17 @@ numeric_term(V, Vars, P) --> lexeme(lparen, LP),
                              { pos(LP, RP, P) }.
 % KWQ: (E)
 numeric_exprMore(LT, LV, LP, V, Vars, P) -->
-    lexeme_(relational_op, RO),
-    numeric_term(RT, RV, RP),
+    lexeme_(numeric_op, RO),
+    numeric_expr(RT, RV, RP),
     { binary_(RO, LT, LV, LP, RT, RV, RP, XT, XV, XP) },
     numeric_exprMore(XT, XV, XP, V, Vars, P).
 numeric_exprMore(LT, LV, LP, LT, LV, LP) --> [].
+
+numeric_op("^") --> lexeme(exp_).
+numeric_op("*") --> lexeme(times_).
+numeric_op("/") --> lexeme(div_).
+numeric_op("+") --> lexeme(plus_).
+numeric_op("-") --> lexeme(minus_, _).
 
 relational_op("!=") --> lexeme(neq_).
 relational_op("<=") --> lexeme(lteq_).
@@ -523,6 +529,10 @@ not_(span(P,P)) --> [(P,'!')].
 eq_ --> [(P,'=')].
 neq_ --> [(P,'!=')].
 minus_(span(P,P)) --> [(P,'-')].
+plus_ --> [(P,'+')].
+times_ --> [(P,'*')].
+div_ --> [(P,'/')].
+exp_ --> [(P,'^')].
 
 tok(M) --> word(W), { any_case_match([A], W), atom_string(A,M) }.
 token(M,P) --> word(W,P), { any_case_match([M], W) }.
