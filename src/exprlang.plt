@@ -18,27 +18,37 @@ rtpe(LangDef, Inp, ExpABT) :-
 
 langdef1(
     langdef{
+        types: [ number, bool ],
+        atoms: [ lit, num ],
         phrases:
-        [ term(number, num, [term(N, number), T]>>fmt_str(T, '~w', [N])),
-          term(bool, [true]>>word(true), emit_simple_term),
-          term(bool, [false]>>word(false), emit_simple_term),
-          term(ident, word, emit_simple_term),
-          expop(add ⦂ num → num → num, infix(tok('+')), emit_infix("+")),
-          expop(sub ⦂ num → num → num, infix(tok('-')), emit_infix("-")),
-          expop(cmpeq ⦂ a → a → bool, infix(chrs('==')), emit_infix("=="))
+        [ term(num ⦂ number, num, [term(num(N), number), T]>>fmt_str(T, '~w', [N])),
+          term(lit ⦂ bool, [true]>>word(true), emit_simple_term(lit)),
+          term(lit ⦂ bool, [false]>>word(false), emit_simple_term(lit)),
+          term(ident ⦂ a, word, emit_simple_term(ident)),
+          expop(add ⦂ number → number → number, infix(tok('+')), emit_infix("+")),
+          expop(sub ⦂ number → number → number, infix(tok('-')), emit_infix("-")),
+          expop(cmpeq ⦂ a → a → bool, infix(chrs('==')), emit_infix("==")),
+          expop(const ⦂ a → b → a, [[]>>word(const),
+                                    []>>chrs('('),
+                                    subexpr,
+                                    []>>lexeme(chrs(',')),
+                                    subexpr,
+                                    []>>lexeme(chrs(')'))
+                                   ],
+                [F,A,B,T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))
         ]}).
 
 %% --------------------
 
-test(empty, [nondet]) :- rtpe(_, "").
+test(empty, [nondet]) :- rtpe(langdef{phrases:[]}, "").
 
-test(no_langdef, [nondet, fail]) :- rtpe(langdef{terms:[]}, "32").
+test(no_langdef, [nondet, fail]) :- rtpe(langdef{phrases:[]}, "32").
 
 test(num_term, [nondet]) :- langdef1(LangDef1), rtpe(LangDef1, "32").
 
 test(space_num_term, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "   3278234998", term(3278234998, number)).
+    rtpe(LangDef1, "   3278234998", term(num(3278234998), number)).
 
 test(word_term, [nondet]) :-
     langdef1(LangDef1),
@@ -50,32 +60,45 @@ test(space_word_term, [nondet]) :-
 
 test(true_term, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "    true", term(true, bool)).
+    rtpe(LangDef1, "    true", term(lit(true), bool)).
 
 test(infix_expr_term, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "hello_f1rst", term("hello_f1rst", ident)).
+    rtpe(LangDef1, "hello_f1rst", term(ident("hello_f1rst"), type_unassigned)).
 
 test(infix_expr_terms, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "32 + 54", add(term(32, number), term(54, number))).
+    rtpe(LangDef1, "32 + 54",
+         term(add(term(num(32), number), term(num(54), number)), number)).
 
 test(infix_expr_nested, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 + 19 - 54 + 87",
-         add(term(32, number),
-             sub(term(19, number),
-                 add(term(54, number), term(87, number))))).
+         term(add(term(num(32), number),
+                  term(sub(term(num(19), number),
+                           term(add(term(num(54), number), term(num(87), number)),
+                                number)),
+                       number)),
+              number)).
 
 test(infix_expr_bool, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "32 == 19", cmpeq(term(32, number), term(19, number))).
+    rtpe(LangDef1, "32 == 19",
+         term(cmpeq(term(num(32), number), term(num(19), number)), bool)).
 
-test(infix_expr_bool_badtypes, [nondet]) :-
+test(infix_expr_bool_badtypes, [nondet, fail]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "32 == false", cmpeq(term(32, number), term(false, bool))).
+    rtpe(LangDef1, "32 == false", cmpeq(term(num(32), number),
+                                        term(lit(false), bool))).
 
 test(infix_expr_bool_ident, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 == some_num",
-         cmpeq(term(32, number), term("some_num", ident))).
+         term(cmpeq(term(num(32), number), term(ident("some_num"), number)),
+              bool)).
+
+test(multiarg_non_static_types, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(32, some_num)",
+         term(const(term(num(32), number), term(ident("some_num"), type_unassigned)),
+              number)).
