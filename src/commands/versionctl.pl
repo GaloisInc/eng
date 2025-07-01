@@ -44,6 +44,9 @@ vctl_help(Info) :-
 |    vctl =
 |      darcs =
 |        complement = COMPLEMENT_REPO_PATHS
+|      git =
+|        URL =
+|          remote_CA = any_cert | file(FILENAME) | certificate(TEXT)
 |      subproject =
 |        NAME =
 |          into = PATH
@@ -60,6 +63,11 @@ vctl_help(Info) :-
 | be supplied along with the --complement flag; this is useful for filtering
 | out patches from the upstream repository that should not be considered for
 | pulling into the local repository by moving them to the complement repository.
+|
+| The git URL setting is optional and can help specify certificate authorities
+| if the target URL does not validate with a system-managed CA.  The "any_cert"
+| setting bypasses verification of the SSL certificate; this is not generally
+| adviseable but may be useful in situations where a private certificate is used.
 |
 | Subprojects:
 |
@@ -178,6 +186,7 @@ vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
 %
 %   git(DIR)                    % DIR contains the .git directory
 %   git(DIR, forge(URL, Auth))  % Like above, but with git remote origin info
+%                               % where Auth is http_get options
 %   darcs(DIR)                  % DIR contains the _darcs directory
 %   darcs(DIR, git(..))         % Like above, but with the git backing dir (for dgsync)
 %
@@ -195,7 +204,7 @@ vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
             [], TopDir, [GitForgeURL|_]),
     atom_string(URLAtom, GitForgeURL),
     git_remote_url(URLAtom, URL),
-    git_repo_PAT_hdr(URL, Auth).
+    git_repo_AUTH(URL, Auth).
 
 vcs_tool_git(_Context, InDir, git(InDir)) :-
     directory_file_path(InDir, ".git", VCSDir),
@@ -225,6 +234,11 @@ git_remote_url(Remote, URL) :-
     string_concat("https://", SlashRemote, URLString),
     parse_url(URLString, URL).
 
+git_repo_AUTH(URL, Auth) :-
+    git_repo_PAT_hdr(URL, PAT),
+    git_repo_cert(URL, Cert),
+    append([PAT, Cert], Auth).
+
 %% git_repo_PAT_hdr(URL, [ 'PRIVATE-TOKEN'(PAT) ]) :-
 git_repo_PAT_hdr(URL, [authorization(bearer(PAT))]) :-
     member(host(H), URL),
@@ -232,6 +246,12 @@ git_repo_PAT_hdr(URL, [authorization(bearer(PAT))]) :-
     eng:eng(vctl, 'access token', HA, PAT), !,
     print_message(information, using_pat(H)).
 git_repo_PAT_hdr(_, []).
+
+git_repo_cert(URL, [cert_verify_hook(ssl:cert_accept_any)]) :-
+    eng:eng(vctl, git, URL, remote_CA, any_cert), !.
+git_repo_cert(URL, [ca_certs([CA])]) :-
+    eng:eng(vctl, git, URL, remote_CA, CA), !.
+git_repo_cert(_, []).
 
 git_repo_path(URL, PathParts) :-
     member(path(P), URL),
