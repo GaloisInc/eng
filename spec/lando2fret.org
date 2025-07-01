@@ -26,7 +26,7 @@ Conversion from Lando to FRET:
 
     FRET viability analysis will group requirements into different connected
     components (CC's) and provide Compositional analysis of each CC.  The CC
-    grouping is determined by the set of variables referenced in the FRETtish
+    grouping is determined by the set of variables referenced in the FRETish
     "responses" portion.
 
     Often times it is useful to use a symbolic reference to a state rather than a
@@ -41,22 +41,22 @@ Conversion from Lando to FRET:
 
 ** Approach
 
-    Lando provides a good basis for providing the FRETtish specifications in a
+    Lando provides a good basis for providing the FRETish specifications in a
     manner that resolves the above concerns:
       * Lando is a text document that can be maintained in a VCS;
       * The history and merging of changes is easily understood and accomplished
         via a human (or automated means).
       * The natural elements in a Lando specification are very similar to the
-        elements that a FRETtish statement will reference.
+        elements that a FRETish statement will reference.
       * Lando allows for the specification of extra information associated with
         the elements, providing the description and usage information for the
-        elements in the FRETtish specification (i.e. the domain model and data
+        elements in the FRETish specification (i.e. the domain model and data
         dictionary).
 
     Thus, this document describes the functionality of tooling that will
     recognize specific Lando syntax and export that syntax to a FRET JSON file in
     a format that can be directly imported into FRET and used for FRET
-    operations.  It may still be helpful to use FRET to develop the FRETtish
+    operations.  It may still be helpful to use FRET to develop the FRETish
     statements (as it provides much more online guidance to the process), but the
     resulting should then be replicated in the Lando document as the original
     source.
@@ -108,7 +108,7 @@ Conversion from Lando to FRET:
     variable for the initial state, and one "Output" variable for the final
     state).
 
-    The scenario names can be reference in FRETtish statements, and this Lando
+    The scenario names can be reference in FRETish statements, and this Lando
     extraction will generate an ~Internal~ variable for the integer value of each
     named scenario.
 
@@ -129,11 +129,11 @@ Conversion from Lando to FRET:
 
     #+end_example
 
-    The FRETtish statement can simply refer to the scenario value and the
-    exported FRETtish to declare their equality to the initial or final state
+    The FRETish statement can simply refer to the scenario value and the
+    exported FRETish to declare their equality to the initial or final state
     variable, depending on where they appear (the scope or condition v.s. the
     responses).  If the corresponding section alreaqdy references the associated
-    state variable, the exported FRETtish is unchange.
+    state variable, the exported FRETish is unchange.
 
     For example, the following statement would be passed to FRET unchanged:
     #+begin_example
@@ -202,7 +202,7 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
   % Wrote lando spec "car" to fret file car_fret.json
   #+end_example#
 
-* Sample FRETtish statements
+* Sample FRETish statements
 
 ** Change of state
 
@@ -262,17 +262,17 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
 
 * Differences between FRET and eng validation
 
- The FRET tool will convert FRETtish requirements and associated variables into
+ The FRET tool will convert FRETish requirements and associated variables into
  kind2 contracts that are embedded in Lustre to perform realization checking of
- those FRETtish requirements using kind2 plus an SMT solver (e.g. z3).
+ those FRETish requirements using kind2 plus an SMT solver (e.g. z3).
 
  The eng tool can generate a JSON file that can be imported into FRET for this
  purpose, or it can alternatively generate the kind2 input directly.  The former
- is useful when initially developing the FRETtish statements since the
+ is useful when initially developing the FRETish statements since the
  highlighting and semantics help of the FRET tool provide useful feedback.
  However, the eng-to-kind2 methodology is capable of generating more efficient
  and extensible kind2 input and is the preferred methodology once the initial
- FRETtish exploration has occurred.
+ FRETish exploration has occurred.
 
  Those differences are documented below.
 
@@ -316,7 +316,7 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
  #+end_example
 
  When specified in this manner, only the *value names* need to be referenced in
- the FRETtish specified in the Lando file; the values are automatically assigned,
+ the FRETish specified in the Lando file; the values are automatically assigned,
  and the reference to the state variable is automatically supplied (both in
  export to FRET-importable JSON or to kind2 validation).
 
@@ -324,7 +324,7 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
  upon state_var = running the X shall immediately satisfy ...
  #+end_example
 
- This is a convenience that allows more compact FRETtish statements to be
+ This is a convenience that allows more compact FRETish statements to be
  specified (hopefully improving readability/understandability).
 
 ** Value enums
@@ -365,11 +365,11 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
 
 *** Background
 
-  The collection of FRETtish requirements that the user creates will be grouped
+  The collection of FRETish requirements that the user creates will be grouped
   into "connected components" (CC) by the tool.  A CC is defined by the Venn
-  overlap of output variables associated with the FRETtish statement (generally,
-  variables mentioned in the ~Timing~ or ~Response~ sections of the FRETtish
-  statement; FRETtish statements that don't overlap in output variables are
+  overlap of output variables associated with the FRETish statement (generally,
+  variables mentioned in the ~Timing~ or ~Response~ sections of the FRETish
+  statement; FRETish statements that don't overlap in output variables are
   unrelated and can be assigned to separate CC's.  Performing ~kind2~
   realizability checks on a per-CC basis can be more efficient because only the
   subset of requirements in the CC must be checked as opposed to *all*
@@ -442,11 +442,11 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
   node imported foo(inp1: integer; inp2: boolean) returns (out1: integer)
   (*@contract
 
-    (* FRETtish... *)
-    var req1 = ...Lustre form of FRETtish...;
+    (* FRETish... *)
+    var req1 = ...Lustre form of FRETish...;
 
-    (* FRETtish... *)
-    var req1 = ...Lustre form of FRETtish...;
+    (* FRETish... *)
+    var req1 = ...Lustre form of FRETish...;
 
     guarantee req1;
     guarantee req2;
@@ -464,11 +464,11 @@ Once configured in this manner, the ~eng~ ~system~ commands can be used:
   contract fooSPEC(inp1: integer; inp2: boolean) returns (out1: integer)
   let
 
-    (* FRETtish... *)
-    var req1 = ...Lustre form of FRETtish...;
+    (* FRETish... *)
+    var req1 = ...Lustre form of FRETish...;
 
-    (* FRETtish... *)
-    var req1 = ...Lustre form of FRETtish...;
+    (* FRETish... *)
+    var req1 = ...Lustre form of FRETish...;
 
     guarantee req1;
     guarantee req2;

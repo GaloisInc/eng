@@ -19,3 +19,11 @@ doc =
 
      Describes the Lando markup syntax needed for embedding FRET specifications
      in Lando and the process rules for extraction and conversion to FRET.
+
+ fret_eng_design =
+    type = design document
+    title = FRET and eng design details
+    location = spec/FRET_eng_design.org
+    abstract =
+      This document describes the overall functionality of the ~FRET~ tool
+      and the corresponding implementation via the ~eng~ tool.

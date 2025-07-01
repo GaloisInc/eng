@@ -1,0 +1,329 @@
+This document describes the overall functionality of the ~FRET~ tool and the
+corresponding implementation via the ~eng~ tool.
+
+This is a companion document to the [[lando2fret.org]] document which describes how
+the FRET and associated Variable definitions are extracted from a Lando document.
+
+* General theory of operations
+
+ The FRET tool has several functions, but the primary function is to convert
+ user-supplied FRETish statements along with Variable definitions into
+ Lustre/CoCoSpec specifications to provide to the University of Iowa [[github:kind2-mc/kind2][kind2]] tool
+ to validate those contract specifications (i.e. guarantees) to ensure
+ realizability of the FRETish requirements.  Realizability checks will detect
+ incomplete or conflicting requirements.
+
+ The ~eng~ tool replicates the FRET primary functionality using Lando-embedded
+ FRETish and Variable specifications, as well as extending the use of the ~kind2~
+ tool for model checking and trace generation (to allow
+ requirements-to-implementation traceability).  The ~eng~ tool implementation was
+ originally developed to be faithful to the FRET tooling, but has since diverged
+ in order to support this extended functionality and provide a more intentional
+ processing.  These differences will be discussed below after a discussion of the
+ FRET tool functionality.
+
+ The ~eng~ tool can additionally convert the Land-embedded FRETish and variable
+ information into a JSON import file that can be ingested into the FRET tool.
+ The ~eng~ tool does *not* presently consume the JSON export file from FRET.  The
+ intent of the eng-to-FRET conversion is to allow the user to explort the FRETish
+ specification using the enhanced UI and corresponding feedback from the FRET
+ tool, but otherwise the functionality of the ~eng~ tool is a superset of the
+ functionality of FRET.
+
+** Semantics Extraction
+
+   #+begin_example
+   Sample FRETish:   in M upon C the Thing shall immediately satisfy R.
+                     ^^^^ ^^^^^^     ^^^^^       ^^^^^^^^^^^         ^
+                      |   |          |           |                   |
+                      |   condition  component   timing              responses
+                      scope
+   #+end_example
+
+   The ~component~ portion is used to identify the "module" to which this FRETish
+   applies.  All FRETish referencing the same component will be evaluated
+   concurrently, wherease FRETish for a different component are completely
+   separate (in both contracts and variables) and there is no relation between
+   the two (there can be multiple Projects in FRET, which are also independent,
+   and each Project can have multiple constituent Components).  For the remainder
+   of this document, the discussion refers to FRETish statements with a common
+   component.
+
+   Each of the ~scope~, ~condition~, ~timing~, and ~responses~ is categorized
+   into a "type" for that portion of the FRETish.  For example, the above is:
+   "in", "regular", "immediately", and "satisfaction", respectively.
+
+   These 4 type values are concatenated together with intercalating commas, and
+   the result is used as a look key in a dictionary provided by the
+   ~fret-electron/app/parser/semantics.js~ file in the FRET sources.  This
+   resulting value is itself a dictionary with the representation of
+   corresponding semantics in several different forms with substitution locations
+   identified for the various ~M~, ~C~, "timing", and ~R~ portions of the FRETish
+   statement.
+
+   #+begin_example
+   "in,regular,immediately,satisfaction": {
+     "endpoints": {
+       "left": "Fin_$scope_mode$",
+       "right": "Lin_$scope_mode$",
+       "ptExtleft": "($scope_mode$ and ((not previous TRUE) or (previous not $scope_mode$)))",
+       "ptExtright": "((not $scope_mode$) and (previous $scope_mode$))",
+       "SMVptExtleft": "($scope_mode$ & ((!(Y TRUE)) | (Y (!$scope_mode$))))",
+       "SMVptExtright": "((!$scope_mode$) & (Y $scope_mode$))",
+       "ftExtleft": "((not $scope_mode$) and (not LAST) and next $scope_mode$)",
+       "ftExtright": "($scope_mode$ and (not LAST) and next (not $scope_mode$))",
+       "SMVftExtleft": "((! $scope_mode$) & (! LAST) & (X $scope_mode$))",
+       "SMVftExtright": "($scope_mode$ & (! LAST) & X (! $scope_mode$))",
+       "ftExtleft2": "((not $scope_mode$) and (not LAST) and next $scope_mode$)",
+       "ftExtright2": "($scope_mode$ and (LAST or next (not $scope_mode$)))",
+       "SMVftExtleft2": "((! $scope_mode$) & (! LAST) & (X $scope_mode$))",
+       "SMVftExtright2": "($scope_mode$ & (LAST | X (! $scope_mode$)))"
+     },
+     "ft": "...",
+     "ftExpanded": "...[FT LTL/MTL/MITL with subst markings]...",
+     "pt": "...",
+     "ptExpanded": "...[PT LTL/MTL/MITL with subst markings]...",
+     "CoCoSpecCode": "...[Lustre/CoCoSpec with subst markings]...",
+     "R2U2Code": "Under construction.",
+     "ftInfAU": "...",
+     "ftInfAUExpanded": "...[FT LTL/MTL/MITL with subst markings]...",
+     "ftInfBtw": "...",
+     "ftInfBtwExpanded": "...[FT infinite time LTL/MTL/MITL with subst markings]...",
+     "ftFinBtw": "...",
+     "ftFinBtwExpanded": "...[FT finite time LTL/MTL/MITL with subst markings]...",
+     "ptFinBtw": "...",
+     "ptFinBtwExpanded": "...[PT finite time LTL/MTL/MITL with subst markings]...",
+     "CoCoSpecCodeFinBtw": "...[Lustre/CoCoSpec finite time with subst markings]...",
+     "description": "...[formal english description of semantics]...",
+     "diagram": "...[relative url to SVG diagram]...",
+   },
+   #+end_example
+
+   In the above, the various ~ftX~, ~ptX~, and ~CoCoSpecX~ represent the
+   semantics in different forms.  They typically have sbustitution markings that
+   reference one of the ~endpoints~ specifications, which are in turn references
+   to the ~M~, ~C~, "timing", and ~R~ portions of the FRETish statement.
+
+   Note that there are several forms, and presumably all of these forms are
+   intended to be equivalent, modulo the representation style.
+
+   The various ~M~, ~C~, ~timing~, and ~R~ portions of the FRETish can contain
+   expressions which include references to variables.  The FRET tool provides a
+   separate UI page where the types and input/output/internal usage of the
+   variables are defined; the ~eng~ tool extracts these variables from the Lando as
+   described in the [[lando2fret.org]] document.  The expression syntax is unique to
+   FRETish, but provides a standard set of boolean and numeric operators, along
+   with the following pre-defined functions:
+
+   | Function           | Meaning                                                             | Sense  | Documented |
+   |--------------------+---------------------------------------------------------------------+--------+------------|
+   | occurred(N, X)     | X is true now or sometime within the previous N ticks               | past   | yes        |
+   | occurred(N, M, X)  | X was true sometime between N and M ticks ago (N > M)               | past   | no         |
+   | persisted(N, X)    | X has been true starting N ticks ago                                | past   | yes        |
+   | persisted(N, M, X) | X was true N ticks ago through M ticks ago                          | past   | no         |
+   | prevOcc(P, Q)      | when P was true in the past, so was Q                               | past   | yes        |
+   |--------------------+---------------------------------------------------------------------+--------+------------|
+   | occurs(N, X)       | X is now true or will be true within the next N ticks               | future | yes        |
+   | occurs(N, M, X)    | X will be true one or more times N ticks from now to M ticks. M > N | future | no         |
+   | persists(N, X)     | X is now true and will be for at least N ticks                      | future | yes        |
+   | persists(N, M, X)  | X will be true N ticks from now through M ticks. M > N              | future | yes        |
+   | nextOcc(P, Q)      | the next time P is true, Q will simultaneously be true              | future | yes        |
+
+   * Boolean :: true, false, & (and), | (or), ! (not), => (implies), xor, if X then Y (implies)
+   * Numeric :: +, -, *, /, ^, >, <, >=, <=
+   * General :: =, !=
+
+** FRET export/import
+
+   The FRET tool normally uses several online, local, single-user databases to
+   maintain the information specified by the user.  Unfortunately, this is not
+   amenable to coordinated development and version control.  The Lando format
+   supported by the ~eng~ tool addresses these limitations, and the ~eng~ tool
+   can generate a JSON file that FRET can import to allow viewing the same
+   FRETish and variable specifications from within the latter tool; requirement
+   realization checking can be done via FRET or ~eng~ equivalently.
+
+   The JSON FRET specification consists of a general project-specific header,
+   followed by a list of entries for each FRETish statement, followed by a list
+   of the Variable definitions for the Project+Component.  The entry for each
+   FRETish statement includes the original FRETish, descriptive and
+   identification fields, and entirety of the semantics information above for
+   that statement in a "semantics" field, as well as cross-reference information
+   to the Variables used by that FRETish statement.  The Variables definitions
+   each include name, type, and usage (Input, Output, Internal) of that variable,
+   as well as various auxiliary information and a cross reference of which
+   FRETish statements make use of that variable.
+
+   All fields of the JSON FRET are required.
+
+** Realizability checking with ~kind2~
+
+   In order for FRET to communicate with ~kind2~, it must convert the FRETish
+   (actually, the semantics associated with the FRETish with substitutions for
+   the embedded FRETish expressions) into "CoCoSpec", which is the ~kind2~
+   extension to Lustre for specifying contracts.  CoCoSpec is a superset of
+   Lustre, providing ~mode~, ~assume~, and ~guarantee~ statements as well as
+   interpretation of specific comment forms.
+
+   For ~kind2~/CoCoSpec only past-time specifications are used (n.b. for Lustre).
+
+   The process FRET uses to perform this conversion is:
+
+   1. Parse the FRETish statements
+         - Lex/Parse specification: ~fret-electron/app/parser/Requirement.g4~
+   2. Analyze the parse semantics (~fret-electron/app/parser/SemanticsAnalyzer.js~)
+         1. Determines quad-tuple of types
+         2. Obtains semantics from ~semantics.json~
+         3. Performs subsitution of variables
+         4. Perform various transforms (past and future) on the strings as
+            defined by ~fret-electron~/app/utilities/xform.js~ (in function
+            ~SemanticsAnalyzer.prototype.semantics~).
+   3. Determine CoCoSpec (in function ~SemanticsAnalyzer.prototype.semantics~).
+      This is the specific transform of interest related to 2.4 above; there are
+      other transforms but they are only of interest in properly generating the
+      FRET JSON import file.
+      1. convert ~ptExpanded~ semantics fetch onto AST
+         - ~instantiateToAST~
+           - replaceTemplateVars
+             - substitutes in the FRETish expression portion into the template
+               references in the ~ptExpanded~.  Note that while the name of this
+               function references "Vars", it is referring to the template
+               reference; the substitutions will be FRETish expressions.
+           - utils.salt2smv (~fret-electron/support/utils.js~) string regexp replacements
+             - removes <b> and <i> html tags (and their ending forms)
+             - Changes => to ->
+             - Changes SALT bounds to SMV format
+               - [<=t] to [0,t]
+               - [<t] to [0,t-1]
+               - [=t] to [t,t]
+             - Changes t+1 to corresponding integer value
+             - Removes units (e.g. "seconds")
+             - Note that the original FRETish supports both SMV bounds and SALT
+               bounds specifications.
+           - xform.transformToAST (~fret-electron/support/xform.js~)
+             - astsem.LTLtoAST (~fret-electron/support/LTLParser/LTLASTSemantics.js~)
+               - Lex/Parse specification: ~fret-electron/support/LTLParser/LTL.g4~
+               - *NOTE* here there is an assumption that the FRETish expressions
+                 extracted in step 1 and inserted in step 3.1.replaceTemplateVars
+                 can be parsed as LTL.  They are actually a subset of LTL because
+                 they are also parsed/interpreted for all the other forms the
+                 FRETish can be converted into, so these can use the operations
+                 defined above but do not have access to full LTL syntax.
+           - xform.optimizePT (~fret-electron/support/xform.js~)
+             - booleanSimplifications
+             - pastTimeSimplifications
+      2. convert AST to CoCoSpec (~astsem.ASTtoCoCo~ in ~fret-electron/support/LTLParser/LTLASTSemantics.js~)
+         - The generated CoCoSpec will supply a number of helper functions
+           (see ~fret-electron/support/CommonTemplates/LibraryOfOperators.ejs~).
+         - These helper functions are prepended to each generated kind2 file.
+         - *Note:* some of these helper functions reverse the order of their
+           arguments from the LTL syntax (see ~LTLASTSemantics.js:Reversed~).
+
+   #+begin_example
+
+      ,------------------------------------------------------------+
+      |      ,---------------------------------------------------+ |
+      |      |                 ,-------------------------------+ | |
+      |      |                 |                   ,---------+ | | |
+      |      |                 |                   |         | | | |
+   in M upon C the Thing shall immediately satisfy R.        | | | |
+   ^^^^ ^^^^^^     ^^^^^       ^^^^^^^^^^^         ^         | | | |
+   |    |          |           |                   |         | | | |
+   |    condition  component   timing        responses       | | | |
+   scope   |                  /                   /          | | | |
+   |       +---------------+ /                   /           | | | |
+   |                       | | +----------------'            | | | |
+   +---------------------+ | | |                             | | | |
+                         v v v v                             | | | |
+       semantics.json:  "A,B,C,D": {                         | | | |
+                          "endpoints": { ... },              | | | |
+                 +---------- "left": "...",                  | | | |
+                 | +-------- "right": "...",                 | | | |
+                 | | +------ "SMVptExtleft": "...",          | | | |
+                 | | | +---- "SMVftExtright2": "...",        | | | |
+                 | | | |     ...                             | | | |
+                 | | | |  },                                 | | | |
+         ,--------------- "ptExpanded": "...[PT LTL/MTL/MITL with subst markings]...",
+         |       | | | |  "CoCoSpecCode": "...[Lustre/CoCoSpec with subst markings]...",
+         |       | | | |  ...                                | | | |
+         |       | | | |  },         +-----------------------' | | |
+         |       | | | |             | +-----------------------' | |
+         |       | | | |             | | +-----------------------' |
+         |       | | | |             | | | +-----------------------'
+         |       | | | |             | | | |
+         |       v v v v             v v v v
+         |      replaceTemplateVars in endpoints via regex
+         |               | | | |
+         v               v v v v
+         replace condition references in target LTL via regex
+                        |
+                        v
+                    salt2smv via regex
+                        |
+                        v
+                    LTLtoAST
+                        |
+                        v
+                  booleanSimplifications
+                        |
+                        v
+                 pastTimeSimplifications
+                        |
+                        v
+                    ASTtoCoCoSpec  -----> component_N.lus
+   #+end_example
+
+   Note: the semantics.json file contains CoCoSpecCode; this is displayed to the
+   user in the FRET tool when semantics are requested, but it is *NOT* used to
+   generate the input to ~kind2~; the "ptExpanded" field is used for the input to
+   ~kind2~.
+
+*** Connected Components
+
+   When FRET prepares to write a Component's kind2 specification, it can either
+   write *all* converted FRETish statements into a single kind2 file
+   (i.e. "monolithic" analysis) or it can determine which FRETish statements can
+   interact by looking at their outputs: FRETish statements that overlap in which
+   outputs are affected by the statement can interact with each other and form a
+   "Connected Component", whereas other FRETish statements that do not overlap
+   with a Connected Component's outputs will be part of a separate Connected
+   Component.  Each Connected Component can then be individually analyzed by
+   writing them to different kind2 files and invoking kind2 separately on each
+   file.
+
+* ~eng~ Tool implementation
+
+** Contract checking
+
+  The ~eng~ tool extracts FRETish statements and Variable definitions from the
+  lando file as described in the [[lando2fret.org]] document.  Once FRETish has been
+  obtained, each FRETish statement is parsed via the ~src/datafmts/frettish.pl~
+  specification.  This generates a generic typed-ABT (Abstract Binding Tree)
+  immediately, rather than leaving FRETish expression elements in string form.
+
+  The ~semantics.json~ file (as obtained from the FRET sources) is used to
+  determine the ~ptExpanded~ expression for conversion into Lustre/CoCoSpec; all
+  other entries in the ~semantics.json~ are ignored for kind2 validation.
+
+  There is an explicit ~src/datafmts/~ language specification for LTL that is used
+  to parse the ~ptExpanded~ and generate the generic typed-ABT from that
+  (template substitution locations are special terms in that parse).  The ~eng~
+  tool will then substitute the typed-ABT forms from the FRETish portions into
+  the template subsitution term locations in the ~ptExpanded~ ABT (with
+  typechecking).
+
+  The resulting full--and fully typed--ABT is then converted into Lustre/CoCoSpec
+  using the ~src/datafmts/lustre.pl~ language specification.
+
+** FRET JSON import file
+
+  When generating the FRET JSON import file, the full information from the
+  ~semantics.json~ file is (re-read and) used to create the JSON file.
+
+
+** Differences between ~eng~ and ~FRET~
+
+  1. FRET prefixes variables with two underscores (presumably to avoid conflicts
+     with builtins).  The ~eng~ tool does not perform any prefixing and presumes
+     the user has enough control over the input to eleminate naming collisions
+     there.
