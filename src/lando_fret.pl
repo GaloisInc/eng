@@ -55,10 +55,9 @@
 
 lando_to_fret(LandoSSL, FretRequirements, FretVariables, SrcRefs) :-
     get_dict(body, LandoSSL, Body),
-    get_semantics_defs(SemanticDefs),
-    (extract_fret(SemanticDefs, Body, Reqs, Refs, Status)
-    -> ( fret_results(SemanticDefs, Body, Status, Reqs,
-                      FretRequirements, FretVariables),
+    get_semantics_defs(_),  %% asserts fret_semantics/5 facts used below
+    (extract_fret(Body, Reqs, Refs, Status)
+    -> ( fret_results(Body, Status, Reqs, FretRequirements, FretVariables),
          append(Refs, SrcRefs),
          !  %% green cut to not retry now that it has been successfully converted
        )
@@ -68,10 +67,10 @@ lando_to_fret(LandoSSL, FretRequirements, FretVariables, SrcRefs) :-
 prolog:message(fret_conversion_failed()) --> [ 'Failed to convert Lando to FRET' ].
 prolog:message(fret_conversion_errors(_Cnt)) --> [ 'FRET extractions failed' ].
 
-fret_results(Defs, SSLBody, 0, InpReqs, OutReqs, OutVars) :-
+fret_results(SSLBody, 0, InpReqs, OutReqs, OutVars) :-
     !,
-    collect_vars(Defs, SSLBody, InpReqs, [], OutReqs, OutVars).
-fret_results(_, _, Status, _, _, _) :-
+    collect_vars(SSLBody, InpReqs, [], OutReqs, OutVars).
+fret_results(_, Status, _, _, _) :-
     !,
     print_message(error, fret_conversion_errors(Status)),
     fail.
@@ -80,12 +79,12 @@ resource(fret_semantics, 'src/semantics.json').
 
 % --------------------
 
-collect_vars(_, _, [], [], [], []).
-collect_vars(Defs, SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
+collect_vars(_, [], [], [], []).
+collect_vars(SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
     !,
-    collect_vars(Defs, SSLBody, InpReqs, Vars, OutReqs, OutVars).
-collect_vars(Defs, SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
-    collect_vars(Defs, SSLBody, InpReqs, Vars, SubReqs, SubVars),
+    collect_vars(SSLBody, InpReqs, Vars, OutReqs, OutVars).
+collect_vars(SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
+    collect_vars(SSLBody, InpReqs, Vars, SubReqs, SubVars),
     get_dict(requirement, FretReq, Req),
     get_dict(semantics, Req, Semantics),
     get_dict(variables, Semantics, ReqVars),
@@ -446,20 +445,20 @@ define_fret_semantics(_).  % pass after all backtracking done
 
 :- dynamic lando_fret:fret_semantics/5.
 
-extract_fret(Defs, SSLBody, Reqs, Refs, Status) :-
+extract_fret(SSLBody, Reqs, Refs, Status) :-
     findall(F, find_specElement(SSLBody, lando_fret:is_lando_req, F), Found),
-    lando_reqs_to_fret_reqs(Defs, Found, Reqs, Refs, Status).
+    lando_reqs_to_fret_reqs(Found, Reqs, Refs, Status).
 
 % Create FRET requirements from FRET: indexing statements in Lando requirements
-lando_reqs_to_fret_reqs(_, [], [], [], 0).
-lando_reqs_to_fret_reqs(Defs, [found(ProjName, CompName, SpecElement)|Fnd],
+lando_reqs_to_fret_reqs([], [], [], 0).
+lando_reqs_to_fret_reqs([found(ProjName, CompName, SpecElement)|Fnd],
                         Reqs, ReqRefs, Status) :-
     specElement_ref(SpecElement, Name),
     get_dict(explanation, SpecElement, Expl),
     get_dict(uid, SpecElement, UID),
     get_dict(indexing, SpecElement, Indexing),
 
-    make_fret_reqs(Defs, ProjName, CompName, Name, Expl, UID,
+    make_fret_reqs(ProjName, CompName, Name, Expl, UID,
                    0, Indexing, ThisReqs, Sts),
 
     % Create a mapping from FRET requirements back to the originating source
@@ -468,7 +467,7 @@ lando_reqs_to_fret_reqs(Defs, [found(ProjName, CompName, SpecElement)|Fnd],
     findall(S, source_ref(Indexing, S), SRefs),
     maplist(mkReqRef(SRefs), ThisReqs, ThisReqRefs),
 
-    lando_reqs_to_fret_reqs(Defs, Fnd, NextReqs, NextReqRefs, NextSts),
+    lando_reqs_to_fret_reqs(Fnd, NextReqs, NextReqRefs, NextSts),
     prepend_valid_reqs(ThisReqs, NextReqs, Reqs),
     append([ThisReqRefs, NextReqRefs], ReqRefs),
     Status is Sts + NextSts.
@@ -567,8 +566,8 @@ fret_var_type_(Feature, Type) :-
     string_concat("FRET : ", FT, T),
     string_concat(Type, ".", FT).
 
-make_fret_reqs(_, _, _, _, _, _, _, [], [], 0).
-make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+make_fret_reqs(_, _, _, _, _, _, [], [], 0).
+make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
                Num, [Index|IXS], [Req|Reqs], Sts) :-
     get_dict(key, Index, "FRET"),
     (parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num,
@@ -577,16 +576,16 @@ make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
     ; Cnt = 1
     ),
     succ(Num, NextNum),
-    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+    make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
                    NextNum, IXS, Reqs, NextSts),
     Sts is Cnt + NextSts.
-make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
                Num, [_|IXS], Reqs, Sts) :-
-    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+    make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
                    Num, IXS, Reqs, Sts).
-make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
                Num, [_|IXS], Reqs, Sts) :-
-    make_fret_reqs(Defs, ProjName, CompName, ReqName, Expl, UID,
+    make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
                    Num, IXS, Reqs, Sts).
 
 
