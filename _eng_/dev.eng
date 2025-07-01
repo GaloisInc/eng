@@ -64,6 +64,10 @@ run =
         exec =
           swipl -t main src/top.pl {Args}
 
+    srcfind =
+      Search eng sources for specified regex
+        exec = ag {Args} --perl
+
     cmp_fret_json =
       Compare two FRET JSON export files
         exec = swipl -t compare test/cmp_fret_json.pl {Args}
