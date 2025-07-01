@@ -38,10 +38,10 @@ lando_req_to_fret_json(Lando_Req, JSONDict) :-
 %
 fretment_to_fretsemantics(Fretment, Ranges, JSONDict) :-
     Fretment = fretment(scope_info(Scope, _),
-                        condition_info(Condition, _),
+                        condition_info(Condition),
                         component_info(Comp),
                         timing_info(Timing, _),
-                        response_info(Response, _)),
+                        response_info(Response)),
 
     % Now "hydrate" the information with all of the additional things that the
     % FRET tool expects to find in the JSON form.

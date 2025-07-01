@@ -59,18 +59,6 @@ rtpe(LangDef, Inp, ExpABT, ExpOut) :-
     emit_expr(Language, ABT2, Out2),
     assertion(ExpOut == Out2).
 
-verify_rtpe_results(LangDef, Inp, ExpABT, ExpOut, ABT) :-
-    assertion(ExpABT = ABT),
-    get_dict(language, LangDef, Language),
-    emit_expr(Language, ABT, Out),
-    assertion(ExpOut = Out),
-    % above may have normalized: ensure it is still parseable
-    parse_expr(LangDef, Out, ABT2),
-    !,
-    assertion(ABT == ABT2),
-    emit_expr(Language, ABT2, Out2),
-    assertion(ExpOut == Out2).
-
 
 langdef1(
     langdef{

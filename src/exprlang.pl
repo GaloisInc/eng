@@ -3,6 +3,7 @@
                       parse_expr/3, parse_expr/4, expr/6, expr/7,
                       op(750, xfy, →),
                       op(760, yfx, ⦂),
+                      extract_vars/3,
                       emit_expr/3, emit_simple_term/3, emit_infix/4,
                       % Helpers
                       num/3, word/3, lexeme/3, tok/3, chrs/3,
@@ -255,7 +256,7 @@ rewrite_equivs(Env, term(T, TT), term(T, NT)) :-
     get_dict(typeEquiv, Env, TES),
     member((TT, NT), TES),
     !.
-rewrite_equivs(Env, term(T, TT), term(T, TT)).
+rewrite_equivs(_, term(T, TT), term(T, TT)).
 rewrite_equivs(Env, op(O, OT), op(OO, NT)) :-
     get_dict(typeEquiv, Env, TES),
     member((OT, NT), TES),
@@ -612,6 +613,27 @@ prolog:message(var_already_defined_with_other_type(VName, VType, Type)) -->
 
 
 %% ----------------------------------------------------------------------
+%% ABT helpers
+
+extract_vars(Language, op(O, _), Vars) :-
+    writeln(ev1),
+    O =.. [_|OpArgs],
+    !,
+    writeln(ev2),
+    maplist(extract_vars(Language), OpArgs, OpArgVars),
+    writeln(ev3),
+    append(OpArgVars, SuperVars),
+    list_to_set(SuperVars, Vars).
+extract_vars(Language, term(T, Ty), [V⦂Ty]) :-
+    writeln(ev4),
+    variable_ref(Language, VRefs),
+    member(VRef, VRefs),
+    T =.. [ VRef, V ],
+    !.
+extract_vars(_, term(_, _), []) :- writeln(ev6).
+
+%% ----------------------------------------------------------------------
+%% Emitting
 
 emit_expr(Language, term(P, type_unassigned), Expr) :-
     lang(Language, term(_Term ⦂ TermType, _, TermEmitter)),
