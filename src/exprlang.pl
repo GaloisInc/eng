@@ -1,4 +1,4 @@
-:- module(exprlang, [ parse_expr/3,
+:- module(exprlang, [ parse_expr/3, initial_gamma/1, expr/6,
                       op(750, xfy, →),
                       op(760, yfx, ⦂),
                       emit_expr/3, emit_simple_term/3, emit_infix/5,
@@ -14,7 +14,7 @@ parse_expr(LangDef, Expr, ABT) :-
     string_chars(Expr, ECodes),
     enumerate(ECodes, Input),
     initial_gamma(Env),
-    phrase(expr(LangDef, Env, ABT, FinalEnv), Input).
+    phrase(expr(LangDef, Env, ABT, _FinalEnv), Input).
 
 expr(LangDef, Env, Expr, Env2) -->
     { get_dict(phrases, LangDef, LangPhrases),
@@ -47,14 +47,16 @@ exprMore(LangDef, Env, LeftTerm, OutEnv, term(Expr, OT)) -->
     lexeme(call(OpParser)),
     lexeme(expr(LangDef, Env, RTP, Env1)),
     !,
-    typecheck_binexpr(LangDef, Env1, OpType, [LeftTerm, RTP], OutEnv, [LT, RT], OT),
-    { Expr =.. [Op, LT, RT] }.
+    { typecheck_expr(LangDef, Env1, OpType, [LeftTerm, RTP], [],
+                     OutEnv, [LT, RT], OT),
+      Expr =.. [Op, LT, RT]
+    }.
 exprMore(_, Env, E, Env, E) --> [].
 %% exprMore(_, Env, E, Env, _) -->
 %%     any(20, V, P),
 %%     { print_message(error, invalid_expr(E, V, P)), !, fail }.
 
-exprParts(LangDef, Env, TParam → TPS, [subexpr|Parsers], OpArgs,
+exprParts(LangDef, Env, _ → TPS, [subexpr|Parsers], OpArgs,
           Terms, OutEnv) -->
     !,
     lexeme(expr(LangDef, Env, term(Arg, ArgType), Env1)),
@@ -75,10 +77,7 @@ prolog:message(invalid_expr(E, V, P)) -->
 
 %% ----------------------------------------
 
-initial_gamma(env{ next_free:0,
-                   known_vars:[],  % list of (Name:str, type:atom)
-                   active_tvars:[]
-                 }).
+initial_gamma([]).  % list of (Name:str, type:atom)
 
 typecheck(LangDef, Env, TermID, _Val, TermType, Env, TermType) -->
     { get_dict(atoms, LangDef, LangAtoms),
@@ -95,7 +94,7 @@ typecheck(LangDef, Env, _TermID, Val, TermType, OutEnv, TermType) -->
       % static type to the vari if it has no assigned type.
       fresh_var(Env, Val, TermType, OutEnv)
     }.
-typecheck(_LangDef, Env, _TermID, Val, TermType, OutEnv, ValType) -->
+typecheck(_LangDef, Env, _TermID, Val, _, OutEnv, ValType) -->
     % At this point missing the above indictes that TermType is a type variable
     %% TODO: combine TermID and Val for more precise fresh_var matching?
     fresh_var(Env, Val, typevar, OutEnv, ValType).
@@ -103,17 +102,13 @@ typecheck(_LangDef, Env, _TermID, Val, TermType, OutEnv, ValType) -->
 %%     { print_message(error, invalid_type(TermID, Val, TermType)), !, fail }.
 
 
-typecheck_binexpr(LangDef, Env, ExprType, Terms, OutEnv, OutTerms, OutType) -->
-    { typecheck_expr(LangDef, Env, ExprType, Terms, [], OutEnv, OutTerms, OutType) }.
-
 typecheck_expr(LangDef, Env, LType → RType, [term(LT, LType)|Terms],
                TypeVars, OutEnv, [term(LT, LType)|OTerms], OType) :-
     get_dict(types, LangDef, LangTypes),
     member(LType, LangTypes),
     !,
     typecheck_expr(LangDef, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(LangDef, _, LType → RType, [term(LT, LTType)|Terms],
-               _, _, _, _) :-
+typecheck_expr(LangDef, _, LType → _, [term(LT, LTType)|_], _, _, _, _) :-
     get_dict(types, LangDef, LangTypes),
     member(LType, LangTypes),  % expr sig is fixed type
     member(LTType, LangTypes), % term sig is also fixed type
@@ -141,8 +136,7 @@ typecheck_expr(LangDef, Env, LType → RType, [term(LT, LTType)|Terms],
     member((LType, LTType), TypeVars), % expr type var has been assigned and matches
     !,
     typecheck_expr(LangDef, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(LangDef, _, LType → RType, [term(LT, LTType)|Terms],
-               TypeVars, _, _, _) :-
+typecheck_expr(LangDef, _, LType → _, [term(LT, LTType)|_], TypeVars, _, _, _) :-
     get_dict(types, LangDef, LangTypes),
     member(LTType, LangTypes),  % term type is fixed
     % LTType is fixed, but LType is a variable (or it would have been matched
@@ -163,7 +157,7 @@ typecheck_expr(LangDef, Env, LType → RType, [term(LT, LTType)|Terms],
     !,
     typecheck_expr(LangDef, Env, RType, Terms, [(LType, LTType)|TypeVars],
                    OutEnv, OTerms, OType).
-typecheck_expr(LangDef, Env, LType → RType, [term(ident(LI), LTType)|Terms],
+typecheck_expr(LangDef, Env, LType → RType, [term(ident(LI), _LTType)|Terms],
                TypeVars, OutEnv, [term(ident(LI), AType)|OTerms], OType) :-
     % Neither LType nor LTType are fixed types, otherwise they would have been
     % matched above.
@@ -174,7 +168,7 @@ typecheck_expr(LangDef, Env, LType → RType, [term(ident(LI), LTType)|Terms],
     % And LTType has already or just now been assigned to the same type
     !,
     typecheck_expr(LangDef, Env2, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(LangDef, Env, LType → RType, [term(ident(LI), LTType)|Terms],
+typecheck_expr(LangDef, Env, _LType → RType, [term(ident(LI), LTType)|Terms],
                TypeVars, OutEnv, [term(ident(LI), LTType)|OTerms], OType) :-
     % Neither LType nor LTType are fixed types, otherwise they would have been
     % matched above.  Also, LType has not been assigned a particular value.  In
@@ -183,8 +177,9 @@ typecheck_expr(LangDef, Env, LType → RType, [term(ident(LI), LTType)|Terms],
     % (e.g. const ⦂ a → b → a).
     typecheck_expr(LangDef, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
 typecheck_expr(_, Env, OType, [], TypeVars, Env, [], RType) :-
-    member((OType, RType), TypeVars), !.
-typecheck_expr(_, Env, OType, [], TypeVars, Env, [], OType).
+    member((OType, RType), TypeVars),
+    !.
+typecheck_expr(_, Env, OType, [], _, Env, [], OType).
 typecheck_expr(_, Env, OpType, Terms, _, Env, Terms, OpType) :-
     print_message(error, invalid_expr_types(OpType, Terms)),
     !,
@@ -206,47 +201,41 @@ prolog:message(invalid_expr_types(TypeSpec, Terms)) -->
 % by expression context) as a free variable, updating the Env and possibly
 % returning the pre-determined type from the Env.
 fresh_var(Env, VName, typevar, Env, Type) -->
-    { known_var(Env, VName, Type), ! }.   % already saw this one, same type
+    { known_var(Env, VName, Type), writeln(knownvar__same),
+      % already saw this one, as a variable (up to alpha renaming)
+      !
+    }.
 fresh_var(Env, VName, Type, Env, Type) -->
-    { known_var(Env, VName, Type), ! }.   % already saw this one, same type
+    { known_var(Env, VName, Type), writeln(knownvar__same),
+      % already saw this one, same type
+      ! }.
 fresh_var(Env, VName, Type, Env, badtype) -->
     { known_var(Env, VName, VType), !,
       print_message(var_already_defined_with_other_type(VName, VType, Type)),
       fail
     }.
-fresh_var(Env, VName, typevar, NewEnv, type_unassigned) -->
-    { get_dict(known_vars, Env, KVs),
-      put_dict(known_vars, Env, [var(VName, type_unassigned)|KVs], NewEnv)
-    }.
-fresh_var(Env, VName, VType, NewEnv, VType) -->
-    { get_dict(known_vars, Env, KVs),
-      put_dict(known_vars, Env, [var(VName, VType)|KVs], NewEnv)
-    }.
+fresh_var(Env, VName, typevar, [var(VName, type_unassigned)|Env],
+          type_unassigned) --> [].
+fresh_var(Env, VName, VType, [var(VName, VType)|Env], VType) --> [].
 
 % fresh_var/4 (non-DCG). Called when VName is seen as a term and the VType is
 % known; this either verifies that the VName is already assigned this VType, or
 % else it assigns the VType to the VName in an update environment.
 fresh_var(Env, VName, VType, Env) :-
-    get_dict(known_vars, Env, KVs),
-    member((VName, VType), KVs),
+    member((VName, VType), Env),
     % VName is already assigned this VType
     !.
-fresh_var(Env, VName, VType, NewEnv) :-
-    get_dict(known_vars, Env, KVs),
-    selectchk(var(VName, type_unassigned), KVs, NewKVs),
+fresh_var(Env, VName, VType, [(VName, VType)|Env1]) :-
+    selectchk(var(VName, type_unassigned), Env, Env1),
     % VName is known, now assigning the type.
-    !,
-    put_dict(known_vars, Env, [(VName, VType)|NewKVs], NewEnv).
+    !.
 fresh_var(Env, VName, NewType, Env) :-
-    get_dict(known_vars, Env, KVs),
-    member((VName, VType), KVs),
+    member((VName, VType), Env),
     !,
     print_message(error, cannot_reassign_type(VName, VType, NewType)),
     fail.
 
-known_var(Env, VName, VType) :-
-    get_dict(known_vars, Env, Known),
-    member(var(VName, VType), Known).
+known_var(Env, VName, VType) :- member(var(VName, VType), Env).
 
 prolog:message(var_already_defined_with_other_type(VName, VType, Type)) -->
     [ 'Variable "~w" already defined as ~w, cannot re-define as a ~w'
