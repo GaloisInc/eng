@@ -7,7 +7,7 @@
                       emit_expr/3, emit_simple_term/3, emit_infix/4,
                       % Helpers
                       num/3, word/3, lexeme/3, tok/3, chrs/3,
-                      fmt_str/3
+                      fmt_str/3, fmap_abt/4
                     ]).
 
 :- use_module(library(yall)).
@@ -614,6 +614,14 @@ prolog:message(var_already_defined_with_other_type(VName, VType, Type)) -->
 
 %% ----------------------------------------------------------------------
 %% ABT helpers
+
+fmap_abt(Language, F, op(O, T), R) :-
+    O =.. [Op|Args],
+    maplist(fmap_abt(Language, F), Args, RArgs),
+    FO =.. [Op|RArgs],
+    call(F, op(FO, T), R).
+fmap_abt(_Language, F, term(O, T), R) :- call(F, term(O, T), R).
+
 
 extract_vars(Language, op(O, _), Vars) :-
     writeln(ev1),

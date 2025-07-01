@@ -1,231 +1,146 @@
 % Parses the LTL input text into an AST.
 
-:- module(ltl, [ parse_ltl/2,
-                 emit_ltl/2,
-                 fmap/3,
-                 emit_CoCoSpec/2 ]).
+:- module(ltl, [ define_ltl_language/0,
+                 parse_ltl/2,
+                 emit_ltl/2
+               ]).
 
 :- use_module('../englib').
+:- use_module('../exprlang').
 
+define_ltl_language() :-
+    ltl_langdef(LangDef),
+    define_language(LangDef, _).
 
 parse_ltl(Inp, AST) :-
-    string_chars(Inp, CS),
-    phrase(ltl(RawAST), CS, R), !,
-    (fmap(optimize, RawAST, AST) ; AST = RawAST),
-    ( R == []
-    -> true
-    ; format('  LTL AST: ~w~n  REMAINDER: ~w~n', [ AST, R ])
-    ).
+    ltl_langdef(LangDef),
+    parse_expr(LangDef, Inp, RawAST),
+    get_dict(language, LangDef, Language),
+    (fmap_abt(Language, ltl:optimize, RawAST, AST) ; AST = RawAST).
 
+emit_ltl(AST, Text) :-
+    ltl_langdef(LangDef),
+    get_dict(language, LangDef, Language),
+    emit_expr(Language, AST, Text).
 
-ltl(E) --> boolEx(E).
+% These ops are exported from exprlang, but apparently their precedence is lost
+% (causing →(⦂(if, bool),a) instead of ⦂(if, →(bool,a)) as expected).  Redeclare
+% their precedence here.
+:- op(760, yfx, ⦂).
+:- op(750, xfy, →).
 
-arithEx(E) --> arithTerm(T), arithExMore(T, E).
-%% ltl(expo(E, E)) --> lxm(ltl, E), lxm(expt), lxm(ltl, E).
-arithTerm(neg(E)) --> minus(_), lxm(arith, E).
-%% ltl(mul(E, E)) --> lxm(ltl, E), lxm(mult), lxm(ltl, E).
-%% ltl(div(E, E)) --> lxm(ltl, E), lxm(div), lxm(ltl, E).
-%% ltl(mod(E, E)) --> lxm(ltl, E), lxm(mod), lxm(ltl, E).
-%% ltl(sub(E, E)) --> lxm(ltl, E), lxm(minus), lxm(ltl, E).
-%% ltl(negfloatnum(M,E)) --> lxm(minus), number(M), ['.'], number(E).
-%% ltl(floatnum(M,E)) --> lxm(number, M), ['.'], number(E).
-%% ltl(negnum(N)) --> lxm(minus), number(N).
-%% ltl(num(N)) --> lxm(number, N).
-arithTerm(val(N)) --> lxm(num, N).
-%% ltl(E) --> boolExpr(E, Ls0, Ls).
-%% %% ltl(E) --> boolEx(E).
-arithTerm(E) --> lxm(lp), lxm(arithEx, E), lxm(rp).
-arithTerm(call(I, Args)) --> lxm(ident, I), lp, opArgs(Args), lxm(rp).
-arithTerm(id(I)) --> lxm(ident, I).
-arithExMore(LT, Expr) --> lxm(expt), arithTerm(E), arithExMore(expo(LT, E), Expr).
-arithExMore(LT, Expr) --> lxm(plus), arithTerm(E), arithExMore(add(LT, E), Expr).
-arithExMore(LT, LT) --> [].
-
-boolEx(E) --> boolTerm(T), boolExMore(T, E).
-boolTerm(true) --> lxm(w, "TRUE").
-boolTerm(false) --> lxm(w, "FALSE").
-
-boolTerm(ltlH_bound(B, E)) --> ['H'], bound(B), lxm(boolEx, E).
-boolTerm(ltlH(E)) --> lxm(ltlH), lxm(boolEx, E).
-boolTerm(ltlO_bound(B, E)) --> ['O'], bound(B), lxm(boolEx, E).
-boolTerm(ltlO(E)) --> lxm(ltlO), lxm(boolEx, E).
-boolTerm(ltlG_bound(B, E)) --> ['G'], bound(B), lxm(boolEx, E).
-boolTerm(ltlG(E)) --> lxm(ltlG), lxm(boolEx, E).
-boolTerm(ltlF_bound(B, E)) --> ['F'], bound(B), lxm(boolEx, E).
-boolTerm(ltlF(E)) --> lxm(ltlF), lxm(boolEx, E).
-boolTerm(ltlBefore_bound(B, E)) --> lxm(ltlBefore), bound(B), lxm(boolEx, E).
-boolTerm(ltlBefore(E)) --> lxm(ltlBefore), lxm(boolEx, E).
-boolTerm(ltlAfter_bound(B, E)) --> lxm(ltlAfter), bound(B), lxm(boolEx, E).
-boolTerm(ltlAfter(E)) --> lxm(ltlAfter), lxm(boolEx, E).
-
-boolTerm(ltlY(E)) --> lxm(ltlY), lxm(boolEx, E).
-boolTerm(ltlX(E)) --> lxm(ltlX), lxm(boolEx, E).
-boolTerm(ltlZ(E)) --> lxm(ltlZ), lxm(boolEx, E).
-
-boolTerm(not(E)) --> lxm(not), boolTerm(E).
-boolTerm(E) --> lxm(lp), lxm(boolEx, E), lxm(rp).
-boolTerm(eq(E1,E2)) --> lxm(arithEx, E1), lxm(eq), lxm(arithEx, E2).
-boolTerm(le(E1,E2)) --> lxm(arithEx, E1), lxm(le), lxm(arithEx, E2).
-boolTerm(ge(E1,E2)) --> lxm(arithEx, E1), lxm(ge), lxm(arithEx, E2).
-boolTerm(lt(E1,E2)) --> lxm(arithEx, E1), lxm(lt), lxm(arithEx, E2).
-boolTerm(gt(E1,E2)) --> lxm(arithEx, E1), lxm(gt), lxm(arithEx, E2).
-boolTerm(neq(E1,E2)) --> lxm(arithEx, E1), lxm(neq), lxm(arithEx, E2).
-boolTerm(next(E,E2)) --> lxm(next), boolEx(E), lxm(comma), boolEx(E2).
-boolTerm(prev(E,E2)) --> lxm(prev), boolEx(E), lxm(comma), boolEx(E2).
-boolTerm(boolcall(I,Args)) --> lxm(ident, I), lp, opArgs(Args), lxm(rp).
-boolTerm(boolid(I)) --> lxm(ident, I).
-
-opArgs([Arg|Args]) --> oneArg(Arg), lxm(comma), opArgs(Args).
-opArgs([Arg]) --> oneArg(Arg).
-opArgs([]) --> [].
-
-oneArg(A) --> boolEx(A).
-oneArg(A) --> arithEx(A).
-
-
-boolExMore(LT, Expr) --> lxm(and), boolTerm(E), boolExMore(and(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(or), boolTerm(E), boolExMore(or(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(xor), boolTerm(E), boolExMore(xor(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(implies), boolTerm(E), boolExMore(implies(LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(equiv), boolTerm(E), boolExMore(equiv(LT, E), Expr).
-
-boolExMore(LT, Expr) --> ['S', 'I'], bound(B), boolTerm(E),
-                         boolExMore(ltlSI_bound(B, LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlSI), boolTerm(E),
-                         boolExMore(ltlSI(LT, E), Expr).
-boolExMore(LT, Expr) --> ['S'], bound(B), boolTerm(E),
-                         boolExMore(ltlS_bound(B, LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlS), boolTerm(E),
-                         boolExMore(ltlS(LT, E), Expr).
-boolExMore(LT, Expr) --> ['T'], bound(B), boolTerm(E),
-                         boolExMore(ltlT_bound(B, LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlT), boolTerm(E),
-                         boolExMore(ltlT(LT, E), Expr).
-boolExMore(LT, Expr) --> ['U', 'I'], bound(B), boolTerm(E),
-                         boolExMore(ltlUI_bound(B, LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlUI), boolTerm(E),
-                         boolExMore(ltlUI(LT, E), Expr).
-boolExMore(LT, Expr) --> ['U'], bound(B), boolTerm(E),
-                         boolExMore(ltlU_bound(B, LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlU), boolTerm(E),
-                         boolExMore(ltlU(LT, E), Expr).
-boolExMore(LT, Expr) --> ['V'], bound(B), boolTerm(E),
-                         boolExMore(ltlV_bound(B, LT, E), Expr).
-boolExMore(LT, Expr) --> lxm(ltlV), boolTerm(E),
-                         boolExMore(ltlV(LT, E), Expr).
-boolExMore(LT, LT) --> [].
-
-
-bound(Bnd) --> ['['], range(Bnd), ws_, [']'].
-bound(Bnd) --> ['['], range(Bnd), [']'].
-bound(Bnd) --> ['['], saltBound(Bnd), [']'].
-bound(Bnd) --> ['['], saltBound(Bnd), ws_, [']'].
-
-range(range2(B,E)) --> arithEx(B), [','], arithEx(E).
-range(range1(B)) --> arithEx(B).
-saltBound(salt_eq(E)) --> lxm(eq), lxm(arithEx, E).
-saltBound(salt_le(E)) --> lxm(le), lxm(arithEx, E).
-saltBound(salt_ge(E)) --> lxm(ge), lxm(arithEx, E).
-saltBound(salt_lt(E)) --> lxm(lt), lxm(arithEx, E).
-saltBound(salt_gt(E)) --> lxm(gt), lxm(arithEx, E).
-saltBound(salt_neq(E)) --> lxm(neq), lxm(arithEx, E).
-
-comma() --> [ ',' ].
-lp() --> [ '(' ].
-rp() --> [ ')' ].
-expt() --> [ '^' ].
-mult() --> [ '*' ].
-div() --> [ '/' ].
-plus() --> [ '+' ].
-minus(m) --> [ '-' ].
-not() --> [ '!' ].
-and() --> [ '&' ].
-or() --> [ '|' ].
-xor() --> [ 'x', 'o', 'r' ].
-xor() --> [ 'X', 'o', 'r' ].
-xor() --> [ 'x', 'O', 'R' ].
-xor() --> [ 'x', 'O', 'r' ].
-xor() --> [ 'X', 'O', 'R' ].
-mod() --> [ 'm', 'o', 'd' ].
-mod() --> [ 'M', 'o', 'd' ].
-mod() --> [ 'M', 'O', 'D' ].
-eq() --> [ '=' ].
-lt() --> [ '<' ].
-gt() --> [ '>' ].
-neq() --> [ '!', '=' ].
-le() --> [ '<', '=' ].
-ge() --> [ '>', '=' ].
-implies() --> [ '-', '>' ].
-equiv() --> [ '<', '-', '>' ].
-next() --> lxm(w, "at"), lxm(w, "the"), lxm(w, "next"),
-           lxm(w, "occurrence"), lxm(w, "of").
-prev() --> lxm(w, "at"), lxm(w, "the"), lxm(w, "previous"),
-           lxm(w, "occurrence"), lxm(w, "of").
-% n.b. temporal operators are normally followed by whitespace to differentiate
-% between them and a user variable (e.g. "Hot" should not be parsed as "H ot")
-ltlH() --> [ 'H' ], ws_.
-ltlO() --> [ 'O' ], ws_.
-ltlG() --> [ 'G' ], ws_.
-ltlF() --> [ 'F' ], ws_.
-ltlSI() --> [ 'S', 'I' ], ws_.
-ltlS() --> [ 'S' ], ws_.
-ltlT() --> [ 'T' ], ws_.
-ltlUI() --> [ 'U', 'I' ], ws_.
-ltlU() --> [ 'U' ], ws_.
-ltlV() --> [ 'V' ], ws_.
-ltlY() --> [ 'Y' ], ws_.
-ltlX() --> [ 'X' ], ws_.
-ltlZ() --> [ 'Z' ], ws_.
-ltlBefore() --> [ '<', '|' ].
-ltlAfter() --> [ '|', '>' ].
-
-
-ident(I) --> w(I).  % Ident should allow $ and should not start with a numeric
-
-lxm(R) --> ws_, { ! }, lxm(R).
-lxm(R) --> call(R).
-
-lxm(R, P) --> ws_, { ! }, lxm(R, P).
-lxm(R, P) --> call(R, P).
-
-lxm(R, O, P) --> ws_, { ! }, lxm(R, O, P).
-lxm(R, O, P) --> call(R, O, P).
-
-lxm(R, O, U, P) --> ws_, { ! }, lxm(R, O, U, P).
-lxm(R, O, U, P) --> call(R, O, U, P).
-
-%% wsp(P) --> ws(A), ws(B), { pos(A,B,P) }.
-%% wsp(P) --> ws(P).
-
-ws_() --> [C], { char_type(C, space) }.
-
-w(W) --> [C], { wchar1(C) }, w_(CS), { string_chars(W, [C|CS]) }.
-w_([C|CS]) --> [C], { wchar(C) }, !, w_(CS).
-w_([]) --> [].
-
-wchar1(C) :- wchar(C),
-             \+ member(C, ['1','2','3','4','5','6','7','8','9','0']).
-wchar(C) :- \+ char_type(C, space),
-            % Exclude things that might be individual tokens needing to be
-            % recognized elsewhere in the grammar.
-            \+ member(C, ['(', ')', '.', '!', '?', ':', ',',
-                          '{', '}', '^', '[', ']', %% XXX?
-                          '<', '>', '=',
-                          '$',
-                          '/']).
-
-num(V) --> num_(Digits), { to_num(Digits, 0, V) }.
-num_([N|NS]) --> digit(N), num_(NS).
-num_([N]) --> digit(N).
-
-to_num([], A, A).
-to_num([D|DS], A, V) :- N is A * 10 + D, to_num(DS, N, V).
-
-digit(D) --> [ (C) ], { char_type(C, digit),
-                        atom_codes(C, [CS]),
-                        atom_codes('0', [ZS]),
-                        plus(ZS, D, CS)
-                      }.
+ltl_langdef(
+    langdef{
+        language: ltl,
+        types: [ number, bool ],
+        atoms: [ ], % lit, num ],
+        variable_ref: [ ident ],
+        phrases:
+        [ term(num ⦂ number, num, emit_simple_term(num)),
+          term(lit ⦂ bool, [true]>>word('TRUE'),
+               [term(lit(true), bool),'TRUE']>>true), %emit_simple_term(lit)),
+          term(lit ⦂ bool, [false]>>word('FALSE'),
+               [_,'FALSE']>>true), %emit_simple_term(lit)),
+          term(ident ⦂ a, word, emit_simple_term(ident)),
+          expop(not ⦂ bool → bool, [[]>>lexeme(chrs('!')), subexpr],
+                [_,[A],T]>>fmt_str(T, '(! ~w)', [A])),
+          expop(and ⦂ bool → bool → bool, infix(chrs('&')), emit_infix("&")),
+          expop(or ⦂ bool → bool → bool, infix(chrs('|')), emit_infix("|")),
+          expop(xor ⦂ bool → bool → bool, infix(tok(xor)), emit_infix("XOR")),
+          expop(ltlF ⦂ bool → bool, [[]>>lexeme(word('F')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(F ~w)', [A])),
+          expop(ltlG ⦂ bool → bool, [[]>>lexeme(word('G')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(G ~w)', [A])),
+          expop(ltlH ⦂ bool → bool, [[]>>lexeme(word('H')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(H ~w)', [A])),
+          expop(ltlO ⦂ bool → bool, [[]>>lexeme(word('O')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(O ~w)', [A])),
+          expop(ltlS ⦂ bool → bool → bool, infix(chrs('S')), emit_infix("S")),
+          expop(ltlSI ⦂ bool → bool → bool, infix(chrs('SI')), emit_infix("SI")),
+          expop(ltlT ⦂ bool → bool → bool, infix(word('T')), emit_infix("T")),
+          expop(ltlU ⦂ bool → bool → bool, infix(word('U')), emit_infix("U")),
+          expop(ltlUI ⦂ bool → bool → bool, infix(word('UI')), emit_infix("UI")),
+          expop(ltlV ⦂ bool → bool → bool, infix(word('V')), emit_infix("V")),
+          expop(ltlO ⦂ bool → bool, [[]>>lexeme(word('O')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(O ~w)', [A])),
+          expop(ltlX ⦂ bool → bool, [[]>>lexeme(word('X')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(X ~w)', [A])),
+          expop(ltlY ⦂ bool → bool, [[]>>lexeme(word('Y')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(Y ~w)', [A])),
+          expop(ltlZ ⦂ bool → bool, [[]>>lexeme(word('Z')), subexpr],
+                  [_,[A],T]>>fmt_str(T, '(Z ~w)', [A])),
+          expop(ltlF_bound ⦂ range → bool → bool,
+                [[]>>lexeme(chrs('F')), subexpr, subexpr],
+                [_,[R,A],T]>>fmt_str(T, '(F~w ~w)', [R,A])),
+          expop(ltlG_bound ⦂ range → bool → bool,
+                [[]>>lexeme(chrs('G')), subexpr, subexpr],
+                [_,[R,A],T]>>fmt_str(T, '(G~w ~w)', [R,A])),
+          expop(ltlH_bound ⦂ range → bool → bool,
+                [[]>>lexeme(chrs('H')), subexpr, subexpr],
+                [_,[R,A],T]>>fmt_str(T, '(H~w ~w)', [R,A])),
+          expop(ltlO_bound ⦂ range → bool → bool,
+                [[]>>lexeme(chrs('O')), subexpr, subexpr],
+                [_,[R,A],T]>>fmt_str(T, '(O~w ~w)', [R,A])),
+          % TODO: these are LL non-productive and therefore cause infinite recursion.  But are they even valid?
+          %% expop(ltlS_bound ⦂ bool → range → bool → bool,
+          %%       [subexpr, []>>lexeme(chrs('SI')), subexpr, subexpr],
+          %%       [_,[B,R,A],T]>>fmt_str(T, '(~w SI~w ~w)', [B,R,A])),
+          %% expop(ltlU_bound ⦂ bool → range → bool → bool,
+          %%       [subexpr, []>>lexeme(chrs('UI')), subexpr, subexpr],
+          %%       [_,[B,R,A],T]>>fmt_str(T, '(~w UI~w ~w)', [B,R,A])),
+          expop(before_bound ⦂ number → bool → bool,
+                [[]>>lexeme(chrs('<|')), subexpr, subexpr],
+                [_,[R,A],T]>>fmt_str('(<| ~w ~w)', [R, A])),
+          expop(before ⦂ bool → bool,
+                [[]>>lexeme(chrs('<|')), subexpr],
+                [_,[A],T]>>fmt_str('(<| ~w)', [A])),
+          expop(after_bound ⦂ number → bool → bool,
+                [[]>>lexeme(chrs('|>')), subexpr, subexpr],
+                [_,[R,A],T]>>fmt_str('(|> ~w ~w)', [R, A])),
+          expop(after ⦂ bool → bool,
+                [[]>>lexeme(chrs('|>')), subexpr],
+                [_,[A],T]>>fmt_str('(|> ~w)', [A])),
+          %% vv --- begin salt bounds specification
+          expop(range_exact ⦂ number → range,
+                [[]>>lexeme(chrs('[=')), subexpr, lexeme(chrs(']'))],
+                [_,[R],T]>>fmt_str(T, '[=~w]', [R])),
+          expop(range_max_incl ⦂ number → range,
+                [[]>>lexeme(chrs('[<=')), subexpr, lexeme(chrs(']'))],
+                [_,[R],T]>>fmt_str(T, '[<=~w]', [R])),
+          expop(range_max ⦂ number → range,
+                [[]>>lexeme(chrs('[<')), subexpr, lexeme(chrs(']'))],
+                [_,[R],T]>>fmt_str(T, '[<~w]', [R])),
+          expop(range_min_incl ⦂ number → range,
+                [[]>>lexeme(chrs('[>=')), subexpr, lexeme(chrs(']'))],
+                [_,[R],T]>>fmt_str(T, '[>=~w]', [R])),
+          expop(range_min ⦂ number → range,
+                [[]>>lexeme(chrs('[>')), subexpr, lexeme(chrs(']'))],
+                [_,[R],T]>>fmt_str(T, '[>~w]', [R])),
+          %% TODO: [!=   ... not sure now this is emitted in Lustre.  Needed?
+          %% ^^ --- end salt bounds specification
+          expop(range_min_max ⦂ number → number → range,
+                [[]>>lexeme(chrs('[')), subexpr,
+                 lexeme(chrs(',')), subexpr, lexeme(chrs(']'))],
+                [_,[L,R],T]>>fmt_str(T, '[~w, ~w]', [L, R])),
+          expop(implies ⦂ a → a → a, infix(chrs('->')), emit_infix("->")),
+          expop(eq ⦂ a → a → bool, infix(chrs('=')), emit_infix("=")),
+          expop(equiv ⦂ a → a → bool, infix(chrs('<=>')), emit_infix("<=>")),
+          expop(equiv ⦂ a → a → bool, infix(chrs('<->')), emit_infix("<=>")),
+          expop(neq ⦂ a → a → bool, infix(chrs('!=')), emit_infix("!=")),
+          expop(gteq ⦂ number → number → bool, infix(chrs('>=')), emit_infix(">=")),
+          expop(lteq ⦂ number → number → bool, infix(chrs('<=')), emit_infix("<=")),
+          expop(gt ⦂ number → number → bool, infix(chrs('>')), emit_infix(">")),
+          expop(lt ⦂ number → number → bool, infix(chrs('<')), emit_infix("<")),
+          expop(neg ⦂ number → number, [[]>>lexeme(chrs('-')), subexpr],
+                [_,[A],T]>>fmt_str(T, '(- ~w)', [A])),
+          expop(add ⦂ number → number → number, infix(chrs('+')), emit_infix("+")),
+          expop(sub ⦂ number → number → number, infix(chrs('-')), emit_infix("-")),
+          expop(mul ⦂ number → number → number, infix(chrs('*')), emit_infix("*")),
+          expop(divd ⦂ number → number → number, infix(chrs('/')), emit_infix("/")),
+          expop(expo ⦂ number → number → number, infix(chrs('^')), emit_infix("^"))
+               %% TODO: at the next occurrence of BOOL
+               %% TODO: at the previous occurrence of BOOL
+        ]}).
 
 
 % ------------------------------------------------------------
@@ -234,91 +149,92 @@ digit(D) --> [ (C) ], { char_type(C, digit),
 % Op should return (as the second parameter) any desired element
 % modification---or just the passed element by default.
 
-fmap(Op, val(N), V) :- call(Op, val(N), V).
-fmap(Op, id(I), O) :- call(Op, id(I), O).
-fmap(Op, boolid(I), O) :- call(Op, boolid(I), O).
-fmap(Op, true, V) :- call(Op, true, V).
-fmap(Op, false, V) :- call(Op, false, V).
-fmap(Op, neg(E), O) :- fmap(Op, E, I), call(Op, neg(I), O).
-fmap(Op, call(I, Args), O) :- call(Op, callid(I), callid(OI)),
-                              maplist(fmap(Op), Args, OArgs),
-                              call(Op, call(OI, OArgs), O).
-fmap(Op, expo(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                           call(Op, expo(OL, OR), O).
-fmap(Op, add(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                          call(Op, add(OL, OR), O).
-fmap(Op, ltlH_bound(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                                 call(Op, ltlH_bound(OL, OR), O).
-fmap(Op, ltlO_bound(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                                 call(Op, ltlO_bound(OL, OR), O).
-fmap(Op, ltlG_bound(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                                 call(Op, ltlG_bound(OL, OR), O).
-fmap(Op, ltlF_bound(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                                 call(Op, ltlF_bound(OL, OR), O).
-fmap(Op, ltlBefore_bound(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                                 call(Op, ltlBefore_bound(OL, OR), O).
-fmap(Op, ltlAfter_bound(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                                     call(Op, ltlAfter_bound(OL, OR), O).
-fmap(Op, ltlH(L), O) :- fmap(Op, L, OL), call(Op, ltlH(OL), O).
-fmap(Op, ltlO(L), O) :- fmap(Op, L, OL), call(Op, ltlO(OL), O).
-fmap(Op, ltlG(L), O) :- fmap(Op, L, OL), call(Op, ltlG(OL), O).
-fmap(Op, ltlF(L), O) :- fmap(Op, L, OL), call(Op, ltlF(OL), O).
-fmap(Op, ltlBefore(L), O) :- fmap(Op, L, OL), call(Op, ltlBefore(OL), O).
-fmap(Op, ltlAfter(L), O) :- fmap(Op, L, OL), call(Op, ltlAfter(OL), O).
-fmap(Op, ltlY(L), O) :- fmap(Op, L, OL), call(Op, ltlY(OL), O).
-fmap(Op, ltlX(L), O) :- fmap(Op, L, OL), call(Op, ltlX(OL), O).
-fmap(Op, ltlZ(L), O) :- fmap(Op, L, OL), call(Op, ltlZ(OL), O).
-fmap(Op, ltlSI(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                            call(Op, ltlSI(OL, OR), O).
-fmap(Op, ltlS(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                           call(Op, ltlS(OL, OR), O).
-fmap(Op, ltlT(L), O) :- fmap(Op, L, OL), call(Op, ltlT(OL), O).
-fmap(Op, ltlUI(L), O) :- fmap(Op, L, OL), call(Op, ltlUI(OL), O).
-fmap(Op, ltlU(L), O) :- fmap(Op, L, OL), call(Op, ltlU(OL), O).
-fmap(Op, ltlV(L), O) :- fmap(Op, L, OL), call(Op, ltlV(OL), O).
-fmap(Op, not(E), O) :- fmap(Op, E, I), call(Op, not(I), O).
-fmap(Op, eq(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                         call(Op, eq(OL, OR), O).
-fmap(Op, le(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                         call(Op, le(OL, OR), O).
-fmap(Op, ge(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                         call(Op, ge(OL, OR), O).
-fmap(Op, lt(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                         call(Op, lt(OL, OR), O).
-fmap(Op, gt(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                         call(Op, gt(OL, OR), O).
-fmap(Op, neq(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                          call(Op, neq(OL, OR), O).
-fmap(Op, next(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                           call(Op, next(OL, OR), O).
-fmap(Op, prev(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                           call(Op, prev(OL, OR), O).
-fmap(Op, boolcall(I, Args), O) :- call(Op, callid(I), callid(OI)),
-                                  maplist(fmap(Op), Args, OArgs),
-                                  call(Op, boolcall(OI, OArgs), O).
-fmap(Op, and(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                          call(Op, and(OL, OR), O).
-fmap(Op, or(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                         call(Op, or(OL, OR), O).
-fmap(Op, xor(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                          call(Op, xor(OL, OR), O).
-fmap(Op, implies(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                              call(Op, implies(OL, OR), O).
-fmap(Op, equiv(L, R), O) :- fmap(Op, L, OL), fmap(Op, R, OR),
-                            call(Op, equiv(OL, OR), O).
-fmap(Op, range2(A, B), O) :- fmap(Op, A, OA), fmap(Op, B, OB),
-                             call(Op, range2(OA, OB), O).
-fmap(Op, salt_le(A), O) :- fmap(Op, A, OA), call(Op, salt_le(OA), O).
-fmap(Op, salt_ge(A), O) :- fmap(Op, A, OA), call(Op, salt_ge(OA), O).
-fmap(Op, salt_lt(A), O) :- fmap(Op, A, OA), call(Op, salt_lt(OA), O).
-fmap(Op, salt_gt(A), O) :- fmap(Op, A, OA), call(Op, salt_gt(OA), O).
-fmap(Op, salt_eq(A), O) :- fmap(Op, A, OA), call(Op, salt_eq(OA), O).
-fmap(Op, salt_neq(A), O) :- fmap(Op, A, OA), call(Op, salt_neq(OA), O).
-fmap(_, Elem, Elem) :-
-    print_message(warning, no_fmap_for_elem(Elem)).
+%% KWQ: remove fmap_
+%% fmap_(Op, val(N), V) :- call(Op, val(N), V).
+%% fmap_(Op, id(I), O) :- call(Op, id(I), O).
+%% fmap_(Op, boolid(I), O) :- call(Op, boolid(I), O).
+%% fmap_(Op, true, V) :- call(Op, true, V).
+%% fmap_(Op, false, V) :- call(Op, false, V).
+%% fmap_(Op, neg(E), O) :- fmap_(Op, E, I), call(Op, neg(I), O).
+%% fmap_(Op, call(I, Args), O) :- call(Op, callid(I), callid(OI)),
+%%                               maplist(fmap_(Op), Args, OArgs),
+%%                               call(Op, call(OI, OArgs), O).
+%% fmap_(Op, expo(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                            call(Op, expo(OL, OR), O).
+%% fmap_(Op, add(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                           call(Op, add(OL, OR), O).
+%% fmap_(Op, ltlH_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                                  call(Op, ltlH_bound(OL, OR), O).
+%% fmap_(Op, ltlO_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                                  call(Op, ltlO_bound(OL, OR), O).
+%% fmap_(Op, ltlG_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                                  call(Op, ltlG_bound(OL, OR), O).
+%% fmap_(Op, ltlF_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                                  call(Op, ltlF_bound(OL, OR), O).
+%% fmap_(Op, ltlBefore_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                                  call(Op, ltlBefore_bound(OL, OR), O).
+%% fmap_(Op, ltlAfter_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                                      call(Op, ltlAfter_bound(OL, OR), O).
+%% fmap_(Op, ltlH(L), O) :- fmap_(Op, L, OL), call(Op, ltlH(OL), O).
+%% fmap_(Op, ltlO(L), O) :- fmap_(Op, L, OL), call(Op, ltlO(OL), O).
+%% fmap_(Op, ltlG(L), O) :- fmap_(Op, L, OL), call(Op, ltlG(OL), O).
+%% fmap_(Op, ltlF(L), O) :- fmap_(Op, L, OL), call(Op, ltlF(OL), O).
+%% %% fmap_(Op, ltlBefore(L), O) :- fmap_(Op, L, OL), call(Op, ltlBefore(OL), O).
+%% %% fmap_(Op, ltlAfter(L), O) :- fmap_(Op, L, OL), call(Op, ltlAfter(OL), O).
+%% fmap_(Op, ltlY(L), O) :- fmap_(Op, L, OL), call(Op, ltlY(OL), O).
+%% fmap_(Op, ltlX(L), O) :- fmap_(Op, L, OL), call(Op, ltlX(OL), O).
+%% fmap_(Op, ltlZ(L), O) :- fmap_(Op, L, OL), call(Op, ltlZ(OL), O).
+%% fmap_(Op, ltlSI(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                             call(Op, ltlSI(OL, OR), O).
+%% fmap_(Op, ltlS(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                            call(Op, ltlS(OL, OR), O).
+%% fmap_(Op, ltlT(L), O) :- fmap_(Op, L, OL), call(Op, ltlT(OL), O).
+%% fmap_(Op, ltlUI(L), O) :- fmap_(Op, L, OL), call(Op, ltlUI(OL), O).
+%% fmap_(Op, ltlU(L), O) :- fmap_(Op, L, OL), call(Op, ltlU(OL), O).
+%% fmap_(Op, ltlV(L), O) :- fmap_(Op, L, OL), call(Op, ltlV(OL), O).
+%% fmap_(Op, not(E), O) :- fmap_(Op, E, I), call(Op, not(I), O).
+%% fmap_(Op, eq(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                          call(Op, eq(OL, OR), O).
+%% fmap_(Op, le(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                          call(Op, le(OL, OR), O).
+%% fmap_(Op, ge(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                          call(Op, ge(OL, OR), O).
+%% fmap_(Op, lt(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                          call(Op, lt(OL, OR), O).
+%% fmap_(Op, gt(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                          call(Op, gt(OL, OR), O).
+%% fmap_(Op, neq(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                           call(Op, neq(OL, OR), O).
+%% fmap_(Op, next(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                            call(Op, next(OL, OR), O).
+%% fmap_(Op, prev(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                            call(Op, prev(OL, OR), O).
+%% fmap_(Op, boolcall(I, Args), O) :- call(Op, callid(I), callid(OI)),
+%%                                   maplist(fmap_(Op), Args, OArgs),
+%%                                   call(Op, boolcall(OI, OArgs), O).
+%% fmap_(Op, and(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                           call(Op, and(OL, OR), O).
+%% fmap_(Op, or(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                          call(Op, or(OL, OR), O).
+%% fmap_(Op, xor(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                           call(Op, xor(OL, OR), O).
+%% fmap_(Op, implies(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                               call(Op, implies(OL, OR), O).
+%% fmap_(Op, equiv(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
+%%                             call(Op, equiv(OL, OR), O).
+%% fmap_(Op, range2(A, B), O) :- fmap_(Op, A, OA), fmap_(Op, B, OB),
+%%                              call(Op, range2(OA, OB), O).
+%% fmap_(Op, salt_le(A), O) :- fmap_(Op, A, OA), call(Op, salt_le(OA), O).
+%% fmap_(Op, salt_ge(A), O) :- fmap_(Op, A, OA), call(Op, salt_ge(OA), O).
+%% fmap_(Op, salt_lt(A), O) :- fmap_(Op, A, OA), call(Op, salt_lt(OA), O).
+%% fmap_(Op, salt_gt(A), O) :- fmap_(Op, A, OA), call(Op, salt_gt(OA), O).
+%% fmap_(Op, salt_eq(A), O) :- fmap_(Op, A, OA), call(Op, salt_eq(OA), O).
+%% fmap_(Op, salt_neq(A), O) :- fmap_(Op, A, OA), call(Op, salt_neq(OA), O).
+%% fmap_(_, Elem, Elem) :-
+%%     print_message(warning, no_fmap__for_elem(Elem)).
 
-prolog:message(no_fmap_for_elem(Elem)) -->
-    [ 'No fmap for ~w~n' - [Elem] ].
+%% prolog:message(no_fmap__for_elem(Elem)) -->
+%%     [ 'No fmap_ for ~w~n' - [Elem] ].
 
 % ----------------------------------------------------------------------
 
@@ -342,226 +258,3 @@ optimize(X, X).
 %% past_optimize(AST, AST).
 
 % ----------------------------------------------------------------------
-
-emit_ltl(true, "TRUE").
-emit_ltl(false, "FALSE").
-emit_ltl(val(V), O) :- atom_string(V, O).
-emit_ltl(boolid(I), I).
-emit_ltl(id(I), I).
-emit_ltl(ltlH(A), O) :- emit_ltl(A, AO),
-                        format(atom(X), '(H ~w)', [ AO ]),
-                        atom_string(X, O).
-emit_ltl(ltlO(A), O) :- emit_ltl(A, AO),
-                        format(atom(X), '(O ~w)', [ AO ]),
-                        atom_string(X, O).
-emit_ltl(ltlG(A), O) :- emit_ltl(A, AO),
-                        format(atom(X), '(G ~w)', [ AO ]),
-                        atom_string(X, O).
-emit_ltl(ltlF(A), O) :- emit_ltl(A, AO),
-                        format(atom(X), '(F ~w)', [ AO ]),
-                        atom_string(X, O).
-emit_ltl(ltlBefore(A), O) :- emit_ltl(A, AO),
-                             format(atom(X), '(<| ~w)', [ AO ]),
-                             atom_string(X, O).
-emit_ltl(ltlAfter(A), O) :- emit_ltl(A, AO),
-                            format(atom(X), '(|> ~w)', [ AO ]),
-                            atom_string(X, O).
-emit_ltl(ltlX(A), O) :- emit_ltl(A, AO),
-                        format(atom(X), '(X ~w)', [ AO ]),
-                        atom_string(X, O).
-emit_ltl(ltlY(A), O) :- emit_ltl(A, AO),
-                        format(atom(X), '(Y ~w)', [ AO ]),
-                        atom_string(X, O).
-emit_ltl(ltlZ(A), O) :- emit_ltl(A, AO),
-                        format(atom(X), '(Z ~w)', [ AO ]),
-                        atom_string(X, O).
-emit_ltl(neg(A), O) :- emit_ltl(A, AO),
-                       format(atom(X), '(- ~w)', [ AO ]),
-                       atom_string(X, O).
-emit_ltl(not(A), O) :- emit_ltl(A, AO),
-                       format(atom(X), '(! ~w)', [ AO ]),
-                       atom_string(X, O).
-emit_ltl(add(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                          format(atom(X), '(~w + ~w)', [ AO, BO ]),
-                          atom_string(X, O).
-emit_ltl(and(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                          format(atom(X), '(~w & ~w)', [ AO, BO ]),
-                          atom_string(X, O).
-emit_ltl(eq(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                         format(atom(X), '(~w = ~w)', [ AO, BO ]),
-                         atom_string(X, O).
-emit_ltl(equiv(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                            format(atom(X), '(~w <=> ~w)', [ AO, BO ]),
-                            atom_string(X, O).
-emit_ltl(expo(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                          format(atom(X), '(~w ^ ~w)', [ AO, BO ]),
-                          atom_string(X, O).
-emit_ltl(ge(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                         format(atom(X), '(~w >= ~w)', [ AO, BO ]),
-                         atom_string(X, O).
-emit_ltl(gt(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                         format(atom(X), '(~w > ~w)', [ AO, BO ]),
-                         atom_string(X, O).
-emit_ltl(implies(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                              format(atom(X), '(~w -> ~w)', [ AO, BO ]),
-                              atom_string(X, O).
-emit_ltl(le(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                         format(atom(X), '(~w <= ~w)', [ AO, BO ]),
-                         atom_string(X, O).
-emit_ltl(lt(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                         format(atom(X), '(~w < ~w)', [ AO, BO ]),
-                         atom_string(X, O).
-emit_ltl(ltlS(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                           format(atom(X), '(~w S ~w)', [ AO, BO ]),
-                           atom_string(X, O).
-emit_ltl(ltlSI(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                            format(atom(X), '(~w SI ~w)', [ AO, BO ]),
-                            atom_string(X, O).
-emit_ltl(ltlT(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                           format(atom(X), '(~w T ~w)', [ AO, BO ]),
-                           atom_string(X, O).
-emit_ltl(ltlU(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                           format(atom(X), '(~w U ~w)', [ AO, BO ]),
-                           atom_string(X, O).
-emit_ltl(ltlUI(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                            format(atom(X), '(~w UI ~w)', [ AO, BO ]),
-                            atom_string(X, O).
-emit_ltl(ltlV(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                           format(atom(X), '(~w V ~w)', [ AO, BO ]),
-                           atom_string(X, O).
-emit_ltl(or(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                         format(atom(X), '(~w | ~w)', [ AO, BO ]),
-                         atom_string(X, O).
-emit_ltl(ltlH_bound(B, A), O) :- emit_ltl(B, BO), emit_ltl(A, AO),
-                          format(atom(X), '(H~w ~w)', [ BO, AO ]),
-                          atom_string(X, O).
-emit_ltl(ltlO_bound(B, A), O) :- emit_ltl(B, BO), emit_ltl(A, AO),
-                                 format(atom(X), '(O~w ~w)', [ BO, AO ]),
-                                 atom_string(X, O).
-emit_ltl(ltlG_bound(B, A), O) :- emit_ltl(B, BO), emit_ltl(A, AO),
-                                 format(atom(X), '(G~w ~w)', [ BO, AO ]),
-                                 atom_string(X, O).
-emit_ltl(ltlF_bound(B, A), O) :- emit_ltl(B, BO), emit_ltl(A, AO),
-                                 format(atom(X), '(F~w ~w)', [ BO, AO ]),
-                                 atom_string(X, O).
-emit_ltl(ltlBefore_bound(B, A), O) :- emit_ltl(B, BO), emit_ltl(A, AO),
-                                      format(atom(X), '(<|~w ~w)', [ BO, AO ]),
-                                      atom_string(X, O).
-emit_ltl(ltlAfter_bound(B, A), O) :- emit_ltl(B, BO), emit_ltl(A, AO),
-                                     format(atom(X), '(|>~w ~w)', [ BO, AO ]),
-                                     atom_string(X, O).
-emit_ltl(neq(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                         format(atom(X), '(~w != ~w)', [ AO, BO ]),
-                         atom_string(X, O).
-emit_ltl(next(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                           format(atom(X), 'at the next occurrence of ~w, ~w)', [ AO, BO ]),
-                           atom_string(X, O).
-emit_ltl(prev(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                           format(atom(X), 'at the previous occurrence of ~w, ~w)', [ AO, BO ]),
-                           atom_string(X, O).
-emit_ltl(range2(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                             format(atom(X), '[~w, ~w]', [ AO, BO ]),
-                             atom_string(X, O).
-emit_ltl(salt_lt(A), O) :- emit_ltl(A, AO),
-                           format(atom(X), '[<~w ]', [ AO ]),
-                           atom_string(X, O).
-emit_ltl(salt_gt(A), O) :- emit_ltl(A, AO),
-                           format(atom(X), '[>~w ]', [ AO ]),
-                           atom_string(X, O).
-emit_ltl(salt_le(A), O) :- emit_ltl(A, AO),
-                           format(atom(X), '[<=~w ]', [ AO ]),
-                           atom_string(X, O).
-emit_ltl(salt_ge(A), O) :- emit_ltl(A, AO),
-                           format(atom(X), '[>=~w ]', [ AO ]),
-                           atom_string(X, O).
-emit_ltl(salt_eq(A), O) :- emit_ltl(A, AO),
-                           format(atom(X), '[=~w ]', [ AO ]),
-                           atom_string(X, O).
-emit_ltl(salt_neq(A), O) :- emit_ltl(A, AO),
-                            format(atom(X), '[!=~w ]', [ AO ]),
-                            atom_string(X, O).
-emit_ltl(xor(A, B), O) :- emit_ltl(A, AO), emit_ltl(B, BO),
-                          format(atom(X), '(~w XOR ~w)', [ AO, BO ]),
-                          atom_string(X, O).
-
-emit_ltl(X, "") :- print_message(error, no_LTL_emit_for(X)), fail.
-
-prolog:message(no_LTL_emit_for(AST_Element)) -->
-    [ 'No LTL text form for: ~w' - [AST_Element] ].
-
-
-% --------------------
-
-emit_CoCoSpec(true, true) :- !.
-emit_CoCoSpec(false, false) :- !.
-emit_CoCoSpec(val(V), V) :- !.
-emit_CoCoSpec(boolid(N), N) :- !.
-emit_CoCoSpec(id(I), I) :- !.
-emit_CoCoSpec(not(E), C) :- emit_CoCoSpec(E, ES),
-                            format(atom(CA), "not (~w)", [ES]),
-                            atom_string(CA, C), !.
-emit_CoCoSpec(neg(E), C) :- emit_CoCoSpec(E, ES),
-                            format(atom(CA), "-(~w)", [ES]),
-                            atom_string(CA, C), !.
-emit_CoCoSpec(ltlH(E), C) :- coco_call("H", E, C), !.  % Historically
-emit_CoCoSpec(ltlH_bound(B,E), C) :- coco_call("HT", B, E, C), !.
-emit_CoCoSpec(ltlO(E), C) :- coco_call("O", E, C), !.  % Once
-emit_CoCoSpec(ltlO_bound(B, E), C) :- coco_call("OT", B, E, C), !.  % Once
-% n.b. can omit any future-time specs; CoCoSpec is only past-time.
-emit_CoCoSpec(ltlY(E), C) :- coco_call("YtoPre", E, C), !.  % PrevFalse
-emit_CoCoSpec(ltlZ(E), C) :- coco_call("ZtoPre", E, C), !.  % PrevTrue
-
-emit_CoCoSpec(add(E1, E2), C) :- coco_infix("+", E1, E2, C), !.
-emit_CoCoSpec(and(E1, E2), C) :- coco_infix("and", E1, E2, C), !.
-emit_CoCoSpec(expo(E1, E2), C) :- coco_infix("^", E1, E2, C), !.
-emit_CoCoSpec(or(E1, E2), C) :- coco_infix("or", E1, E2, C), !.
-emit_CoCoSpec(xor(E1, E2), C) :- coco_infix("xor", E1, E2, C), !.
-emit_CoCoSpec(implies(E1, E2), C) :- coco_infix("=>", E1, E2, C), !.
-emit_CoCoSpec(equiv(E1, E2), C) :- coco_infix("=", E1, E2, C), !.
-emit_CoCoSpec(eq(E1, E2), C) :- coco_infix("=", E1, E2, C), !.
-emit_CoCoSpec(neq(E1, E2), C) :- coco_infix("<>", E1, E2, C), !.
-emit_CoCoSpec(lt(E1, E2), C) :- coco_infix("<", E1, E2, C), !.
-emit_CoCoSpec(le(E1, E2), C) :- coco_infix("<=", E1, E2, C), !.
-emit_CoCoSpec(gt(E1, E2), C) :- coco_infix(">", E1, E2, C), !.
-emit_CoCoSpec(ge(E1, E2), C) :- coco_infix(">=", E1, E2, C), !.
-
-% Note: CoCoSpec reverses the arguments for: S, ST, SI, and SIT.  S(p,q) = q S p.
-% See LTLASTSemantics.js.  ALSO, don't add a space between the comma and the
-% second argument to match what FRET emits.  This is inconsequential except for
-% string comparisons of the emitted CoCoSpec.
-emit_CoCoSpec(ltlS(E1, E2), C) :- coco_call("S", E2, E1, nospace, C), !. % Since
-emit_CoCoSpec(ltlSI(E1, E2), C) :- coco_call("SI", E2, E1, nospace, C), !. % SinceInclusive
-
-emit_CoCoSpec(range2(B, E), C) :- emit_CoCoSpec(B, BS),
-                                  emit_CoCoSpec(E, ES),
-                                  format(atom(CA), "~w, ~w", [ ES, BS ]),
-                                  atom_string(CA, C), !.
-
-emit_CoCoSpec(salt_eq(B), C) :- emit_CoCoSpec(B, BS),
-                                format(atom(CA), "~w, ~w", [BS, BS]),
-                                atom_string(CA, C), !.
-emit_CoCoSpec(salt_le(B), C) :- emit_CoCoSpec(B, BS),
-                                format(atom(CA), "~w, 0", [BS]),
-                                atom_string(CA, C), !.
-emit_CoCoSpec(salt_lt(B), C) :- emit_CoCoSpec(B, BS),
-                                format(atom(CA), "(~w - 1), 0", [BS]),
-                                atom_string(CA, C), !.
-
-
-emit_CoCoSpec(X, _) :- format('No CoCo conversion for: ~w~n', [X]), fail.
-
-coco_call(F,A,C) :- emit_CoCoSpec(A,AS),
-                    format(atom(CA), "~w(~w)", [F,AS]),
-                    atom_string(CA, C).
-coco_call(F,A,B,nospace,C) :- emit_CoCoSpec(A,AS),
-                              emit_CoCoSpec(B,BS),
-                              format(atom(CA), "~w(~w,~w)", [F,AS,BS]),
-                              atom_string(CA, C).
-coco_call(F,A,B,C) :- emit_CoCoSpec(A,AS),
-                      emit_CoCoSpec(B,BS),
-                      format(atom(CA), "~w(~w, ~w)", [F,AS,BS]),
-                      atom_string(CA, C).
-coco_infix(F,A,B,C) :- emit_CoCoSpec(A,AS),
-                       emit_CoCoSpec(B,BS),
-                       format(atom(CA), "(~w ~w ~w)", [AS,F,BS]),
-                       atom_string(CA, C).
