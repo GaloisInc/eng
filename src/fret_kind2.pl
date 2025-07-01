@@ -142,6 +142,8 @@ out_varnames(Vars, [V|VS], [V|VNMS]) :-
     out_varnames(Vars, VS, VNMS).
 out_varnames(Vars, [_|VS], VNMS) :- out_varnames(Vars, VS, VNMS).
 
+out_varname([constr(VName,_,_,_)|_], VName) :- !.
+out_varname([constr(_,_,_,_)|VS], VName) :- !, out_varname(VS, VName).
 out_varname([V|_], VName) :- get_dict(variable_name, V, VName),
                              !,
                              get_dict(idType, V, "Output").

@@ -1,8 +1,9 @@
 % Parses the FRETish statements supported by the NASA Fret tool
 % (https://github.com/NASA-SW-VnV/fret).
 
-:- module(frettish, [ parse_fret/3, emit_fretish/2, emit_fretish/3,
-                      fretment_vars/3
+:- module(frettish, [ parse_fret/4, emit_fretish/2, emit_fretish/3,
+                      fretment_vars/3,
+                      fretish_expr_langdef/1
                     ]).
 
 :- use_module('../englib').
@@ -10,6 +11,14 @@
 
 %% Parses a FRETish English requirement to a Fret structured requirement, using
 %% the definitions and templates provided to enhance the structured requirement.
+%
+%  Context is a string used in error messages to help the user identify where the
+%  error is occurring.
+%
+%  LangEnv is the exprlang environment (gamma) used for parsing.  This should be
+%  pre-loaded with any predefined variables, and will be updated as other
+%  variables are found in the parse of this FRETish requirement (and therefore a
+%  fresh environment should be used for each FRETish statement).
 %
 %  Returns: fretment(scope_info({scope:{type:},
 %                               [,scope_mode:[, exclusive:bool, required:bool]]
@@ -24,15 +33,15 @@
 %                    response_info({response:,
 %                                   post_condition:}),
 %
-parse_fret(Context, English, FretMent) :-
-    fretish_expr_langdef(LangDef),
-    define_language(LangDef, _),
+parse_fret(Context, LangEnv, English, FretMent) :-
+    %% fretish_expr_langdef(LangDef),
+    %% define_language(LangDef, _),
     %% get_dict(language, LangDef, Language),
     %% show_language(Language),
 
     string_chars(English, ECodes),
     enumerate(ECodes, Input),
-    phrase(fretish(FretMent), Input, Remaining),
+    phrase(fretish(LangEnv, FretMent), Input, Remaining),
     !,
     ( Remaining == []
     -> true
@@ -121,7 +130,7 @@ scope_fretish(Scope, ScopeText) :-
     get_dict(type, SC, ST),
     member(ST, ["after", "before"]),
     !,
-    get_dict(scope_mode, Scope, E),
+    get_dict(scope_mode, Scope, fretish(E)),
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
     emit_expr(Language, E, T),
@@ -135,7 +144,7 @@ scope_fretish(Scope, ScopeText) :-
 scope_fretish(Scope, ScopeText) :-
     get_dict(scope, Scope, SC),
     get_dict(type, SC, "in"),
-    get_dict(scope_mode, Scope, E),
+    get_dict(scope_mode, Scope, fretish(E)),
     !,
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
@@ -150,7 +159,7 @@ scope_fretish(Scope, ScopeText) :-
 scope_fretish(Scope, ScopeText) :-
     get_dict(scope, Scope, SC),
     get_dict(type, SC, "notin"),
-    get_dict(scope_mode, Scope, E),
+    get_dict(scope_mode, Scope, fretish(E)),
     !,
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
@@ -172,7 +181,7 @@ scope_fretish(Scope, ScopeText) :-
     get_dict(scope, Scope, SC),
     get_dict(type, SC, "onlyAfter"),
     !,
-    get_dict(scope_mode, Scope, E),
+    get_dict(scope_mode, Scope, fretish(E)),
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
     emit_expr(Language, E, T),
@@ -187,7 +196,7 @@ scope_fretish(Scope, ScopeText) :-
     get_dict(scope, Scope, SC),
     get_dict(type, SC, "onlyBefore"),
     !,
-    get_dict(scope_mode, Scope, E),
+    get_dict(scope_mode, Scope, fretish(E)),
     emit_fretish(E, T),
     format_str(ScopeText, 'only before ~w ', [T]).
 scope_fretish(Scope, "") :-
@@ -204,7 +213,7 @@ condition_fretish(Condition, CondText) :-
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
     get_dict(qualifier_word, Condition, QW),
-    get_dict(regular_condition, Condition, CE),
+    get_dict(regular_condition, Condition, fretish(CE)),
     emit_expr(Language, CE, RC),
     format_str(CondText, '~w ~w ', [ QW, RC ]).
 
@@ -217,7 +226,7 @@ timing_fretish(Timing, Text) :- get_dict(timing, Timing, "after"), !,
                                 (D == 1 -> U = tick ; U = ticks),
                                 format_str(Text, 'after ~w ~w', [D, U]).
 timing_fretish(Timing, Text) :- get_dict(timing, Timing, "before"), !,
-                                get_dict(stop_condition, Timing, C),
+                                get_dict(stop_condition, Timing, fretish(C)),
                                 fretish_expr_langdef(LangDef),
                                 get_dict(language, LangDef, Language),
                                 emit_expr(Language, C, CF),
@@ -227,7 +236,7 @@ timing_fretish(Timing, Text) :- get_dict(timing, Timing, "for"), !,
                                 (D == 1 -> U = tick ; U = ticks),
                                 format_str(Text, 'for ~w ~w', [D, U]).
 timing_fretish(Timing, Text) :- get_dict(timing, Timing, "until"), !,
-                                get_dict(stop_condition, Timing, C),
+                                get_dict(stop_condition, Timing, fretish(C)),
                                 fretish_expr_langdef(LangDef),
                                 get_dict(language, LangDef, Language),
                                 emit_expr(Language, C, CF),
@@ -242,7 +251,7 @@ timing_fretish(Timing, Text) :- get_dict(timing, Timing, Text).
 response_fretish(Response, ResponseText) :-
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
-    get_dict(post_condition, Response, RE),
+    get_dict(post_condition, Response, fretish(RE)),
     emit_expr(Language, RE, ResponseText).
 
 
@@ -265,26 +274,26 @@ information on specifying that portion of the FRETish statement.
 fretment_vars(scope, fretment(scope_info(_, vars(VS)), _, _, _, _), VS).
 fretment_vars(condition, fretment(_, condition_info(_{condition:"null"}), _, _, _), []) :- !.
 fretment_vars(condition, fretment(_, condition_info(C), _, _, _), VS) :-
-    get_dict(regular_condition, C, Expr),
+    get_dict(regular_condition, C, fretish(Expr)),
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
     extract_vars(Language, Expr, VS).
 fretment_vars(timing, fretment(_, _, _, timing_info(_, vars(VS)), _), VS).
 fretment_vars(response, fretment(_, _, _, _, response_info(R)), VS) :-
-    get_dict(post_condition, R, Expr),
+    get_dict(post_condition, R, fretish(Expr)),
     fretish_expr_langdef(LangDef),
     get_dict(language, LangDef, Language),
     extract_vars(Language, Expr, VS).
 
 
 % scope conditions component shall timing responses
-fretish(fretment(scope_info(Scope, vars(ScopeVars)),
+fretish(Env,
+        fretment(scope_info(Scope, vars(ScopeVars)),
                  condition_info(Condition),
                  component_info(Comp),
                  timing_info(Timing, vars(TimingVars)),
                  response_info(Responses)
                 )) -->
-    { initial_gamma(Env) },
     intro(Env, Scope, ScopeVars, Condition, Env1),
     target(Comp),
     !,
@@ -292,7 +301,7 @@ fretish(fretment(scope_info(Scope, vars(ScopeVars)),
     %% {format('....timing: ~w~n', [Timing])},
     lexeme(tok(satisfy)),
     !,
-    ( responses(Env2, Responses)
+    ( responses(Env2, Responses, _FinalEnv)
     ; word(EW, EP), { print_message(error, bad_response_text(EW, EP)) }
     ).
 
@@ -467,7 +476,7 @@ scope_mode(_, Env, mode(Mode), [Mode ⦂ bool], OutEnv) -->
     lexeme(tok(mode)),
     !,
     fresh_var(Env, Mode, mode, OutEnv, _V).
-scope_mode(allow_expr, Env, E, Vars, OutEnv) -->
+scope_mode(allow_expr, Env, fretish(E), Vars, OutEnv) -->
     bool_expr(Env, E, OutEnv), !, % n.b. this could also parse a "mode" as var(_)
     { fretish_expr_langdef(LangDef),
       get_dict(language, LangDef, Language),
@@ -528,8 +537,6 @@ cond_(Env, C, OutEnv) --> qcond1_(Env, C0, Env1),
                           opt_comma,
                           qcond2_(Env1, C0, C, OutEnv),
                           opt_comma.
-cond_(Env, C, OutEnv) --> qcond1_(Env, C, OutEnv),
-                          opt_comma.
 
 qcond1_(Env, C, OutEnv) -->
     lexeme(tok(unless)),
@@ -553,36 +560,37 @@ qcond1___(C, Q, E) --> lexeme(tok(is)), lexeme(tok(false)), !,  % green cut
 qcond1___(C, Q, E) --> { qcond1_true_(Q,E,C) }.
 
 qcond1_true_(Q,E, _{ qualifier_word:Q,
-                     pre_condition: E,
-                     regular_condition: E
+                     pre_condition: fretish(E),
+                     regular_condition: fretish(E)
                    }).
 
 qcond1_false_(Q,E, _{ qualifier_word:Q,
-                      pre_condition: not(E),
-                      regular_condition: not(E)
+                      pre_condition: fretish(not(E)),
+                      regular_condition: fretish(not(E))
                     }).
 
 qcond2_(Env, C0, C, OutEnv) --> tok(and), qcond2_and_(Env, C0, C, OutEnv).
 qcond2_(Env, C0, C, OutEnv) -->
     tok(or),
     qcond1_(Env, C1, OutEnv),
-    { get_dict(regular_condition, C0, C0P),
-      get_dict(regular_condition, C1, C1P),
+    { get_dict(regular_condition, C0, fretish(C0P)),
+      get_dict(regular_condition, C1, fretish(C1P)),
       get_dict(qualifier_word, C1, C1QW),
       C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
-             pre_condition: or(C0P, C1P),
-             regular_condition: or(C0P, C1P)
+             pre_condition: fretish(or(C0P, C1P)),
+             regular_condition: fretish(or(C0P, C1P))
            }
     }.
 qcond2_(Env, C0, C, OutEnv) --> qcond2_and_(Env, C0, C, OutEnv).
+qcond2_(Env, C, C, Env) --> [].  % sometimes there's nothing more
 qcond2_and_(Env, C0, C, OutEnv) -->
     qcond1_(Env, C1, OutEnv),
-    { get_dict(regular_condition, C0, C0P),
-      get_dict(regular_condition, C1, C1P),
+    { get_dict(regular_condition, C0, fretish(C0P)),
+      get_dict(regular_condition, C1, fretish(C1P)),
       get_dict(qualifier_word, C1, C1QW),
       C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
-             pre_condition: and(C0P, C1P),
-             regular_condition: and(C0P, C1P)
+             pre_condition: fretish(and(C0P, C1P)),
+             regular_condition: fretish(and(C0P, C1P))
            }
     }.
 
@@ -664,7 +672,7 @@ timing(Env, fail, [], Env) --> lexeme(tok(help)), [(_, '!')], !,
 timing(Env, _{ timing: "always"}, [], Env) --> lexeme(tok(always)).
 timing(Env, _{ timing: "after", duration: Duration }, [], Env) --> lexeme(tok(after)),
                                                                    duration_lower(Duration).
-timing(Env, _{ timing: "before", stop_condition: Cond }, Vars, NewEnv) -->
+timing(Env, _{ timing: "before", stop_condition: fretish(Cond) }, Vars, NewEnv) -->
     lexeme(tok(before)),
     bool_expr(Env, Cond, NewEnv),
     { fretish_expr_langdef(LangDef),
@@ -686,7 +694,7 @@ timing(Env, _{ timing: "eventually" }, [], Env) --> lexeme(tok(eventually)).
 timing(Env, _{ timing: "immediately" }, [], Env) --> lexeme(tok(initially)).
 timing(Env, _{ timing: "finally" }, [], Env) --> lexeme(tok(finally)).
 timing(Env, _{ timing: "never" }, [], Env) --> lexeme(tok(never)).
-timing(Env, _{ timing: "until", stop_condition: Cond }, Vars, NewEnv) -->
+timing(Env, _{ timing: "until", stop_condition: fretish(Cond) }, Vars, NewEnv) -->
     lexeme(tok(until)),
     bool_expr(Env, Cond, NewEnv),
     { fretish_expr_langdef(LangDef),
@@ -741,12 +749,14 @@ prolog:message(responses_help) -->
     { responsesHelp(H) },
     [ 'Help for specifying a FRETish responses phrase:~w' - [H] ].
 
-responses(_, fail) --> lexeme(tok(help)), [(_, '!')], !,
-                       { print_message(help, responses_help), fail }.
-responses(Env, _{response: "satisfaction", post_condition: EP}) -->
-    postcond(Env, EP).
+responses(E, fail, E) --> lexeme(tok(help)), [(_, '!')], !,
+                          { print_message(help, responses_help), fail }.
+responses(Env, _{response: "satisfaction", post_condition: fretish(EP)}, FinalEnv) -->
+    { assertz(in_response, A) },
+    postcond(Env, EP, FinalEnv),
+    { erase(A) }.
 
-postcond(Env, E) --> bool_expr(Env, E, _FinalEnv).
+postcond(Env, E, FinalEnv) --> bool_expr(Env, E, FinalEnv).
 
 % --------------------------------------------------
 %
@@ -819,11 +829,11 @@ precedence.
 fretish_expr_langdef(
     langdef{
         language: fretish_expr,
-        types: [ number, bool ],
+        types: [ integer, bool ],
         atoms: [ lit, num ],
         variable_ref: [ ident ],
         phrases:
-        [ term(num ⦂ number, num, [term(num(N), number), T]>>fmt_str(T, '~w', [N])),
+        [ term(num ⦂ integer, num, [term(num(N), integer), T]>>fmt_str(T, '~w', [N])),
           term(lit ⦂ bool, [true]>>word(true), emit_simple_term(lit)),
           term(lit ⦂ bool, [false]>>word(false), emit_simple_term(lit)),
           term(ident ⦂ a, word, emit_simple_term(ident)),
@@ -831,7 +841,7 @@ fretish_expr_langdef(
           expop(or ⦂ bool → bool → bool, infix(chrs('|')), emit_infix("|")),
           expop(exor ⦂ bool → bool → bool, infix(word(xor)), emit_infix("xor")),
           expop(neq ⦂ a → a → bool, infix(chrs('!=')), emit_infix("!=")),
-          expop(neg ⦂ number → number, [[]>>lexeme(chrs('-')), subexpr],
+          expop(neg ⦂ integer → integer, [[]>>lexeme(chrs('-')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(-~w)', [A])),
           expop(not ⦂ bool → bool, [[]>>lexeme(chrs('!')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(! ~w)', [A])),
@@ -840,11 +850,11 @@ fretish_expr_langdef(
           expop(leq ⦂ a → a → bool, infix(chrs('<=')), emit_infix("<=")),
           expop(gt ⦂ a → a → bool, infix(chrs('>')), emit_infix(">")),
           expop(lt ⦂ a → a → bool, infix(chrs('<')), emit_infix("<")),
-          expop(add ⦂ number → number → number, infix(chrs('+')), emit_infix("+")),
-          expop(sub ⦂ number → number → number, infix(chrs('-')), emit_infix("-")),
-          expop(mul ⦂ number → number → number, infix(chrs('*')), emit_infix("*")),
-          expop(divide ⦂ number → number → number, infix(chrs('/')), emit_infix("/")),
-          expop(expo ⦂ number → number → number, infix(chrs('^')), emit_infix("^")),
+          expop(add ⦂ integer → integer → integer, infix(chrs('+')), emit_infix("+")),
+          expop(sub ⦂ integer → integer → integer, infix(chrs('-')), emit_infix("-")),
+          expop(mul ⦂ integer → integer → integer, infix(chrs('*')), emit_infix("*")),
+          expop(divide ⦂ integer → integer → integer, infix(chrs('/')), emit_infix("/")),
+          expop(expo ⦂ integer → integer → integer, infix(chrs('^')), emit_infix("^")),
           expop(implies ⦂ bool → a → bool, [[]>>lexeme(word(if)),
                                             subexpr,
                                             []>>word(then),
@@ -853,11 +863,11 @@ fretish_expr_langdef(
                 [_,[A,B],T]>>fmt_str(T, '~w => ~w', [A, B])),
           expop(implies ⦂ bool → a → bool, infix(chrs('=>')),
                 [_,[A,B],T]>>fmt_str(T, '~w => ~w', [A, B])),
-          expop(occurred ⦂ number → bool → bool,
+          expop(occurred ⦂ integer → bool → bool,
                 [[]>>lexeme(word(occurred)), chrs('('), subexpr,
                  chrs(','),subexpr,chrs(')')],
                 [F,[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B])),
-          expop(persisted ⦂ number → bool → bool,
+          expop(persisted ⦂ integer → bool → bool,
                 [[]>>lexeme(word(persisted)), chrs('('), subexpr,
                  chrs(','),subexpr,chrs(')')],
                 [F,[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))

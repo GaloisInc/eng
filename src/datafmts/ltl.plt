@@ -47,6 +47,12 @@ test(simple_expr, [nondet]) :-
                   term(ident("shutdown_requested"), type_unassigned('⚲T0')),
                   "shutdown_requested").
 
+test(subst_ident, [nondet]) :-
+    check_parsing("$shutdown_requested$",
+                  term(ident('$shutdown_requested$'), type_unassigned('⚲T0')),
+                  "$shutdown_requested$").
+
+
 test(paren_expr, [nondet]) :-
     check_parsing("(shutdown_requested)",
                   term(ident("shutdown_requested"), type_unassigned('⚲T0')),
@@ -61,6 +67,11 @@ test(z_expr, [nondet]) :-
     check_parsing("(Z (! startup))",
                   op(ltlZ(op(not(term(ident("startup"), bool)), bool)), bool),
                   "ZtoPre((not startup))").
+
+test(h_expr, [nondet]) :-
+    check_parsing("(H (! startup))",
+                  op(ltlH(op(not(term(ident("startup"), bool)), bool)), bool),
+                  "H((not startup))").
 
 test(bool_or_expr, [nondet]) :-
     check_parsing("((shutdown_running) | startup)",
@@ -212,8 +223,8 @@ test(upon_next_expr, [nondet]) :-
                                                 bool)),
                                         bool),
                                      op(or(op(and(term(ident("m"), bool),
-                                                  op(gteq(term(ident("i"), number),
-                                                          term(num(0), number)),
+                                                  op(gteq(term(ident("i"), integer),
+                                                          term(num(0), integer)),
                                                      bool)),
                                               bool),
                                            op(ltlZ(term(lit(false), bool)),

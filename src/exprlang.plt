@@ -3,57 +3,61 @@
 :- use_module(library(strings)).
 
 rtpe(LangDef, Inp) :-
-    parse_expr(LangDef, Inp, ABT),
-    !,
+    define_language(LangDef, _),
     get_dict(language, LangDef, Language),
+    parse_expr(Language, Inp, ABT),
+    !,
     emit_expr(Language, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
     assertion(InpTrimmed == Out),
     % above may have normalized: ensure it is still parseable
-    parse_expr(LangDef, Out, ABT2),
+    parse_expr(Language, Out, ABT2),
     !,
     assertion(ABT == ABT2),
     emit_expr(Language, ABT2, Out2),
     assertion(InpTrimmed == Out2).
 
 rtpe(LangDef, Inp, ExpABT) :-
-    parse_expr(LangDef, Inp, ABT),
+    define_language(LangDef, _),
+    get_dict(language, LangDef, Language),
+    parse_expr(Language, Inp, ABT),
     !,
     assertion(ExpABT = ABT),
-    get_dict(language, LangDef, Language),
     emit_expr(Language, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
     assertion(InpTrimmed == Out),
     % above may have normalized: ensure it is still parseable
-    parse_expr(LangDef, Out, ABT2),
+    parse_expr(Language, Out, ABT2),
     !,
     assertion(ABT == ABT2),
     emit_expr(Language, ABT2, Out2),
     assertion(InpTrimmed == Out2).
 
 rtpe(LangDef, Inp, ExpABT, ExpOut, ExpType) :-
-    parse_expr(LangDef, Inp, ABT, ExpType),
+    define_language(LangDef, _),
+    get_dict(language, LangDef, Language),
+    parse_expr(Language, Inp, ABT, ExpType),
     !,
     assertion(ExpABT = ABT),
-    get_dict(language, LangDef, Language),
     emit_expr(Language, ABT, Out),
     assertion(ExpOut = Out),
     % above may have normalized: ensure it is still parseable
-    parse_expr(LangDef, Out, ABT2, ExpType),
+    parse_expr(Language, Out, ABT2, ExpType),
     !,
     assertion(ABT == ABT2),
     emit_expr(Language, ABT2, Out2),
     assertion(ExpOut == Out2).
 
 rtpe(LangDef, Inp, ExpABT, ExpOut) :-
-    parse_expr(LangDef, Inp, ABT),
+    define_language(LangDef, _),
+    get_dict(language, LangDef, Language),
+    parse_expr(Language, Inp, ABT),
     !,
     assertion(ExpABT = ABT),
-    get_dict(language, LangDef, Language),
     emit_expr(Language, ABT, Out),
     assertion(ExpOut = Out),
     % above may have normalized: ensure it is still parseable
-    parse_expr(LangDef, Out, ABT2),
+    parse_expr(Language, Out, ABT2),
     !,
     assertion(ABT == ABT2),
     emit_expr(Language, ABT2, Out2),
@@ -173,7 +177,10 @@ test(infix_expr_bool, [nondet]) :-
          op(cmpeq(term(num(32), number), term(num(19), number)), bool),
         "(32 == 19)").
 
-test(infix_expr_bool_badtypes, [nondet, fail]) :-
+test(infix_expr_bool_badtypes,
+     [nondet,
+      error(invalid_term_type(testlang, number, term(lit(false), bool)))
+     ]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 == false", cmpeq(term(num(32), number),
                                         term(lit(false), bool))).
@@ -285,17 +292,77 @@ test(align_terms_result, [nondet]) :-
             bool),
          "const(other_thing, (other_thing == true))").
 
-test(fixed_incompat_vars, [nondet, fail]) :-
+test(fixed_incompat_vars,
+     [nondet,
+      error(invalid_term_type(testlang, number,
+                               op(const(term(ident("other_thing"), bool),
+                                        op(cmpeq(term(ident("other_thing"), bool),
+                                                 term(lit(true), bool)),
+                                           bool)),
+                                  bool)))
+     ]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "some_num + const(other_thing, other_thing == true)",
          op(other_thing, bool),
          "other_thing is a bool, but add requires a number").
 
-test(fixed_incompat_vars_reverse, [nondet, fail]) :-
+test(fixed_incompat_vars_reverse,
+     [nondet,
+      error(invalid_term_type(testlang, number,
+                               op(const(term(ident("other_thing"),bool),
+                                        op(cmpeq(term(ident("other_thing"), bool),
+                                                 term(lit(true),bool)),
+                                           bool)),
+                                  bool)))
+     ]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "const(other_thing, other_thing == true) + some_num",
          op(other_thing, bool),
          "other_thing is a bool, but add requires a number").
+
+test(fixed_incompat_vars_repair, [nondet]) :-
+    langdef1(LangDef1),
+    get_dict(language, LangDef1, L1),
+    atom_concat(L1, not, L2),
+    assertz(exprlang:type_repair(L1, Env, term(ident("other_thing"), bool),
+                                 % doesn't match expr, should be ignored
+                                 _ExprType1,
+                                 term(ident("failed_test1"), repair1), Env), A1),
+    assertz(exprlang:type_repair(L2, Env,
+                                 op(const(term(ident("other_thing"),bool),
+                                        op(cmpeq(term(ident("other_thing"), bool),
+                                                 term(lit(true),bool)),
+                                           bool)),
+                                    bool),
+                                 % doesn't match language, should be ignored
+                                 _ExprType2,
+                                 term(ident("failed_test2"), repair2), Env), A2),
+    assertz(exprlang:type_repair(L1, Env,
+                                 op(const(term(ident("other_thing"),bool),
+                                        op(cmpeq(term(ident("other_thing"), bool),
+                                                 term(lit(true),bool)),
+                                           bool)),
+                                    bool),
+                                 bool,
+                                 % doesn't match expected exprtype, should be ignored
+                                 term(ident("failed_test3"), repair3), Env), A3),
+    assertz(exprlang:type_repair(L1, Env,
+                                 op(const(term(ident("other_thing"),bool),
+                                        op(cmpeq(term(ident("other_thing"), bool),
+                                                 term(lit(true),bool)),
+                                           bool)),
+                                    bool),
+                                 number,
+                                 % this is the one that should fix it, by
+                                 % replacing the matched term with a term
+                                 % matching the type in the resulting ABT:
+                                 term(num(99), number),
+                                 Env), A4),
+    rtpe(LangDef1, "const(other_thing, other_thing == true) + some_num",
+         % Because of the rewrite, the output is very different from the input:
+         op(add(term(num(99), number), term(ident("some_num"), number)), number),
+         "(99 + some_num)", number),
+    erase(A1), erase(A2), erase(A3), erase(A4).
 
 test(result_determines_vartype, [nondet]) :-
     langdef1(LangDef1),

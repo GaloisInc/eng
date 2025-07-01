@@ -3,11 +3,13 @@
                       ]).
 
 :- use_module(library(http/json)).
+:- use_module(library(lists)).
 :- use_module(datafmts/frettish).
 :- use_module(datafmts/fret_json).
 :- use_module(datafmts/lando).
 :- use_module(datafmts/ltl).
 :- use_module(englib).
+:- use_module(exprlang).
 
 
 %% Extract FRET requirements from a Lando SSL (System Specification Language)
@@ -56,20 +58,29 @@
 lando_to_fret(LandoSSL, FretRequirements, FretVariables, SrcRefs) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(_),  %% asserts fret_semantics/5 facts used below
+    fretish_expr_langdef(LangDef),
+    define_language(LangDef, _),
     (extract_fret(Body, Reqs, Refs, Status)
     -> ( fret_results(Body, Status, Reqs, FretRequirements, FretVariables),
          append(Refs, SrcRefs),
-         !  %% green cut to not retry now that it has been successfully converted
+         !,  %% green cut to not retry now that it has been successfully converted
+         length(FretRequirements, NFret),
+         print_message(information, fret_extracted(NFret))
        )
     ; print_message(error, fret_conversion_failed()), fail
     ).
 
+prolog:message(fret_extracted(N)) --> [ 'Extracted ~w FRET requirements' - [N] ].
 prolog:message(fret_conversion_failed()) --> [ 'Failed to convert Lando to FRET' ].
 prolog:message(fret_conversion_errors(_Cnt)) --> [ 'FRET extractions failed' ].
 
 fret_results(SSLBody, 0, InpReqs, OutReqs, OutVars) :-
     !,
-    collect_vars(SSLBody, InpReqs, [], OutReqs, OutVars).
+    fretish_expr_langdef(LangDef),
+    get_dict(language, LangDef, Language),
+    collect_vars(Language, SSLBody, InpReqs, OutReqs, OutVars).
+fret_results(_SSLBody, 0, InpReqs, InpReqs, []) :-
+    !.
 fret_results(_, Status, _, _, _) :-
     !,
     print_message(error, fret_conversion_errors(Status)),
@@ -79,25 +90,89 @@ resource(fret_semantics, 'src/semantics.json').
 
 % --------------------
 
-collect_vars(_, [], [], [], []).
-collect_vars(SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
+collect_vars(Lang, SSLBody, InpReqs, OutReqs, OutVars) :-
+    findall(C, component_var(SSLBody, C), CS),
+    findall(E, events_var(SSLBody, E), ES),
+    findall(S, scenarios_var(SSLBody, S), SS),
+    collect_vars(Lang, SSLBody, InpReqs, [], OutReqs, UsedVars),
+    foldl(collect_var(CS, ES, SS), UsedVars, [], OutVars).
+
+collect_var(_, _, _, VName ⦂ _, Collected, Collected) :-
+    already_collected(VName, Collected), !.
+collect_var(CS, _, _, VName ⦂ _, Collected, [Var|Collected]) :-
+    var_in(CS, VName, Var),
+    !.
+collect_var(_, ES, _, VName ⦂ _, Collected, [Var|Collected]) :-
+    var_in(ES, VName, Var),
+    !.
+collect_var(_, _, SS, VName ⦂ _, Collected, [Var|Collected]) :-
+    var_in(SS, VName, Var),
+    !.
+collect_var(_, _, SS, VName ⦂ _, Collected, [Var|Collected]) :-
+    member(S, SS),
+    get_dict(varname, S, VN),
+    scenarios_final_var_name(VN, VName),
+    get_dict(desc, S, OD),
+    format_str(Desc, 'output ~w', [OD]),
+    put_dict(_{varname: VName, usage:"Output", desc:Desc}, S, Var),
+    !.
+collect_var(_, _, SS, VName ⦂ _, Collected, [Var|Collected]) :-
+    member(S, SS),
+    get_dict(constructors, S, CVS),
+    member((VName, Val, Desc), CVS),
+    Var = constr(VName, Val, Desc, S).
+
+
+var_in([V|_],  VName, V) :- get_dict(varname, V, VName), !.
+var_in([_|VS], VName, V) :- var_in(VS, VName, V).
+
+already_collected(VName, [constr(VName, _, _, _)|_]) :- !.
+already_collected(VName, [constr(_, _, _, _)|VS]) :- !, already_collected(VName, VS).
+already_collected(VName, [V|_]) :- get_dict(variable_name, V, VName), !.
+already_collected(VName, [_|VS]) :- already_collected(VName, VS).
+
+collect_vars(_, _, [], [], [], []).
+collect_vars(Lang, SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
     !,
-    collect_vars(SSLBody, InpReqs, Vars, OutReqs, OutVars).
-collect_vars(SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
-    collect_vars(SSLBody, InpReqs, Vars, SubReqs, SubVars),
-    get_dict(requirement, FretReq, Req),
-    get_dict(semantics, Req, Semantics),
-    get_dict(variables, Semantics, ReqVars),
-    InpConsts = inputs(FretReq, SSLBody),
-    collect_req_vars(InpConsts, ReqVars, SubVars, OutFretReq, OutVars),
-    OutReqs = [OutFretReq|SubReqs].
+    collect_vars(Lang, SSLBody, InpReqs, Vars, OutReqs, OutVars).
+collect_vars(Lang, SSLBody, [R|InpReqs], Vars, [R|SubReqs], OutVars) :-
+    collect_vars(Lang, SSLBody, InpReqs, Vars, SubReqs, SubVars),
+    collect_vars_from_req(Lang, R, ReqVars),
+    append([ReqVars, SubVars], OutVars).
+
+collect_vars_from_req(Lang, Req, Vars) :-
+    get_dict(lando_req, Req, LR),
+    get_dict(fret_req, LR, FR),
+    fretment_vars(scope, FR, SVars),
+    fretment_vars(condition, FR, CVars),
+    fretment_vars(timing, FR, TVars),
+    fretment_vars(response, FR, RVars),
+    append([SVars, CVars, TVars, RVars], AllVars),
+    list_to_set(AllVars, Vars).
+
+%% collect_vars(_, [], [], [], []).
+%% collect_vars(SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
+%%     !,
+%%     collect_vars(SSLBody, InpReqs, Vars, OutReqs, OutVars).
+%% collect_vars(SSLBody, [FretReq|InpReqs], Vars, OutReqs, OutVars) :-
+%%     collect_vars(SSLBody, InpReqs, Vars, SubReqs, SubVars),
+%%     format('collect_vars in ~w~n', [FretReq]),
+%%     schnozz(FretReq, coll___collect_vars, Req),
+%%     writeln(Req),
+%%     %% get_dict(requirement, FretReq, Req),
+%%     get_dict(semantics, Req, Semantics),
+%%     get_dict(variables, Semantics, ReqVars),
+%%     InpConsts = inputs(FretReq, SSLBody),
+%%     collect_req_vars(InpConsts, ReqVars, SubVars, OutFretReq, OutVars),
+%%     OutReqs = [OutFretReq|SubReqs].
 
 collect_req_vars(Inputs, [], VS, FretReq, VS) :- Inputs = inputs(FretReq, _).
 collect_req_vars(Inputs, [noreq|RVS], VS, OutReq, OutVS) :-
     !,
     collect_req_vars(Inputs, RVS, VS, OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
-    component_var(RV, Inputs, CompVar),
+    Inputs = (_, SSLBody),
+    component_var(RV, SSLBody, CompVar, _),
     !,
     get_dict(variable_name, CompVar, VName),
     (existing_var(VName, VS, CV, VSNoV)
@@ -115,7 +190,8 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     ),
     collect_req_vars(Inputs, RVS, [SV|RemVS], OutReq, OutVS).
 collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
-    scenarios_var(RV, Inputs, Var),
+    Inputs = (_, SSLBody),
+    scenarios_var(RV, SSLBody, Var, _),
     !,
     add_var_ref(Var, Inputs, V),
     collect_req_vars(Inputs, RVS, [V|VS], OutReq, OutVS).
@@ -126,9 +202,10 @@ collect_req_vars(Inputs, [RV|RVS], VS, OutReq, OutVS) :-
     % the FinalStateV name is derived from that. Thus it is only necessary to
     % check InitStateV's name.
     get_dict(variable_name, InitStateV, SVName),
-    \+ component_var(SVName, Inputs, _),
+    Inputs = (_, SSLBody),
+    \+ component_var(SVName, SSLBody, _, _),
     % Verify there's no explicit "component" declaration of this MainV
-    \+ component_var(RV, Inputs, _),
+    \+ component_var(RV, SSLBody, _, _),
     !,
     % The RV references a specific scenario (RV/MainV) in a scenarios group
     % (SVName), and there is no component declaration for RV or ScenarioV, so the
@@ -318,7 +395,7 @@ with_stateref(StateVName, LclVName, ModePhrase, OutPhrase) :-
 % Search the Lando elements (recursively) to find a "component" declaration for
 % this name with the expected sub-elements.
 
-component_var(VName, inputs(_, SSLBody), CompVar) :-
+component_var(VName, SSLBody, CompVar, Info) :-
     find_specElement(SSLBody, lando_fret:component_var_match(VName),
                      found(ProjName, CompName, SpecElement)),
     ( fret_usage_type(SpecElement, Usage, Type, ModeReqs)
@@ -327,10 +404,31 @@ component_var(VName, inputs(_, SSLBody), CompVar) :-
     ; print_message(warning, no_fret_var_info(component, VName)),
       fail
     ).
+
+component_var(SSLBody, Info) :-
+    find_specElement(SSLBody, lando_fret:component_var_match,
+                     found(ProjName, CompName, SpecElement)),
+    fret_usage_type(SpecElement, Usage, Type, ModeReqs),
+    get_dict(explanation, SpecElement, Expl),
+    specElement_ref(SpecElement, VName),
+    %% mkVar(ProjName, CompName, VName, Expl, Type, Usage, ModeReqs, CompVar),
+    atom_string(AType, Type),
+    show_type(AType, TT),
+    format('mkvar for component, ~w type ~w / ~w~n', [VName, AType, TT]),
+    Info = var{varname: VName,
+               usage: Usage,
+               type: AType,
+               % KWQ: ModeReqs!?!
+               desc: Expl,
+               proj: ProjName,
+               comp: CompName
+              }.
+
 component_var_match(VName, E) :-
     is_dict(E, component),
     specElement_ref(E, VName).
 
+component_var_match(E) :- is_dict(E, component).
 
 prolog:message(no_fret_var_info(ElementType, VarName)) -->
     [ 'Found ~w for ~w but there is no FRET specification'
@@ -344,15 +442,35 @@ prolog:message(no_fret_var_info(VarName)) -->
 % which this input name is the scenario's main name (in either initial or final
 % name).
 
-scenarios_var(VName, inputs(_, SSLBody), Var) :-
+scenarios_var(VName, SSLBody, Var, Info) :-
     find_specElement(SSLBody, lando_fret:scenarios_var_match(VName),
                      found(ProjName, CompName, SpecElement)),
     scenarios_var_name(SpecElement, VName, Usage),
     string_concat("scenarios state ", Usage, Expl),
     mkVar(ProjName, CompName, VName, Expl, "integer", Usage, "", Var).
 
+scenarios_var(SSLBody, Info) :-
+    find_specElement(SSLBody, lando_fret:scenarios_var_match,
+                     found(ProjName, CompName, SpecElement)),
+    scenarios_var_name(SpecElement, VName, "Input"),
+    string_concat("scenarios state ", "variable", Expl),
+    get_dict(scenarios, SpecElement, Scenarios),
+    findall((C,V,D), find_scenario_var(C, Scenarios, 0, D, V), Constructors),
+    format(atom(Ty), '~w_τ', [VName]),
+    Info = scenario{varname: VName,
+                    usage: "Input",
+                    % usage: Usage,
+                    type: Ty,
+                    desc: Expl,
+                    proj: ProjName,
+                    comp: CompName,
+                    constructors: Constructors
+                   }.
+
 scenarios_var_match(VName, E) :- is_dict(E, scenarios),
                                  scenarios_var_name(E, VName, _).
+
+scenarios_var_match(E) :- is_dict(E, scenarios).
 
 scenarios_var_name(SpecElement, VName, "Input") :-
     get_dict(name, SpecElement, ScenariosName),
@@ -392,7 +510,6 @@ scenario_var_name(VName, E) :-
 
 find_scenario_var(VName, [Scenario|_], Value, Desc, Value) :-
     get_dict(id, Scenario, VName),
-    !,
     get_dict(text, Scenario, Desc).
 find_scenario_var(VName, [_|Scenarios], ThisValue, Desc, Value) :-
     succ(ThisValue, NextValue),
@@ -411,6 +528,23 @@ events_var(VName, inputs(_, SSLBody), Var) :-
     find_event_var(VName, Events, Desc),
     % n.b. deduplication is handled elsewhere
     mkVar(ProjName, CompName, VName, Desc, "boolean", "Input", "", Var).
+
+events_var(SSLBody, Info) :-
+    find_specElement(SSLBody, lando_fret:is_events_var,
+                     found(ProjName, CompName, SpecElement)),
+    get_dict(events, SpecElement, Events),
+    member(Event, Events),
+    get_dict(id, Event, VName),
+    get_dict(text, Event, Desc),
+    Info = var{varname: VName,
+               usage: "Input",
+               type: bool,
+               desc: Desc,
+               proj: ProjName,
+               comp: CompName
+              }.
+
+is_events_var(E) :- is_dict(E, events).
 
 events_var_name(VName, E) :-
     is_dict(E, events),
@@ -446,19 +580,84 @@ define_fret_semantics(_).  % pass after all backtracking done
 :- dynamic lando_fret:fret_semantics/5.
 
 extract_fret(SSLBody, Reqs, Refs, Status) :-
+    initial_gamma(LangEnv0),
+    add_predefined_vars(LangEnv0, SSLBody, LangEnv, EnabledRewrites),
     findall(F, find_specElement(SSLBody, lando_fret:is_lando_req, F), Found),
-    lando_reqs_to_fret_reqs(Found, Reqs, Refs, Status).
+    (lando_reqs_to_fret_reqs(LangEnv, Found, Reqs, Refs, Status)
+    -> maplist(erase, EnabledRewrites)
+    ; % Ensure rewrites are removed even on failure to parse lando reqs into fret reqs
+      maplist(erase, EnabledRewrites), !, fail
+    ).
+
+add_predefined_vars(LangEnv0, SSLBody, LangEnv, Rewrites) :-
+    add_component_vars(LangEnv0, SSLBody, LangEnv1),
+    add_events_vars(LangEnv1, SSLBody, LangEnv2),
+    add_scenario_vars(LangEnv2, SSLBody, LangEnv, Rewrites).
+
+add_component_vars(LangEnv0, SSLBody, LangEnv) :-
+    findall(C, component_var(SSLBody, C), CS),
+    foldl(add_cvar, CS, LangEnv0, LangEnv).
+add_cvar(C, InpEnv, OutEnv) :-
+    get_dict(varname, C, Name),
+    get_dict(type, C, Type),
+    fresh_var(InpEnv, Name, Type, OutEnv).
+
+add_events_vars(LangEnv0, SSLBody, LangEnv) :-
+    findall(C, events_var(SSLBody, C), CS),
+    foldl(add_evar, CS, LangEnv0, LangEnv).
+add_evar(C, InpEnv, OutEnv) :-
+    get_dict(varname, C, Name),
+    get_dict(type, C, Type),
+    fresh_var(InpEnv, Name, Type, OutEnv).
+
+add_scenario_vars(LangEnv0, SSLBody, LangEnv, Rewrites) :-
+    findall(S, scenarios_var(SSLBody, S), SS),
+    fretish_expr_langdef(LD),
+    get_dict(language, LD, Lang),
+    foldl(add_svar(Lang), SS, (LangEnv0, []), (LangEnv, Rewrites)).
+add_svar(Lang, S, (InpEnv, RW), (OutEnv, [TRef|NewRW])) :-
+    get_dict(varname, S, Name),
+    scenarios_final_var_name(Name, OutName),
+    get_dict(type, S, Type),
+    assertz(exprlang:type(Lang, Type), TRef), % this is now a known type for the language
+    fresh_var(InpEnv, Name, Type, Env1),
+    fresh_var(Env1, OutName, Type, Env2),
+    % These are nullary constructors, and aren't technically variables, but
+    % tracking them as such allows the exprlang typechecking to validate them,
+    % and the fact that they are constants and not variables is only important
+    % when emitting them into some other representation.
+    get_dict(constructors, S, Constructors),
+    foldl([(N,_,_),E,EO]>>fresh_var(E, N, Type, EO), Constructors, Env2, Env3),
+    add_rewrites(Lang, Name, OutName, Type, Constructors, Env3, RW, NewRW, OutEnv).
+add_rewrites(_, _, _, _, [], Env, RW, RW, Env).
+add_rewrites(Lang, CVar, OutCVar, CType, [(CName, _CVal, _CDesc)|CS], Env, RW,
+             OutRW, OutEnv) :-
+    assertz(exprlang:type_repair(Lang, XEnv,
+                                 term(ident(CName), CType), bool,
+                                 op(eq(term(ident(OutCVar), CType),
+                                       term(ident(CName), CType)), bool),
+                                 XEnv) :- frettish:in_response,
+            RW1),
+    assertz(exprlang:type_repair(Lang, XEnv,
+                                 term(ident(CName), CType), bool,
+                                 op(eq(term(ident(CVar), CType),
+                                       term(ident(CName), CType)), bool),
+                                 XEnv),
+            RW2),
+    add_rewrites(Lang, CVar, OutCVar, CType, CS, Env, [RW1,RW2|RW], OutRW, OutEnv).
+
+:- dynamic frettish:in_response/0.
 
 % Create FRET requirements from FRET: indexing statements in Lando requirements
-lando_reqs_to_fret_reqs([], [], [], 0).
-lando_reqs_to_fret_reqs([found(ProjName, CompName, SpecElement)|Fnd],
+lando_reqs_to_fret_reqs(_, [], [], [], 0).
+lando_reqs_to_fret_reqs(LangEnv, [found(ProjName, CompName, SpecElement)|Fnd],
                         Reqs, ReqRefs, Status) :-
     specElement_ref(SpecElement, Name),
     get_dict(explanation, SpecElement, Expl),
     get_dict(uid, SpecElement, UID),
     get_dict(indexing, SpecElement, Indexing),
 
-    make_fret_reqs(ProjName, CompName, Name, Expl, UID,
+    make_fret_reqs(ProjName, CompName, LangEnv, Name, Expl, UID,
                    0, Indexing, ThisReqs, Sts),
 
     % Create a mapping from FRET requirements back to the originating source
@@ -467,7 +666,7 @@ lando_reqs_to_fret_reqs([found(ProjName, CompName, SpecElement)|Fnd],
     findall(S, source_ref(Indexing, S), SRefs),
     maplist(mkReqRef(SRefs), ThisReqs, ThisReqRefs),
 
-    lando_reqs_to_fret_reqs(Fnd, NextReqs, NextReqRefs, NextSts),
+    lando_reqs_to_fret_reqs(LangEnv, Fnd, NextReqs, NextReqRefs, NextSts),
     prepend_valid_reqs(ThisReqs, NextReqs, Reqs),
     append([ThisReqRefs, NextReqRefs], ReqRefs),
     Status is Sts + NextSts.
@@ -566,30 +765,28 @@ fret_var_type_(Feature, Type) :-
     string_concat("FRET : ", FT, T),
     string_concat(Type, ".", FT).
 
-make_fret_reqs(_, _, _, _, _, _, [], [], 0).
-make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
+make_fret_reqs(_, _, _, _, _, _, _, [], [], 0).  % end of list
+make_fret_reqs(ProjName, CompName, LangEnv, ReqName, Expl, UID,
                Num, [Index|IXS], [Req|Reqs], Sts) :-
     get_dict(key, Index, "FRET"),
-    (parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num,
+    (parse_fret_or_error(ProjName, CompName, LangEnv,
+                         ReqName, Expl, UID, Num,
                          Index, Req)
     -> Cnt = 0
     ; Cnt = 1
     ),
     succ(Num, NextNum),
-    make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
+    make_fret_reqs(ProjName, CompName, LangEnv, ReqName, Expl, UID,
                    NextNum, IXS, Reqs, NextSts),
     Sts is Cnt + NextSts.
-make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
+make_fret_reqs(ProjName, CompName, LangEnv, ReqName, Expl, UID,
                Num, [_|IXS], Reqs, Sts) :-
-    make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
-                   Num, IXS, Reqs, Sts).
-make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
-               Num, [_|IXS], Reqs, Sts) :-
-    make_fret_reqs(ProjName, CompName, ReqName, Expl, UID,
+    % this index is not a FRET: skip it
+    make_fret_reqs(ProjName, CompName, LangEnv, ReqName, Expl, UID,
                    Num, IXS, Reqs, Sts).
 
 
-parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
+parse_fret_or_error(ProjName, CompName, LangEnv, ReqName, Expl, UID, Num, Index, Req) :-
     get_dict(values, Index, Lines),
     intercalate(Lines, " ", English),
     get_dict(pos, Index, pos{line:Line, col:_Col}),
@@ -617,9 +814,9 @@ parse_fret_or_error(ProjName, CompName, ReqName, Expl, UID, Num, Index, Req) :-
                            '_id': ReqID
                          },
     !,
-    parse_fret_into_req(Context, ReqBase, LandoReqBase, English, Req).
-parse_fret_into_req(Context, ReqBase, LandoReqBase, English, Req) :-
-    parse_fret(Context, English, FretMent),
+    parse_fret_into_req(Context, LangEnv, ReqBase, LandoReqBase, English, Req).
+parse_fret_into_req(Context, LangEnv, ReqBase, LandoReqBase, English, Req) :-
+    parse_fret(Context, LangEnv, English, FretMent),
     !,
     ( fretment_semantics(FretMent,
                          ranges{ scopeTextRange:[0, 1],
@@ -635,7 +832,7 @@ parse_fret_into_req(Context, ReqBase, LandoReqBase, English, Req) :-
                lando_req:LandoReq}
     ; print_message(error, no_semantics(Context, English, FretMent)), fail
     ).
-parse_fret_into_req(Context, _, English, noreq) :-
+parse_fret_into_req(Context, _, _, English, noreq) :-
     print_message(error, bad_frettish(Context, English)).
 
 

@@ -13,7 +13,8 @@ define_lustre_language :-
 
 parse_lustre(Inp, AST) :-
     lustre_langdef(LangDef),
-    parse_expr(LangDef, Inp, AST).
+    get_dict(language, LangDef, Language),
+    parse_expr(Language, Inp, AST).
 
 emit_CoCoSpec(AST, Text) :- emit_lustre(AST, Text).
 
@@ -31,11 +32,11 @@ emit_lustre(AST, Text) :-
 lustre_langdef(
     langdef{
         language: lustre,
-        types: [ number, bool ],
+        types: [ integer, bool ],
         atoms: [ ], % lit, num ],
         variable_ref: [ ident ],
         phrases:
-        [ term(num ⦂ number, num, emit_simple_term(num)),
+        [ term(num ⦂ integer, num, emit_simple_term(num)),
           term(lit ⦂ bool, [true]>>word(true), emit_simple_term(lit)),
           term(lit ⦂ bool, [false]>>word(false), emit_simple_term(lit)),
           term(ident ⦂ a, word, emit_simple_term(ident)),
@@ -91,16 +92,16 @@ lustre_langdef(
           expop(ltlZ ⦂ bool → bool,
                 [[]>>lexeme(chrs('ZtoPre(')), subexpr, lexeme(chrs(')'))],
                 [_,[A],T]>>fmt_str(T, 'ZtoPre(~w)', [A])),
-          expop(ltlF_bound ⦂ number → bool → bool,
+          expop(ltlF_bound ⦂ integer → bool → bool,
                 [[]>>lexeme(chrs('FT(')), subexpr, lexeme(chrs(']')), subexpr],
                 [_,[R,A],T]>>fmt_str(T, 'FT(~w, ~w)', [R, A])),
-          expop(ltlG_bound ⦂ number → bool → bool,
+          expop(ltlG_bound ⦂ integer → bool → bool,
                 [[]>>lexeme(chrs('GT(')), subexpr, lexeme(chrs(']')), subexpr],
                 [_,[R,A],T]>>fmt_str(T, 'GT(~w, ~w)', [R, A])),
-          expop(ltlH_bound ⦂ number → bool → bool,
+          expop(ltlH_bound ⦂ integer → bool → bool,
                 [[]>>lexeme(chrs('HT(')), subexpr, lexeme(chrs(']')), subexpr],
                 [_,[R,A],T]>>fmt_str(T, 'HT(~w, ~w)', [R, A])),
-          expop(ltlO_bound ⦂ number → bool → bool,
+          expop(ltlO_bound ⦂ integer → bool → bool,
                 [[]>>lexeme(chrs('OT(')), subexpr, lexeme(chrs(']')), subexpr],
                 [_,[R,A],T]>>fmt_str(T, 'OT(~w, ~w)', [R, A])),
           expop(after ⦂ bool → bool,
@@ -109,26 +110,26 @@ lustre_langdef(
           expop(before ⦂ bool → bool,
                 [[]>>lexeme(chrs('<|')), subexpr],
                 [_,[A],T]>>fmt_str('(<| ~w)', [A])),
-          expop(range_exact ⦂ number → range,
+          expop(range_exact ⦂ integer → range,
                 infix(chrs(',')),
                 [_,[R],T]>>fmt_str(T, '~w, ~w', [R,R])),
           % n.b. range_exact parsing will supercede range_max_incl, range_max,
           % range_min_ncl, range_min, and range_min_max, but those constructors
           % are still replicated here for compatibility with the ltl expression
           % language parsing.
-          expop(range_max_incl ⦂ number → range,
+          expop(range_max_incl ⦂ integer → range,
                 infix(chrs(',')),
                 [_,[Max],T]>>fmt_str(T, '~w, 0', [Max])),
-          expop(range_max ⦂ number → range,
+          expop(range_max ⦂ integer → range,
                 infix(chrs(',')),
                 [_,[Max],T]>>fmt_str(T, '(~w - 1), 0', [Max])),
-          expop(range_min_incl ⦂ number → range,
+          expop(range_min_incl ⦂ integer → range,
                 infix(chrs(',')),
                 [_,[Min],T]>>fmt_str(T, '0, ~w', [Max])),
-          expop(range_min ⦂ number → range,
+          expop(range_min ⦂ integer → range,
                 infix(chrs(',')),
                 [_,[Min],T]>>fmt_str(T, '0, (~w - 1)', [Max])),
-          expop(range_min_max ⦂ number → number → range,
+          expop(range_min_max ⦂ integer → integer → range,
                 infix(chrs(',')),
                 [_,[Min,Max],T]>>fmt_str(T, '~w, ~w', [Max, Min])),
           %% expop(exor ⦂ bool → bool → bool, infix(word(xor)), emit_infix("xor")),
@@ -136,15 +137,15 @@ lustre_langdef(
           expop(eq ⦂ a → a → bool, infix(chrs('=')), emit_infix("=")),
           expop(equiv ⦂ a → a → bool, infix(chrs('=')), emit_infix("=")),
           expop(neq ⦂ a → a → bool, infix(chrs('<>')), emit_infix("<>")),
-          expop(gteq ⦂ number → number → bool, infix(chrs('>=')), emit_infix(">=")),
-          expop(lteq ⦂ number → number → bool, infix(chrs('<=')), emit_infix("<=")),
-          expop(gt ⦂ number → number → bool, infix(chrs('>')), emit_infix(">")),
-          expop(lt ⦂ number → number → bool, infix(chrs('<')), emit_infix("<")),
-          expop(neg ⦂ number → number, [[]>>lexeme(chrs('-')), subexpr],
+          expop(gteq ⦂ integer → integer → bool, infix(chrs('>=')), emit_infix(">=")),
+          expop(lteq ⦂ integer → integer → bool, infix(chrs('<=')), emit_infix("<=")),
+          expop(gt ⦂ integer → integer → bool, infix(chrs('>')), emit_infix(">")),
+          expop(lt ⦂ integer → integer → bool, infix(chrs('<')), emit_infix("<")),
+          expop(neg ⦂ integer → integer, [[]>>lexeme(chrs('-')), subexpr],
                 [_,[V],T]>>fmt_str(T, '(- ~w)', [V])),
-          expop(add ⦂ number → number → number, infix(chrs('+')), emit_infix("+")),
-          expop(sub ⦂ number → number → number, infix(chrs('-')), emit_infix("-")),
-          expop(mul ⦂ number → number → number, infix(chrs('*')), emit_infix("*")),
-          expop(divd ⦂ number → number → number, infix(chrs('/')), emit_infix("/")),
-          expop(expo ⦂ number → number → number, infix(chrs('^')), emit_infix("^"))
+          expop(add ⦂ integer → integer → integer, infix(chrs('+')), emit_infix("+")),
+          expop(sub ⦂ integer → integer → integer, infix(chrs('-')), emit_infix("-")),
+          expop(mul ⦂ integer → integer → integer, infix(chrs('*')), emit_infix("*")),
+          expop(divd ⦂ integer → integer → integer, infix(chrs('/')), emit_infix("/")),
+          expop(expo ⦂ integer → integer → integer, infix(chrs('^')), emit_infix("^"))
         ]}).

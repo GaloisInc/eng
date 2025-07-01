@@ -13,11 +13,12 @@
 :- use_module(frettish).
 
 lando_reqs_to_fret_json(Lando_Reqs, Vars, JSONDict) :-
+    % lando_fret:get_semantics_defs(_), % asserts fret_semantics/5 facts used
+    % below
     maplist(lando_req_to_fret_json, Lando_Reqs, JSONReqs),
-    something_with(Vars, JSONVars),
+    mk_fret_vars(JSONReqs, Vars, JSONVars),
     JSONDict = _{requirements: JSONReqs, variables: JSONVars}.
 
-something_with(Vars, Vars).
 lando_req_to_fret_json(Lando_Req, JSONDict) :-
     get_dict(lando_req, Lando_Req, R),
     get_dict(req_id, R, RI),
@@ -45,15 +46,23 @@ fretment_to_fretsemantics(Fretment, Ranges, JSONDict) :-
                         timing_info(Timing, _),
                         response_info(Response)),
 
+    % Ensure all the FRETish, LTL, and Lustre/CoCoSpec language definitions are
+    % in effect.
+    %% fretish_expr_langdef(Fretish_Expr_Langdef),
+    %% define_language(Fretish_Expr_Langdef, _),
+    define_ltl_language,
+    define_lustre_language,
+
     % Now "hydrate" the information with all of the additional things that the
     % FRET tool expects to find in the JSON form.
 
-    fretment_vars(scope, FretMent, ScopeVars),
-    fretment_vars(condition, FretMent, CondVars),
-    fretment_vars(timing, FretMent, TimingVars),
-    fretment_vars(response, FretMent, RespVars),
+    fretment_vars(scope, Fretment, ScopeVars),
+    fretment_vars(condition, Fretment, CondVars),
+    fretment_vars(timing, Fretment, TimingVars),
+    fretment_vars(response, Fretment, RespVars),
     append([ScopeVars, CondVars, TimingVars, RespVars], AllVars),
-    list_to_set(AllVars, Vars),
+    maplist(var_name, AllVars, AllVarNames),
+    list_to_set(AllVarNames, Vars),
     SemanticsBase = semantics{ type: "nasa",
                                % The set of variables referenced by this fret
                                % requirement; n.b. referenced by name and not
@@ -126,9 +135,8 @@ cvd_st(Inp, "null", VarDesc) :-
 cvd_st(Inp, _, VarDesc) :-
     get_dict(condition, Inp, C),
     cvd_cnd(Inp, C, Y),
-    (get_dict(scope_mode, Inp, M),
-     format(atom(X), 'M = <b><i>~w</i></b>, ~w', [M, Y]),
-     atom_string(X, VarDesc)
+    (cv_field_as(Inp, scope_mode, "M", VD), !,
+     format_str(VarDesc, '~w, ~w', [VD, Y])
     ; VarDesc = Y
     ).
 
@@ -136,16 +144,14 @@ cvd_cnd(Inp, "regular", VarDesc) :-
     !,
     get_dict(timing, Inp, T),
     cvd_tim(Inp, T, Y),
-    get_dict(regular_condition, Inp, RC),
-    format(atom(X), 'TC = <b><i>~w</i></b>, ~w', [RC, Y]),
-    atom_string(X, VarDesc).
+    cv_field_as(Inp, regular_condition, "TC", VD),
+    format_str(VarDesc, '~w, ~w', [VD, Y]).
 cvd_cnd(Inp, "noTrigger", VarDesc) :-
     !,
     get_dict(timing, Inp, T),
     cvd_tim(Inp, T, Y),
-    get_dict(regular_condition, Inp, RC),
-    format(atom(X), 'CC = <b><i>~w</i></b>, ~w', [RC, Y]),
-    atom_string(X, VarDesc).
+    cv_field_as(Inp, regular_condition, "CC", VD),
+    format_str(VarDesc, '~w, ~w', [VD, Y]).
 cvd_cnd(Inp, _, VarDesc) :-
     get_dict(timing, Inp, T),
     cvd_tim(Inp, T, VarDesc).
@@ -156,25 +162,21 @@ cvd_tim(Inp, T, VarDesc) :-
     get_dict(response, Inp, R),
     cvd_rsp(Inp, R, Y),
     get_dict(duration, Inp, D),
-    format(atom(X), 'n = <b><i>~w</i></b>, ~w', [D, Y]),
-    atom_string(X, VarDesc).
+    format_str(VarDesc, 'n = <b><i>~w</i></b>, ~w', [D, Y]).
 cvd_tim(Inp, T, VarDesc) :-
     member(T, ["until", "before"]),
     !,
     get_dict(response, Inp, R),
     cvd_rsp(Inp, R, Y),
-    get_dict(stop_condition, Inp, D),
-    format(atom(X), 'SC = <b><i>~w</i></b>, ~w', [D, Y]),
-    atom_string(X, VarDesc).
+    cv_field_as(Inp, stop_condition, "SC", VD),
+    format_str(VarDesc, '~w, ~w', [VD, Y]).
 cvd_tim(Inp, _, VarDesc) :-
     get_dict(response, Inp, R),
     cvd_rsp(Inp, R, VarDesc).
 
 cvd_rsp(Inp, "satisfaction", VarDesc) :-
     !,
-    get_dict(post_condition, Inp, D),
-    format(atom(X), 'Response = <b><i>~w</i></b>', [D]),
-    atom_string(X, VarDesc).
+    cv_field_as(Inp, post_condition, "Response", VarDesc).
 cvd_rsp(Inp, "action", VarDesc) :-
     !,
     get_dict(action, Inp, D),
@@ -182,7 +184,12 @@ cvd_rsp(Inp, "action", VarDesc) :-
     atom_string(X, VarDesc).
 cvs_rsp(_, _, "").
 
-% --------------------
+cv_field_as(Inp, Fld, Name, Text) :-
+    get_dict(Fld, Inp, fretish(D)),
+    fretish_expr_langdef(FretishExpr),
+    get_dict(language, FretishExpr, FretishExprLang),
+    (emit_expr(FretishExprLang, D, DTxt), ! ; DTxt = D),
+    format_str(Text, '~w = <b><i>~w</i></b>', [Name, DTxt]).
 
 % --------------------------------------------------
 
@@ -196,7 +203,8 @@ replVars(Inp, Pre, Post, R) -->
     { !,
       atom_string(WA, W),
       get_dict(WA, Inp, V),
-      format(atom(A), '~w~w~w', [Pre, V, Post]),
+      var_xlate(V, VTxt),
+      format(atom(A), '~w~w~w', [Pre, VTxt, Post]),
       atom_string(A,S)
     },
     replVars(Inp, Pre, Post, T),
@@ -208,6 +216,18 @@ replVars(Inp, Pre, Post, R) -->
     replVars(Inp, Pre, Post, T),
     { string_chars(S, [C]), string_concat(S, T, R) }.
 replVars(_, _, _, "") --> [].
+
+var_xlate(fretish(V), VTxt) :-
+    fretish_expr_langdef(FretishExpr),
+    get_dict(language, FretishExpr, FretishExprLang),
+    emit_expr(FretishExprLang, V, VTxt),
+    !.
+var_xlate(V, VTxt) :-
+    fretish_expr_langdef(FretishExpr),
+    get_dict(language, FretishExpr, FretishExprLang),
+    emit_expr(FretishExprLang, V, VTxt),
+    !.
+var_xlate(V, V).
 
 w(W) --> [C], { wchar(C) }, w_(CS), { string_chars(W, [C|CS]) }.
 w_([C|CS]) --> [C], { wchar(C) }, !, w_(CS).
@@ -221,47 +241,155 @@ wchar(C) :- \+ char_type(C, space),
                           '$',
                           '/']).
 
-numeric([N|NS]) --> digit(N), numeric(NS).
-numeric(N) --> digit(N).
-digit(D) --> [ (C) ], { char_type(C, digit),
-                        atom_codes(C, [CV]),
-                        atom_codes('0', [ZV]),
-                        plus(ZV, D, CV)
-                      }.
+% ----------------------------------------------------------------------
+
+mk_fret_vars(JSONReqs, Vars, FretVars) :-
+    maplist(mk_fret_var(JSONReqs), Vars, FretVars).
+
+mk_fret_var(JSONReqs, constr(VName, Val, Desc, VDef), FV) :-
+    !,
+    mk_fret_var(JSONReqs, VDef, BaseVar),
+    reqs_using_var(JSONReqs, VName, ReqIDs),
+    format(atom(ValStr), '(~w)', [Val]), % needs to be a JSON string
+    % see NOTE below for required VarID
+    get_dict(proj, VDef, ProjName),
+    get_dict(comp, VDef, CompName),
+    format_str(VarID, '~w~w~w', [ProjName, CompName, VName]),
+    put_dict(_{variable_name: VName,
+               assignment: ValStr,
+               idType: "Internal",
+               description: Desc,
+               reqs: ReqIDs,
+               '_id': VarID
+              }, BaseVar, FV).
+
+mk_fret_var(JSONReqs, V, FV) :-
+    get_dict(varname, V, VName),
+    get_dict(type, V, VType),
+    get_dict(proj, V, ProjName),
+    get_dict(comp, V, CompName),
+    get_dict(usage, V, Usage),
+    get_dict(desc, V, Desc),
+    (atom_concat(_, '_τ', VType)
+    -> Type = integer
+    ; (VType == bool
+      -> Type = boolean
+      ; Type = VType
+      )
+    ),
+    reqs_using_var(JSONReqs, VName, ReqIDs),
+    % NOTE: the following is *REQUIRED* for the VarID, otherwise FRET will not
+    % accept the variable information.
+    format_str(VarID, '~w~w~w', [ProjName, CompName, VName]),
+    FV = _{ project: ProjName,
+            component_name: CompName,
+            variable_name: VName,
+            reqs: ReqIDs,
+            dataType: Type,
+            idType: Usage,
+            moduleName: "",
+            description: Desc,
+            assignment: "",
+            copilotAssignment: "",
+            modeRequirement: "",
+            modeldoc: false,
+            modelComponent: "",
+            modeldoc_id: "",
+            completed: true,
+            '_id': VarID
+          }.
 
 
-lxm(R) --> ws_, { ! }, lxm(R).
-lxm(R) --> call(R).
+reqs_using_var([], _, []).
+reqs_using_var([JR|JSONReqs], VName, [ReqID|ReqIDs]) :-
+    get_dict(semantics, JR, S),
+    get_dict(variables, S, VS),
+    member(VName, VS),
+    !,
+    get_dict('_id', JR, ReqID),
+    reqs_using_var(JSONReqs, VName, ReqIDs).
+reqs_using_var([_|JSONReqs], VName, ReqIDs) :-
+    reqs_using_var(JSONReqs, VName, ReqIDs).
 
-lxm(R, P) --> ws_, { ! }, lxm(R, P).
-lxm(R, P) --> call(R, P).
+% ----------------------------------------------------------------------
+% JSON output conversions
 
-lxm(R, O, P) --> ws_, { ! }, lxm(R, O, P).
-lxm(R, O, P) --> call(R, O, P).
+% These two allow exprlang op(..) and term(..) LTL elements to be converted to
+% JSON.  Note that these are any exprlang op and term references, which are
+% assumed to be LTL.
+json:json_write_hook(op(O, T), Strm, _, _) :-
+    (emit_ltl(op(O, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(op(O, T))), Txt = O
+    ),
+    format(Strm, '"~w"', [Txt]).
+json:json_write_hook(term(E, T), Strm, _, _) :-
+    (emit_ltl(term(E, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(term(E, T))), Txt = E
+    ),
+    format(Strm, '"~w"', [Txt]).
 
-lxm(R, O, U, P) --> ws_, { ! }, lxm(R, O, U, P).
-lxm(R, O, U, P) --> call(R, O, U, P).
+json:json_write_hook(ltl(op(O, T)), Strm, _, _) :-
+    (emit_ltl(op(O, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(op(O, T))), Txt = O
+    ),
+    format(Strm, '"~w"', [Txt]).
+json:json_write_hook(ltl(term(E, T)), Strm, _, _) :-
+    (emit_ltl(term(E, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(term(E, T))), Txt = E
+    ),
+    format(Strm, '"~w"', [Txt]).
 
-ws_() --> [C], { char_type(C, space) }.
+json:json_write_hook(cocospec(op(O, T)), Strm, _, _) :-
+    (emit_CoCoSpec(op(O, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(fretish(op(O, T)))),
+      Txt = O
+    ),
+    format(Strm, '"~w"', [Txt]).
+json:json_write_hook(cocospec(term(E, T)), Strm, _, _) :-
+    (emit_CoCoSpec(term(E, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(fretish(term(E, T)))),
+      Txt = E
+    ),
+    format(Strm, '"~w"', [Txt]).
+
+json:json_write_hook(fretish(op(O, T)), Strm, _, _) :-
+    fretish_expr_langdef(LD),
+    get_dict(language, LD, Language),
+    (emit_expr(Language, op(O, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(fretish(op(O, T)))),
+      Txt = O
+    ),
+    format(Strm, '"~w"', [Txt]).
+json:json_write_hook(fretish(term(E, T)), Strm, _, _) :-
+    fretish_expr_langdef(LD),
+    get_dict(language, LD, Language),
+    (emit_expr(Language, term(E, T), Txt), !
+    ; print_message(warning, convert_JSON_failure(fretish(term(E, T)))),
+      Txt = E
+    ),
+    format(Strm, '"~w"', [Txt]).
+
+prolog:message(convert_JSON_failure(E)) -->
+    [ 'JSON conversion failed for ~w' - [E]].
+
 
 % ----------------------------------------------------------------------
 
-
 generate_formulae(Defs, Inp, Out) :-
-    (scope_mode_transform(Defs, Inp, SMPT, SMFT, O1)
+    (scope_mode_transform(Defs, Inp, O1)
     ; print_message(error, scope_transform_failed()), fail
     ),
     !,
-    (regular_condition_transform(Defs, SMPT, SMFT, O1, O2)
-    ; print_message(error, condition_transform_failed(regular)), fail
+    (regular_condition_transform(Defs, O1, O2)
+    ; print_message(error, condition_transform_failed(regular, O1)), fail
     ),
     !,
-    (post_condition_transform(Defs, SMPT, SMFT, O2, O3)
-    ; print_message(error, condition_transform_failed(post)), fail
+    (post_condition_transform(Defs, O2, O3)
+    ; print_message(error, condition_transform_failed(post, O2)), fail
     ),
     !,
-    (stop_condition_transform(Defs, SMPT, SMFT, O3, O4)
-    ; print_message(error, condition_transform_failed(stop)), fail
+    (stop_condition_transform(Defs, O3, O4)
+    ; print_message(error, condition_transform_failed(stop, O3)), fail
     ),
     !,
     (fetched_ft_pt_update(Defs, O4, O5)
@@ -270,64 +398,57 @@ generate_formulae(Defs, Inp, Out) :-
     ).
 
 prolog:message(scope_transform_failed()) --> [ 'Cannot transform scope' ].
-prolog:message(condition_transform_failed(Condtype)) -->
-    [ 'Cannot transform ~w condition' - [ Condtype ] ].
+prolog:message(condition_transform_failed(Condtype, AST)) -->
+    [ 'Cannot transform ~w condition: ~w' - [ Condtype, AST ] ].
 prolog:message(past_time_update_error()) -->
     [ 'Cannot update past-time formula' ].
 
-scope_mode_transform(_Defs, Inp, SMPT, SMFT, Out) :-
+scope_mode_transform(_Defs, Inp, Out) :-
     get_dict(scope, Inp, S),
     get_dict(type, S, ST),
-    sc_mo_tr(ST, Inp, SMPT, SMFT, Out).
-sc_mo_tr(null, I, term(ident("BAD_PT"), bool), term(ident("BAD_FT"), bool), O) :-
+    sc_mo_tr(ST, Inp, Out).
+sc_mo_tr(null, I, O) :-
     !,
     put_dict(I, _{ scope_mode_pt: "BAD_PT", scope_mode_ft: "BAD_FT" }, O).
-sc_mo_tr(_, I, MP, MF, O) :-
-    get_dict(scope_mode, I, MD),
-    %% canon_bool_expr(M, MD),
+sc_mo_tr(_, I, O) :-
+    get_dict(scope_mode, I, fretish(MD)),
     xform_past_temporal_unbounded(MD, MP),
     xform_future_temporal_unbounded(MD, MF),
-    put_dict(I, _{ scope_mode_pt: MP, scope_mode_ft: MF }, O).
+    put_dict(_{ scope_mode_pt: ltl(MP), scope_mode_ft: ltl(MF) }, I, O).
+
 
 regular_condition_transform(Defs, Inp, Out) :-
-    get_dict(regular_condition, Inp, RC), !,
+    get_dict(regular_condition, Inp, fretish(RC)), !,
     xform_cond(Defs, Inp, RC, PT, FT, SMVPT, SMVFT),
-    put_dict(Inp, _{ regular_condition_unexp_pt: PT,
-                     regular_condition_unexp_ft: FT,
-                     regular_condition_SMV_pt: SMVPT,
-                     regular_condition_SMV_ft: SMVFT
-                   }, Out).
-regular_condition_transform(_, _, _, Inp, Inp).
+    put_dict(_{ regular_condition_unexp_pt: PT,
+                regular_condition_unexp_ft: FT,
+                regular_condition_SMV_pt: SMVPT,
+                regular_condition_SMV_ft: SMVFT
+              }, Inp, Out).
+regular_condition_transform(_, Inp, Inp).
 
-post_condition_transform(Defs, SMPT, SMFT, Inp, Out) :-
-    get_dict(post_condition, Inp, PC), !,
-    xform_cond(Defs, Inp, SMPT, SMFT, PC, PT, FT, SMVPT, SMVFT),
-    emit_ltl(PT, PTTxt),
-    emit_ltl(FT, FTTxt),
-    emit_ltl(SMVPT, SMVPTTxt),
-    emit_ltl(SMVFT, SMVFTTxt),
-    put_dict(Inp, _{ post_condition_unexp_pt: PTTxt,
-                     post_condition_unexp_ft: SMVPTTxt,
-                     post_condition_SMV_pt: FTTxt,
-                     post_condition_SMV_ft: SMVFTTxt
-                   }, Out).
-post_condition_transform(_, _, _, Inp, Inp).
+post_condition_transform(Defs, Inp, Out) :-
+    get_dict(post_condition, Inp, fretish(PC)), !,
+    xform_cond(Defs, Inp, PC, PT, FT, SMVPT, SMVFT),
+    put_dict(_{ post_condition_unexp_pt: PT,
+                post_condition_unexp_ft: SMVPT,
+                post_condition_SMV_pt: FT,
+                post_condition_SMV_ft: SMVFT
+              }, Inp, Out).
+post_condition_transform(_, Inp, Inp).
 
-stop_condition_transform(Defs, SMPT, SMFT, Inp, Out) :-
-    get_dict(stop_condition, Inp, SC), !,
-    xform_cond(Defs, Inp, SMPT, SMFT, SC, PT, FT, SMVPT, SMVFT),
-    emit_ltl(PT, PTTxt),
-    emit_ltl(FT, FTTxt),
-    emit_ltl(SMVPT, SMVPTTxt),
-    emit_ltl(SMVFT, SMVFTTxt),
-    put_dict(Inp, _{ stop_condition_unexp_pt: PTTxt,
-                     stop_condition_unexp_ft: SMVPTTxt,
-                     stop_condition_SMV_pt: FTTxt,
-                     stop_condition_SMV_ft: SMVFTTxt
-                   }, Out).
-stop_condition_transform(_, _, _, Inp, Inp).
+stop_condition_transform(Defs, Inp, Out) :-
+    get_dict(stop_condition, Inp, fretish(SC)),
+    !,
+    xform_cond(Defs, Inp, SC, PT, FT, SMVPT, SMVFT),
+    put_dict(_{ stop_condition_unexp_pt: PT,
+                stop_condition_unexp_ft: SMVPT,
+                stop_condition_SMV_pt: FT,
+                stop_condition_SMV_ft: SMVFT
+              }, Inp, Out).
+stop_condition_transform(_, Inp, Inp). % if no stop_condition
 
-xform_cond(Defs, Inp, SMPT, SMFT, C, PT, FT, SMVPT, SMVFT) :-
+xform_cond(Defs, Inp, C, PT, FT, SMVPT, SMVFT) :-
     xform_past_temporal(C, CP),
     xform_future_temporal(C, CF),
 
@@ -351,189 +472,292 @@ xform_cond(Defs, Inp, SMPT, SMFT, C, PT, FT, SMVPT, SMVFT) :-
     ltl_langdef(LTLLang),
     get_dict(language, LTLLang, LTL),
 
-    subst_term(LTL, "$Left$", LeftLTL, CP, CP1),
-    subst_term(LTL, "$scope_mode$", SMPT, CP1, PT),
-    subst_term(LTL, "$Left$", SMVLeftLTL, CP, CPS1),
-    subst_term(LTL, "$scope_mode$", SMPT, CPS1, SMVPT),
+    get_dict(scope_mode_pt, Inp, SMPT),
+    subst_term(LTL, '$Left$', LeftLTL, CP, CP1),
+    subst_term(LTL, '$scope_mode$', SMPT, CP1, PT),
+    subst_term(LTL, '$Left$', SMVLeftLTL, CP, CPS1),
+    subst_term(LTL, '$scope_mode$', SMPT, CPS1, SMVPT),
 
-    subst_term(LTL, "$Right$", RightLTL, CF, CF1),
-    subst_term(LTL, "$scope_mode$", SMFT, CF1, FT),
-    subst_term(LTL, "$Right$", SMVRightLTL, CF, CFS1),
-    subst_term(LTL, "$scope_mode$", SMFT, CFS1, SMVFT).
+    get_dict(scope_mode_ft, Inp, SMFT),
+    subst_term(LTL, '$Right$', RightLTL, CF, CF1),
+    subst_term(LTL, '$scope_mode$', SMFT, CF1, FT),
+    subst_term(LTL, '$Right$', SMVRightLTL, CF, CFS1),
+    subst_term(LTL, '$scope_mode$', SMFT, CFS1, SMVFT).
+
+tmpl_final(Inp, SrcFld, ForTemplate, InpLTL, OutLTL) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, Language),
+    (get_dict(SrcFld, Inp, S)
+    ; (format(atom(B), '!No_~w!', [SrcFld]), S = term(ident(B), bool))
+    ),
+    !,  % subst failure should not have retries here
+    subst_term(Language, ForTemplate, S, InpLTL, OutLTL).
+
+tmpl_intermediate(SrcFld, IntermField, InpLTL, OutLTL) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, Language),
+    format(atom(T), '$~w$', [SrcFld]),
+    !,  % subst failure should not have retries here
+    subst_term(Language, IntermField, term(ident(T), bool), InpLTL, OutLTL).
+
+tmplsubs_ltl(Inp, SrcFld, TgtTmpl, InpILTL, InpFLTL, OutILTL, OutFLTL) :-
+    tmpl_final(Inp, SrcFld, TgtTmpl, InpFLTL, OutFLTL),
+    tmpl_intermediate(SrcFld, TgtTmpl, InpILTL, OutILTL).
+
+tmplsubs_ltl_seq(_, [], ILTL, FLTL, ILTL, FLTL).
+tmplsubs_ltl_seq(Inp, [(SrcFld, TgtTempl)|Flds], InpILTL, InpFLTL, OutILTL, OutFLTL) :-
+    !,  % no backtracking on failures after this point
+    tmplsubs_ltl(Inp, SrcFld, TgtTempl, InpILTL, InpFLTL, ILTL2, FLTL2),
+    !,  % no backtracking on failures after this point
+    tmplsubs_ltl_seq(Inp, Flds, ILTL2, FLTL2, OutILTL, OutFLTL).
 
 fetched_ft_pt_update(Defs, Inp, Out) :-
+    % n.b. do not change the order of substitutions here
     get_dict(ft, Defs, FT),
-    subst("$regular_condition$", "$regular_condition_unexp_ft$", FT, F2),
-    subst("$post_condition$", "$post_condition_unexp_ft$", F2, F3),
-    subst("$stop_condition$", "$stop_condition_unexp_ft$", F3, F4),
-    subst("$scope_mode$", "$scope_mode_ft$", F4, FTF),
-    replace_template_vars(Inp, "", "", FTF, TFT),
+    parse_ltl(FT, FTLTL),
+    tmplsubs_ltl_seq(Inp, [ (regular_condition_unexp_ft, '$regular_condition$'),
+                            (post_condition_unexp_ft, '$post_condition$'),
+                            (stop_condition_unexp_ft, '$stop_condition$'),
+                            (scope_mode_ft, '$scope_mode$')
+                          ],
+                     FTLTL, FTLTL, FTF, TFT),
 
     get_dict(pt, Defs, PT),
-    subst("$regular_condition$", "$regular_condition_unexp_pt$", PT, P2),
-    subst("$post_condition$", "$post_condition_unexp_pt$", P2, P3),
-    subst("$stop_condition$", "$stop_condition_unexp_pt$", P3, P4),
-    subst("$scope_mode$", "$scope_mode_pt$", P4, PTF),
-    replace_template_vars(Inp, "", "", PTF, TPT),
+    parse_ltl(PT, PTLTL),
+    tmplsubs_ltl_seq(Inp, [ (regular_condition_unexp_pt, '$regular_condition$'),
+                            (post_condition_unexp_pt, '$post_condition$'),
+                            (stop_condition_unexp_pt, '$stop_condition$'),
+                            (scope_mode_pt, '$scope_mode$')
+                          ],
+                     PTLTL, PTLTL, PTF, TPT),
 
+    %% ----- this is the one that matters for kind2 ----------
     get_dict(ptExpanded, Defs, PTE),
-    subst("$regular_condition$", "$regular_condition_SMV_pt$", PTE, PE2),
-    subst("$post_condition$", "$post_condition_SMV_pt$", PE2, PE3),
-    subst("$stop_condition$", "$stop_condition_SMV_pt$", PE3, PE4),
-    subst("$scope_mode$", "$scope_mode_pt$", PE4, PTEF),
-    replace_template_vars(Inp, "", "", PTEF, TPET),
-    salt_to_smv(TPET, PSMV),
-    transform_to_AST(PSMV, PASTRaw),
+    parse_ltl(PTE, PTELTL),
+    tmplsubs_ltl_seq(Inp, [ (regular_condition_SMV_pt, '$regular_condition$'),
+                            (post_condition_SMV_pt, '$post_condition$'),
+                            (stop_condition_SMV_pt, '$stop_condition$'),
+                            (scope_mode_pt, '$scope_mode$')
+                          ],
+                     PTELTL, PTELTL, PTEF, PASTRaw),
     xform_past_optimize(PASTRaw, PAST),
-    ast_to_LTL(PAST, PLTL),
-    ltl_ast_to_CoCo(PAST, PCOCO),
 
     get_dict(ftExpanded, Defs, FTE),
-    subst("$regular_condition$", "$regular_condition_SMV_ft$", FTE, FE2),
-    subst("$post_condition$", "$post_condition_SMV_ft$", FE2, FE3),
-    subst("$stop_condition$", "$stop_condition_SMV_ft$", FE3, FE4),
-    subst("$scope_mode$", "$scope_mode_ft$", FE4, FTEF),
-    replace_template_vars(Inp, "", "", FTEF, TFET),
-    salt_to_smv(TFET, FSMV),
+    parse_ltl(FTE, FTELTL),
+    tmplsubs_ltl_seq(Inp, [ (regular_condition_SMV_ft, '$regular_condition$'),
+                            (post_condition_SMV_ft, '$post_condition$'),
+                            (stop_condition_SMV_ft, '$stop_condition$'),
+                            (scope_mode_ft, '$scope_mode$')
+                          ],
+                     FTELTL, FTELTL, FTEF, FSMV),
     xform_future_optimize(FSMV, FOPT),
 
     get_dict(ftInfAUExpanded, Defs, FAU),
-    subst("$regular_condition$", "$regular_condition_SMV_ft$", FAU, FAU2),
-    subst("$post_condition$", "$post_condition_SMV_ft$", FAU2, FAU3),
-    subst("$stop_condition$", "$stop_condition_SMV_ft$", FAU3, FAU4),
-    subst("$scope_mode$", "$scope_mode_ft$", FAU4, FAUF),
-    replace_template_vars(Inp, "", "", FAUF, TFAU),
-    last_is_FALSE(TFAU, TFAULF),
-    salt_to_smv(TFAULF, FAUSMV),
+    parse_ltl(FAU, FAULTL),
+    tmplsubs_ltl_seq(Inp, [ (regular_condition_SMV_ft, '$regular_condition$'),
+                            (post_condition_SMV_ft, '$post_condition$'),
+                            (stop_condition_SMV_ft, '$stop_condition$'),
+                            (scope_mode_ft, '$scope_mode$')
+                          ],
+                     FAULTL, FAULTL, FAUF, TFAU),
+    last_is_FALSE(TFAU, FAUSMV),
     xform_future_optimize(FAUSMV, FAUOPT),
 
     % XXX: if constants.generateBetweenSemantics is set, more should be added
     % here, see SemanticsAnalyzer.js
 
-    put_dict(Inp, _{ ft_fetched: FTF,
-                     ft: TFT,
-                     pt_fetched: PTF,
-                     pt: TPT,
-                     ptExpanded_fetched: PTEF,
-                     ptExpanded: PLTL,
-                     'CoCoSpecCode': PCOCO,
-                     ftExpanded_fetched: FTEF,
-                     ftExpandedUnoptimized: FSMV,
-                     ftExpanded: FOPT,
-                     ftInfAUExpanded_fetched: FAUF,
-                     ftInfAUExpanded: FAUOPT
-                   }, Out).
+    % n.b. the original form used two subsitutions: one step substituted the
+    % plain termplates like $regular_condition$ with a different template
+    % customized to the future/past unexp/exp forms, and then those templates
+    % were replaced with the corresponding entry as set by the
+    % xxx_condition_transform operations.  This was recorded by making the
+    % _fetched version the result of the first transform and the variable without
+    % _fetched is the result of the second transform.
+    %
+    % In the new ABT-style handling, the transformation is more direct, so
+    % there's some duplication to get the intermediate forms to maintain fidelity
+    % with original FRET.
 
-canon_bool_expr(E, O) :-
-    special_char_subst(E, E0),
-    subst(' true ', ' TRUE ', E0, E1),
-    subst(' false ', ' FALSE ', E1, O).
+    put_dict(_{ ft_fetched: FTF,
+                ft: TFT,
+                pt_fetched: PTF,
+                pt: TPT,
+                ptExpanded_fetched: PTEF,
+                ptExpanded: ltl(PAST), % rewritten
+                'CoCoSpecCode': cocospec(PAST),
+                ftExpanded_fetched: FTEF,
+                ftExpandedUnoptimized: FSMV,
+                ftExpanded: FOPT,
+                ftInfAUExpanded_fetched: FAUF,
+                ftInfAUExpanded: FAUOPT
+              }, Inp, Out).
 
-special_char_subst(I, I).  % TODO: translate special chars, see fret-electron/support/utils.js
-
-last_is_FALSE(I, O) :- subst(' LAST ', 'FALSE', I, O).
+last_is_FALSE(I, O) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    subst_term(LTL, 'LAST', term(lit(false), bool), I, O).
 
 % --------------------
 
-xform_past_temporal_unbounded(I, I).  % TODO (only for scope mode)
-xform_future_temporal_unbounded(I, I). % TODO
+xform_past_temporal_unbounded(AST, O) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    fmap_abt(LTL, fret_json:xptu, AST, O),
+    !.
 
-xform_past_temporal(I, O) :-  % provided/returns string
-    parse_ltl(I, AST),
-    fmap(fret_json:xpt, AST, XAST),
-    !,
-    emit_ltl(XAST, O).
-xpt(boolcall("persisted", [val(V),A2]),
-    and(ltlH_bound(salt_le(val(V)), A2),
-        ltlH_bound(salt_lt(val(V)), not(boolid("$Left$"))))).
-xpt(boolcall("occurred", [val(V),A2]),
-    and(ltlS(not(boolid("$Left$")), A2),
-        ltlO_bound(salt_le(val(V)), A2))).
-xpt(boolcall("preBool", [Init, P]),
-    or(and(not(ltlY(true)), Init),
-       and(not(not(ltlY(true))), ltlY(P)))).
-xpt(boolcall("prevOcc", [P, Q]),
-    or(boolid("$Left$"),
-       ltlY(implies(ltlS(and(not(boolid("$Left$")), not(P)), P),
-                    ltlS(and(not(boolid("$Left$")), not(P)), and(P, Q)))))).
-xpt(E, E).
+xform_future_temporal_unbounded(AST, O) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    fmap_abt(LTL, fret_json:xftu, AST, O),
+    !.
 
-xform_future_temporal(I, I). % TODO
+xform_past_temporal(AST, O) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    fmap_abt(LTL, fret_json:xpt, AST, O),
+    !.
+
+xform_future_temporal(AST, O) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    fmap_abt(LTL, fret_json:xft, AST, O),
+    !.
+
+
+% fret-electron/support/xform.js pastTemporalConditionsNoBounds
+xptu(op(persisted(Dur, Cond), bool),
+     op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool)).
+xptu(op(persisted(Start, Dur, Cond), bool),
+    op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
+xptu(op(occurred(Dur, Cond), bool),
+    op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)).
+xptu(op(occurred(Start, Dur, Cond), bool),
+    op(ltlO_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
+xptu(op(prevOcc(P,Q), bool),
+     op(ltlS(op(ltlY(op(not(P), bool)), bool),
+             op(and(P, Q), bool)), bool)).
+% user specification of future terms is invalid for a past-time formula
+xptu(op(persists(_, _), bool), R) :- impossible_xform(R).
+xptu(op(persists(_, _, _), bool), R) :- impossible_xform(R).
+xptu(op(occurs(_, _), bool), R) :- impossible_xform(R).
+xptu(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
+xptu(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
+xptu(I, I).
+
+% fret-electron/support/xform.js futureTemporalConditionsNoBounds
+xftu(op(persists(Dur, Cond), bool),
+     op(ltlG_bound(op(range_max_incl(Dur), range), Cond), bool)).
+xftu(op(persists(Start, Dur, Cond), bool),
+     op(ltlG_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
+xftu(op(occurs(Dur, Cond), bool),
+     op(ltlF_bound(op(range_max_incl(Dur), range), Cond), bool)).
+xftu(op(occurs(Start, Dur, Cond), bool),
+     op(ltlF_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
+xftu(op(nextOcc(P, Q), bool),
+     op(ltlU(op(ltlX(op(not(P), bool)), bool),
+             op(and(P, Q), bool)), bool)).
+xftu(op(persisted(_, _), bool), R) :- impossible_xform(R).
+xftu(op(persisted(_, _, _), bool), R) :- impossible_xform(R).
+xftu(op(occurred(_, _), bool), R) :- impossible_xform(R).
+xftu(op(occurred(_, _, _), bool), R) :- impossible_xform(R).
+xftu(op(prevOcc(_, _), bool), R) :- impossible_xform(R).
+xftu(I, I).
+
+
+% fret-electron/support/xform.js pastTemporalConditions
+xpt(term(ident('FTP'), bool), op(ltlZ(term(lit(false), bool)), bool)).
+xpt(op(persisted(Dur, Cond), bool),
+    op(and(op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool),
+           op(ltlH_bound(op(range_max(Dur), range),
+                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
+       bool)).
+xpt(op(persisted(Start, Dur, Cond), bool),
+    op(and(op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool),
+           op(ltlH_bound(op(range_max(Dur), range),
+                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
+       bool)).
+xpt(op(occurred(Dur, Cond), bool),
+    op(and(op(ltlS(op(not(term(ident('$Left$'), bool)), bool),
+                   Cond), bool),
+           op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)),
+       bool)).
+xpt(op(occurred(Start, Dur, Cond), bool),
+    op(ltlS_bound(op(range_min_max(Start, Dur), range),
+                  op(not(term(ident('$Left$'), bool)), bool),
+                  Cond),
+       bool)).
+xpt(op(prevOcc(P,Q), bool),
+    op(or(term(ident('$Left$'), bool),
+          op(ltlY(op(implies(op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
+                                            op(not(P), bool)),
+                                        bool),
+                                     P),
+                                bool),
+                             op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
+                                            op(not(P), bool)),
+                                        bool),
+                                     op(and(P, Q), bool)),
+                                bool)),
+                     bool)),
+             bool)),
+       bool)).
+xpt(op(preBool(Init,P), bool),
+    op(or(op(and(op(ltlZ(term(lit(false), bool)), bool),
+                 Init), bool),
+          op(and(op(ltlY(term(lit(true), bool)), bool),
+                 op(ltlY(P), bool)), bool)), bool)).
+xpt(op(persists(_, _), bool), R) :- impossible_xform(R).
+xpt(op(persists(_, _, _), bool), R) :- impossible_xform(R).
+xpt(op(occurs(_, _), bool), R) :- impossible_xform(R).
+xpt(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
+xpt(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
+xpt(I, I).
+
+% fret-electron/support/xform.js futureTemporalConditions
+xft(op(persists(N, P), bool),
+    op(and(op(ltlG_bound(op(range_max_incl(N), range), P), bool),
+           op(ltlG_bound(op(range_max(N), range),
+                         op(not(term(ident('$Right$'), bool)), bool)), bool)), bool)).
+xft(op(persists(M, N, P), bool),
+    op(and(op(ltlG(op(range_min_max(M,N), range), P), bool),
+           op(ltlG_bound(op(range_max(N), range),
+                         op(not(term(ident('$Right$'), bool)), bool)), bool)), bool)).
+xft(op(occurs(N, P), bool),
+    op(and(op(ltlU(op(not(term(ident('$Right$'), bool)), bool), P), bool),
+           op(ltlF_bound(op(range_max_incl(N), range), P), bool)), bool)).
+xft(op(occurs(M, N, P), bool),
+    op(ltlU_bound(op(range_min_max(M, N), rnage),
+                  op(not(term(ident('$Right$'), bool)), bool),
+                  P), bool)).
+xft(op(nextOcc(P, Q), bool),
+    op(or(term(ident('$Right$'), bool),
+          op(ltlX(op(implies(op(ltlU(op(and(op(not(P), bool),
+                                            op(not(term(ident('$Right$'), bool)),
+                                               bool)),
+                                        bool)), bool),
+                             op(ltlU(op(and(op(not(P), bool),
+                                            op(not(term(ident('$Right$'), bool)), bool)),
+                                        bool),
+                                     op(and(P, Q), bool)),
+                                bool)),
+                     bool)),
+             bool)),
+       bool)).
+xft(op(persisted(_, _), bool), R) :- impossible_xform(R).
+xft(op(persisted(_, _, _), bool), R) :- impossible_xform(R).
+xft(op(occurred(_, _), bool), R) :- impossible_xform(R).
+xft(op(occurred(_, _, _), bool), R) :- impossible_xform(R).
+xft(op(prevOcc(_, _), bool), R) :- impossible_xform(R).
+xft(I, I).
+
+impossible_xform(op(and(term(lit(false), bool),
+                        op(and(term(lit(false), bool),
+                               op(and(term(lit(false), bool),
+                                      term(lit(false), bool)),
+                                  bool)),
+                           bool)),
+                    bool)).
 
 xform_past_optimize(I, I). % provided/returns AST; already done by ltl_parse
 
 xform_future_optimize(I, I).  % TODO xform.transform(X, xform.optimizeFT)
-
-conjunction([], "").
-conjunction([E|ES], C) :-
-    conjunction(ES, ESC),
-    (ESC == ""
-    -> format(atom(CA), "~w", [E])
-    ; format(atom(CA), "(~w) & (~w)", [E, ESC])
-    ),
-    atom_string(CA, C).
-
-% --------------------
-
-salt_to_smv(I, I).
-salt_to_smv_DISABLED(I, SMV) :-   % XXX: test this
-    string_chars(I, CS),
-    phrase(salt2smv(O), CS, R),
-    !,
-    ( R == []
-    -> string_chars(SMV, O)
-    ; format('  SMV: ~w~n  REMAINDER: ~w~n', [ SMV, R ]),
-      string_chars(SMV, O)
-    ).
-
-salt2smv(SMV) --> [ '[', '<', '=' ], lxm(numeric, N), lxm(endSquarePlusOne), % KWQ: actually, arithEx...
-                  salt2smv(Rest),
-                  { succ(N, M),
-                    format(atom(X), '[0,~w]~w~n', [M, Rest]),
-                    atom_chars(X, SMV)
-                  }.
-salt2smv(SMV) --> [ '[', '<', '=' ], lxm(numeric, N), lxm(endSquare),
-                  salt2smv(Rest),
-                  { format(atom(X), '[0,~w]~w~n', [N, Rest]),
-                    atom_chars(X, SMV)
-                  }.
-salt2smv(SMV) --> [ '[', '<' ], lxm(numeric, N), lxm(endSquarePlusOne),
-                  salt2smv(Rest),
-                  { format(atom(X), '[0,~w]~w~n', [N, Rest]),
-                    atom_chars(X, SMV)
-                  }.
-salt2smv(SMV) --> [ '[', '<' ], lxm(numeric, N), lxm(endSquare),
-                  salt2smv(Rest),
-                  succ(P, N),
-                  { format(atom(X), '[0,~w]~w~n', [P, Rest]),
-                    atom_chars(X, SMV)
-                  }.
-salt2smv(SMV) --> [ '[', '=' ], lxm(numeric, N), lxm(endSquarePlusOne),
-                  salt2smv(Rest),
-                  { succ(N, M),
-                    format(atom(X), '[~w,~w]~w~n', [M, M, Rest]),
-                    atom_chars(X, SMV)
-                  }.
-salt2smv(SMV) --> [ '[', '=' ], numeric(N), lxm(endSquare),
-                  salt2smv(Rest),
-                  format(atom(X), '[~w,~w]~w~n', [N, N, Rest]), atom_chars(X, SMV).
-salt2smv([S|MV]) --> [ S ], salt2smv(MV).
-salt2smv([]) --> [].
-
-endSquarePlusOne() --> [ '+', '1', ']' ].
-endSquare() --> [ ']' ].
-
-
-% --------------------
-
-transform_to_AST(I, AST) :-
-    subst('=>', '->', I, I1),
-    (parse_ltl(I1, AST), !
-    ; print_message(error, cannot_parse_ltl(I1)), fail
-    ).
-
-prolog:message(cannot_parse_ltl(I)) --> [ 'Unable to parse LTL: ~w' - [I] ].
-
-ast_to_LTL(I, O) :- emit_ltl(I, O).
-
-ltl_ast_to_CoCo(I, O) :- emit_CoCoSpec(I, O).

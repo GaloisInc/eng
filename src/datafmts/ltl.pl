@@ -2,7 +2,8 @@
 
 :- module(ltl, [ define_ltl_language/0,
                  parse_ltl/2,
-                 emit_ltl/2
+                 emit_ltl/2,
+                 ltl_langdef/1
                ]).
 
 :- use_module('../englib').
@@ -14,8 +15,8 @@ define_ltl_language() :-
 
 parse_ltl(Inp, AST) :-
     ltl_langdef(LangDef),
-    parse_expr(LangDef, Inp, RawAST),
     get_dict(language, LangDef, Language),
+    parse_expr(Language, Inp, RawAST),
     (fmap_abt(Language, ltl:optimize, RawAST, AST) ; AST = RawAST).
 
 emit_ltl(AST, Text) :-
@@ -29,6 +30,8 @@ emit_ltl(AST, Text) :-
 :- op(760, yfx, ⦂).
 :- op(750, xfy, →).
 
+% Special parser for a $ident$ which represents a substitution identifier.
+subst_ident(I) --> chrs('$'), word(W), chrs('$'), {format(atom(I), '$~w$', W)}.
 
 % LTL (Linear Temporal Logic) and MTL (Metric Temporal Logic) and MITL (Metric
 % Interval Temporal Logic) expressions.
@@ -38,16 +41,17 @@ emit_ltl(AST, Text) :-
 ltl_langdef(
     langdef{
         language: ltl,
-        types: [ number, bool ],
+        types: [ integer, bool ],
         atoms: [ ], % lit, num ],
         variable_ref: [ ident ],
         phrases:
-        [ term(num ⦂ number, num, emit_simple_term(num)),
+        [ term(num ⦂ integer, num, emit_simple_term(num)),
           term(lit ⦂ bool, [true]>>word('TRUE'),
                [term(lit(true), bool),'TRUE']>>true), %emit_simple_term(lit)),
           term(lit ⦂ bool, [false]>>word('FALSE'),
                [_,'FALSE']>>true), %emit_simple_term(lit)),
           term(ident ⦂ a, word, emit_simple_term(ident)),
+          term(ident ⦂ a, ltl:subst_ident, emit_simple_term(ident)),  % KWQ: different than ident??
           expop(not ⦂ bool → bool, [[]>>lexeme(chrs('!')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(! ~w)', [A])),
           expop(and ⦂ bool → bool → bool, infix(chrs('&')), emit_infix("&")),
@@ -86,19 +90,19 @@ ltl_langdef(
           % Out  _________1__1____111__111__
           expop(ltlSI ⦂ bool → bool → bool, infix(chrs('SI ')), emit_infix("SI")),
           % T - Triggers  [[MITL]]
-          expop(ltlT ⦂ bool → bool → bool, infix(word('T ')), emit_infix("T")),
+          expop(ltlT ⦂ bool → bool → bool, infix(word('T')), emit_infix("T")),
           % TT - Triggers Timed -- unsupported
           % U - Until [Timed]  [[MTL]]
           % first argument has to hold AT LEAST until second argument becomes
           % true, which must hold at the current or a future position
-          expop(ltlU ⦂ bool → bool → bool, infix(word('U ')), emit_infix("U")),
+          expop(ltlU ⦂ bool → bool → bool, infix(word('U')), emit_infix("U")),
           % UI - Until Inclusive [Timed]  [[MTL]]
-          expop(ltlUI ⦂ bool → bool → bool, infix(word('UI ')), emit_infix("UI")),
+          expop(ltlUI ⦂ bool → bool → bool, infix(word('UI')), emit_infix("UI")),
           % V - Releases (converse of T), (aka R)
           % second argument has to be true until and including the point where
           % the first argument becomes true.  If the first argument never becomes
           % true, the second argument must remain true forever.
-          expop(ltlV ⦂ bool → bool → bool, infix(word('V ')), emit_infix("V")),
+          expop(ltlV ⦂ bool → bool → bool, infix(word('V')), emit_infix("V")),
           % VT - Releases Timed -- unsupported
           expop(ltlO ⦂ bool → bool, [[]>>lexeme(word('O')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(O ~w)', [A])),
@@ -132,37 +136,37 @@ ltl_langdef(
           %% expop(ltlU_bound ⦂ bool → range → bool → bool,
           %%       [subexpr, []>>lexeme(chrs('UI')), subexpr, subexpr],
           %%       [_,[B,R,A],T]>>fmt_str(T, '(~w UI~w ~w)', [B,R,A])),
-          expop(before_bound ⦂ number → bool → bool,
+          expop(before_bound ⦂ integer → bool → bool,
                 [[]>>lexeme(chrs('<|')), subexpr, subexpr],
                 [_,[R,A],T]>>fmt_str('(<| ~w ~w)', [R, A])),
           expop(before ⦂ bool → bool,
                 [[]>>lexeme(chrs('<|')), subexpr],
                 [_,[A],T]>>fmt_str('(<| ~w)', [A])),
-          expop(after_bound ⦂ number → bool → bool,
+          expop(after_bound ⦂ integer → bool → bool,
                 [[]>>lexeme(chrs('|>')), subexpr, subexpr],
                 [_,[R,A],T]>>fmt_str('(|> ~w ~w)', [R, A])),
           expop(after ⦂ bool → bool,
                 [[]>>lexeme(chrs('|>')), subexpr],
                 [_,[A],T]>>fmt_str('(|> ~w)', [A])),
           %% vv --- begin salt bounds specification
-          expop(range_exact ⦂ number → range,
+          expop(range_exact ⦂ integer → range,
                 [[]>>lexeme(chrs('[=')), subexpr, lexeme(chrs(']'))],
                 [_,[R],T]>>fmt_str(T, '[=~w]', [R])),
-          expop(range_max_incl ⦂ number → range,
+          expop(range_max_incl ⦂ integer → range,
                 [[]>>lexeme(chrs('[<=')), subexpr, lexeme(chrs(']'))],
                 [_,[R],T]>>fmt_str(T, '[<=~w]', [R])),
-          expop(range_max ⦂ number → range,
+          expop(range_max ⦂ integer → range,
                 [[]>>lexeme(chrs('[<')), subexpr, lexeme(chrs(']'))],
                 [_,[R],T]>>fmt_str(T, '[<~w]', [R])),
-          expop(range_min_incl ⦂ number → range,
+          expop(range_min_incl ⦂ integer → range,
                 [[]>>lexeme(chrs('[>=')), subexpr, lexeme(chrs(']'))],
                 [_,[R],T]>>fmt_str(T, '[>=~w]', [R])),
-          expop(range_min ⦂ number → range,
+          expop(range_min ⦂ integer → range,
                 [[]>>lexeme(chrs('[>')), subexpr, lexeme(chrs(']'))],
                 [_,[R],T]>>fmt_str(T, '[>~w]', [R])),
           %% TODO: [!=   ... not sure now this is emitted in Lustre.  Needed?
           %% ^^ --- end salt bounds specification
-          expop(range_min_max ⦂ number → number → range,
+          expop(range_min_max ⦂ integer → integer → range,
                 [[]>>lexeme(chrs('[')), subexpr,
                  lexeme(chrs(',')), subexpr, lexeme(chrs(']'))],
                 [_,[L,R],T]>>fmt_str(T, '[~w, ~w]', [L, R])),
@@ -171,17 +175,17 @@ ltl_langdef(
           expop(equiv ⦂ a → a → bool, infix(chrs('<=>')), emit_infix("<=>")),
           expop(equiv ⦂ a → a → bool, infix(chrs('<->')), emit_infix("<=>")),
           expop(neq ⦂ a → a → bool, infix(chrs('!=')), emit_infix("!=")),
-          expop(gteq ⦂ number → number → bool, infix(chrs('>=')), emit_infix(">=")),
-          expop(lteq ⦂ number → number → bool, infix(chrs('<=')), emit_infix("<=")),
-          expop(gt ⦂ number → number → bool, infix(chrs('>')), emit_infix(">")),
-          expop(lt ⦂ number → number → bool, infix(chrs('<')), emit_infix("<")),
-          expop(neg ⦂ number → number, [[]>>lexeme(chrs('-')), subexpr],
+          expop(gteq ⦂ integer → integer → bool, infix(chrs('>=')), emit_infix(">=")),
+          expop(lteq ⦂ integer → integer → bool, infix(chrs('<=')), emit_infix("<=")),
+          expop(gt ⦂ integer → integer → bool, infix(chrs('>')), emit_infix(">")),
+          expop(lt ⦂ integer → integer → bool, infix(chrs('<')), emit_infix("<")),
+          expop(neg ⦂ integer → integer, [[]>>lexeme(chrs('-')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(- ~w)', [A])),
-          expop(add ⦂ number → number → number, infix(chrs('+')), emit_infix("+")),
-          expop(sub ⦂ number → number → number, infix(chrs('-')), emit_infix("-")),
-          expop(mul ⦂ number → number → number, infix(chrs('*')), emit_infix("*")),
-          expop(divd ⦂ number → number → number, infix(chrs('/')), emit_infix("/")),
-          expop(expo ⦂ number → number → number, infix(chrs('^')), emit_infix("^"))
+          expop(add ⦂ integer → integer → integer, infix(chrs('+')), emit_infix("+")),
+          expop(sub ⦂ integer → integer → integer, infix(chrs('-')), emit_infix("-")),
+          expop(mul ⦂ integer → integer → integer, infix(chrs('*')), emit_infix("*")),
+          expop(divd ⦂ integer → integer → integer, infix(chrs('/')), emit_infix("/")),
+          expop(expo ⦂ integer → integer → integer, infix(chrs('^')), emit_infix("^"))
           %% TODO: at the next occurrence of BOOL
           %% TODO: at the previous occurrence of BOOL
         ]}).
@@ -192,8 +196,8 @@ ltl_langdef(
 % Optimizations are initiated from fret-electron/app/parser/CacheSemantics.js
 
 % These optimizations parallel those in fret-electron/;support/xform.js
-optimize(op(add(term(num(X), number), term(num(Y), number)), number), term(num(V), number)) :- V is X + Y, writeln(opt_add_consts), !.
-optimize(op(sub(term(num(X), number), term(num(Y), number)), number), term(num(V), number)) :- V is X - Y, writeln(opt_sub_consts), !.
+optimize(op(add(term(num(X), integer), term(num(Y), integer)), integer), term(num(V), integer)) :- V is X + Y, writeln(opt_add_consts), !.
+optimize(op(sub(term(num(X), integer), term(num(Y), integer)), integer), term(num(V), integer)) :- V is X - Y, writeln(opt_sub_consts), !.
 
 % These optimizations parallel those in fret-electron/;support/xform.js
 % booleanSimplifications
@@ -288,8 +292,8 @@ optimize(op(ltlH(op(ltlO(P), bool)), bool),
          op(ltlH(op(or(op(ltlY(term(lit(true), bool)), bool), P), bool)), bool)) :- !.
 % H (H[0, r] p) --> H p
 optimize(op(ltlH(op(ltlH_bound(Range, P), bool)), bool), op(ltlH(P), bool)) :-
-    member(Range, [ op(range_min_max(term(num(0), number),
-                                     term(_, number)), range),
+    member(Range, [ op(range_min_max(term(num(0), integer),
+                                     term(_, integer)), range),
                     op(range_max(_), range),
                     op(range_max_incl(_), range)
                   ]),
