@@ -955,6 +955,54 @@ test(with_ltl_predicate, [nondet]) :-
                                 responseTextRange:[74, 99]
                               }).
 
+test(in_upon_next_satisfy, [nondet]) :-
+    Inp = "in braking upon start_button the Car shall at the next timepoint satisfy is_moving.",
+    parse_fret("test", Inp, FretMent),
+    FretMent = fretment(scope_info(SFret, _),
+                        condition_info(CFret),
+                        component_info(Comp),
+                        timing_info(Timing, _),
+                        response_info(Responses)),
+    get_dict(scope, SFret, Scope),
+    get_dict(type, Scope, SType),
+    assertion(SType == "in"), %%
+    fretment_vars(scope, FretMent, SVars),
+    assertion(SVars == ["braking"⦂bool]),
+    get_dict(condition, CFret, Condition),
+    get_dict(qualifier_word, CFret, Qualifier),
+    get_dict(pre_condition, CFret, PreCond),
+    get_dict(regular_condition, CFret, RegCond),
+    assertion(Condition == "regular"), %%
+    assertion(Qualifier == "upon"),
+    assertion(PreCond == term(ident("start_button"), bool)),
+    assertion(RegCond == PreCond),
+    fretment_vars(condition, FretMent, CVars),
+    assertion(CVars == ["start_button"⦂bool]),
+    get_dict(component, Comp, CompName),
+    assertion(CompName == "Car"),
+    get_dict(timing, Timing, Tmng),
+    assertion(Tmng == "next"), %%
+    fretment_vars(timing, FretMent, TVars),
+    assertion(TVars == []),
+    get_dict(response, Responses, Rspns),
+    get_dict(post_condition, Responses, PostCond),
+    assertion(Rspns == "satisfaction"), %%
+    assertion(PostCond == term(ident("is_moving"), bool)),
+    fretment_vars(response, FretMent, RespVars),
+    assertion(RespVars == [ "is_moving"⦂bool ]),
+    emit_fretish(FretMent, Out),
+    ExpOut = "in braking upon start_button the Car shall at the next timepoint satisfy is_moving.",
+    assertion(Out == ExpOut),
+    emit_fretish(FretMent, Out2, Ranges),
+    assertion(Out == Out2),
+    assertion(Ranges == ranges{ scopeTextRange:[0,9],
+                                conditionTextRange:[11, 27],
+                                componentTextRange:[29, 35],
+                                timingTextRange:[43, 63],
+                                responseTextRange:[65, 81]
+                              }).
+
+
 %% Then do system pre/post
 
 %%                    CI

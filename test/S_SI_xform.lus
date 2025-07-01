@@ -1,0 +1,44 @@
+-- GOOD.  In this version, the node output is driven, and matches the contract
+-- value, so kind2 can determine this contract is valid.  Note that CONTRACTCK
+-- will always succeed because the node body is ignored so in the contract, z can
+-- be assigned to whatever value is convenient.  But without CONTRACTCK (enabling
+-- BMC), failures can be detected as z is drive.  In other words realizable
+-- contract checking v.s. model checking.
+
+node SI(X,Y: bool) returns (Z:bool);
+let
+Z = Y and (X or (false -> pre Z));
+tel
+
+node S(X,Y: bool) returns (Z:bool);
+let
+Z = X or (Y and (false -> pre Z));
+tel
+
+(* 
+   Verification of the FRET LTLASTSemantics.js function:introduce_SinceInclusive
+   where that function rewrites "p S (p & q)" into "p SI q".  Note here that the
+   S and SI CoCo use reversed argument format.
+*)
+contract S_SI_xform( a, b: bool  ) returns ( z: bool );
+let
+
+ var y : bool = S( (a and b), a );
+
+ guarantee "xform_equivalence" (y = z);
+tel
+
+-- Proof via rewriting:
+-- S( (a and b), a )
+-- (a and b) or (a and (false -> pre Z))
+-- a and (b or (false -> pre Z))
+-- SI( b, a )
+
+node S_SI_xform_node(p,q: bool) returns (z:bool);
+(*@contract
+  import S_SI_xform(p,q) returns (z);
+*)
+let
+  --%MAIN;
+  z = SI(q, p);  -- n.b. flipped args here to match flip in S_SI_xform contract
+tel

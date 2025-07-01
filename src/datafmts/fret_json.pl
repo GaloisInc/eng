@@ -7,7 +7,9 @@
 
 :- use_module(library(apply)).
 :- use_module('../englib').
+:- use_module('../exprlang').
 :- use_module(ltl).
+:- use_module(lustre).
 :- use_module(frettish).
 
 lando_reqs_to_fret_json(Lando_Reqs, Vars, JSONDict) :-
@@ -246,19 +248,19 @@ ws_() --> [C], { char_type(C, space) }.
 
 
 generate_formulae(Defs, Inp, Out) :-
-    (scope_mode_transform(Defs, Inp, O1)
+    (scope_mode_transform(Defs, Inp, SMPT, SMFT, O1)
     ; print_message(error, scope_transform_failed()), fail
     ),
     !,
-    (regular_condition_transform(Defs, O1, O2)
+    (regular_condition_transform(Defs, SMPT, SMFT, O1, O2)
     ; print_message(error, condition_transform_failed(regular)), fail
     ),
     !,
-    (post_condition_transform(Defs, O2, O3)
+    (post_condition_transform(Defs, SMPT, SMFT, O2, O3)
     ; print_message(error, condition_transform_failed(post)), fail
     ),
     !,
-    (stop_condition_transform(Defs, O3, O4)
+    (stop_condition_transform(Defs, SMPT, SMFT, O3, O4)
     ; print_message(error, condition_transform_failed(stop)), fail
     ),
     !,
@@ -273,16 +275,16 @@ prolog:message(condition_transform_failed(Condtype)) -->
 prolog:message(past_time_update_error()) -->
     [ 'Cannot update past-time formula' ].
 
-scope_mode_transform(_Defs, Inp, Out) :-
+scope_mode_transform(_Defs, Inp, SMPT, SMFT, Out) :-
     get_dict(scope, Inp, S),
     get_dict(type, S, ST),
-    sc_mo_tr(ST, Inp, Out).
-sc_mo_tr(null, I, O) :-
+    sc_mo_tr(ST, Inp, SMPT, SMFT, Out).
+sc_mo_tr(null, I, term(ident("BAD_PT"), bool), term(ident("BAD_FT"), bool), O) :-
     !,
     put_dict(I, _{ scope_mode_pt: "BAD_PT", scope_mode_ft: "BAD_FT" }, O).
-sc_mo_tr(_, I, O) :-
-    get_dict(scope_mode, I, M),
-    canon_bool_expr(M, MD),
+sc_mo_tr(_, I, MP, MF, O) :-
+    get_dict(scope_mode, I, MD),
+    %% canon_bool_expr(M, MD),
     xform_past_temporal_unbounded(MD, MP),
     xform_future_temporal_unbounded(MD, MF),
     put_dict(I, _{ scope_mode_pt: MP, scope_mode_ft: MF }, O).
@@ -295,29 +297,37 @@ regular_condition_transform(Defs, Inp, Out) :-
                      regular_condition_SMV_pt: SMVPT,
                      regular_condition_SMV_ft: SMVFT
                    }, Out).
-regular_condition_transform(_Defs, Inp, Inp).
+regular_condition_transform(_, _, _, Inp, Inp).
 
-post_condition_transform(Defs, Inp, Out) :-
+post_condition_transform(Defs, SMPT, SMFT, Inp, Out) :-
     get_dict(post_condition, Inp, PC), !,
-    xform_cond(Defs, Inp, PC, PT, FT, SMVPT, SMVFT),
-    put_dict(Inp, _{ post_condition_unexp_pt: PT,
-                     post_condition_unexp_ft: SMVPT,
-                     post_condition_SMV_pt: FT,
-                     post_condition_SMV_ft: SMVFT
+    xform_cond(Defs, Inp, SMPT, SMFT, PC, PT, FT, SMVPT, SMVFT),
+    emit_ltl(PT, PTTxt),
+    emit_ltl(FT, FTTxt),
+    emit_ltl(SMVPT, SMVPTTxt),
+    emit_ltl(SMVFT, SMVFTTxt),
+    put_dict(Inp, _{ post_condition_unexp_pt: PTTxt,
+                     post_condition_unexp_ft: SMVPTTxt,
+                     post_condition_SMV_pt: FTTxt,
+                     post_condition_SMV_ft: SMVFTTxt
                    }, Out).
-post_condition_transform(_Defs, Inp, Inp).
+post_condition_transform(_, _, _, Inp, Inp).
 
-stop_condition_transform(Defs, Inp, Out) :-
+stop_condition_transform(Defs, SMPT, SMFT, Inp, Out) :-
     get_dict(stop_condition, Inp, SC), !,
-    xform_cond(Defs, Inp, SC, PT, FT, SMVPT, SMVFT),
-    put_dict(Inp, _{ stop_condition_unexp_pt: PT,
-                     stop_condition_unexp_ft: SMVPT,
-                     stop_condition_SMV_pt: FT,
-                     stop_condition_SMV_ft: SMVFT
+    xform_cond(Defs, Inp, SMPT, SMFT, SC, PT, FT, SMVPT, SMVFT),
+    emit_ltl(PT, PTTxt),
+    emit_ltl(FT, FTTxt),
+    emit_ltl(SMVPT, SMVPTTxt),
+    emit_ltl(SMVFT, SMVFTTxt),
+    put_dict(Inp, _{ stop_condition_unexp_pt: PTTxt,
+                     stop_condition_unexp_ft: SMVPTTxt,
+                     stop_condition_SMV_pt: FTTxt,
+                     stop_condition_SMV_ft: SMVFTTxt
                    }, Out).
-stop_condition_transform(_Defs, Inp, Inp).
+stop_condition_transform(_, _, _, Inp, Inp).
 
-xform_cond(Defs, Inp, C, PT, FT, SMVPT, SMVFT) :-
+xform_cond(Defs, Inp, SMPT, SMFT, C, PT, FT, SMVPT, SMVFT) :-
     xform_past_temporal(C, CP),
     xform_future_temporal(C, CF),
 
@@ -328,18 +338,28 @@ xform_cond(Defs, Inp, C, PT, FT, SMVPT, SMVFT) :-
     %% get_dict('SMVptExtright', Endpoints, SMVRight),
     %% get_dict('SMVftExtleft2', Endpoints, SMVLeftF),
     get_dict('SMVftExtright2', Endpoints, SMVRightF),
-    get_dict(scope_mode_pt, Inp, ScopeModePT),
-    get_dict(scope_mode_ft, Inp, ScopeModeFT),
+    % All the above are strings from the semantics.json file.  Convert them to
+    % LTL ABT's, but don't backtrack beyond this point on parse failures (not
+    % expecting any!).
+    !,
+    parse_ltl(Left, LeftLTL),
+    parse_ltl(SMVLeft, SMVLeftLTL),
+    parse_ltl(Right, RightLTL),
+    parse_ltl(SMVRightF, SMVRightLTL),
+    !,
 
-    subst("$Left$", Left, CP, CP1),
-    subst("$scope_mode$", ScopeModePT, CP1, PT),
-    subst("$Left$", SMVLeft, CP, CPS1),
-    subst("$scope_mode$", ScopeModePT, CPS1, SMVPT),
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
 
-    subst("$Right$", Right, CF, CF1),
-    subst("$scope_mode$", ScopeModeFT, CF1, FT),
-    subst("$Right$", SMVRightF, CF, CFS1),
-    subst("$scope_mode$", ScopeModeFT, CFS1, SMVFT).
+    subst_term(LTL, "$Left$", LeftLTL, CP, CP1),
+    subst_term(LTL, "$scope_mode$", SMPT, CP1, PT),
+    subst_term(LTL, "$Left$", SMVLeftLTL, CP, CPS1),
+    subst_term(LTL, "$scope_mode$", SMPT, CPS1, SMVPT),
+
+    subst_term(LTL, "$Right$", RightLTL, CF, CF1),
+    subst_term(LTL, "$scope_mode$", SMFT, CF1, FT),
+    subst_term(LTL, "$Right$", SMVRightLTL, CF, CFS1),
+    subst_term(LTL, "$scope_mode$", SMFT, CFS1, SMVFT).
 
 fetched_ft_pt_update(Defs, Inp, Out) :-
     get_dict(ft, Defs, FT),

@@ -29,6 +29,12 @@ emit_ltl(AST, Text) :-
 :- op(760, yfx, ⦂).
 :- op(750, xfy, →).
 
+
+% LTL (Linear Temporal Logic) and MTL (Metric Temporal Logic) and MITL (Metric
+% Interval Temporal Logic) expressions.
+%
+% Matches fret-electron/sjpport/LTLParser/LTLASTSemantics.js
+%
 ltl_langdef(
     langdef{
         language: ltl,
@@ -47,31 +53,69 @@ ltl_langdef(
           expop(and ⦂ bool → bool → bool, infix(chrs('&')), emit_infix("&")),
           expop(or ⦂ bool → bool → bool, infix(chrs('|')), emit_infix("|")),
           expop(xor ⦂ bool → bool → bool, infix(tok(xor)), emit_infix("XOR")),
+          % F - Finally (or Future or Eventually) [Timed]
+          % arg eventually has to hold (somewhere on the subsequent path)
           expop(ltlF ⦂ bool → bool, [[]>>lexeme(word('F')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(F ~w)', [A])),
+                [_,[A],T]>>fmt_str(T, '(F ~w)', [A])),
+          % G - Globally [Timed]
+          % arg has to hold on the ENTIRE subsequent path
           expop(ltlG ⦂ bool → bool, [[]>>lexeme(word('G')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(G ~w)', [A])),
+                [_,[A],T]>>fmt_str(T, '(G ~w)', [A])),
+          % H - Historically [Timed]
           expop(ltlH ⦂ bool → bool, [[]>>lexeme(word('H')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(H ~w)', [A])),
+                [_,[A],T]>>fmt_str(T, '(H ~w)', [A])),
+          % O - Once [Timed]
           expop(ltlO ⦂ bool → bool, [[]>>lexeme(word('O')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(O ~w)', [A])),
-          expop(ltlS ⦂ bool → bool → bool, infix(chrs('S')), emit_infix("S")),
-          expop(ltlSI ⦂ bool → bool → bool, infix(chrs('SI')), emit_infix("SI")),
-          expop(ltlT ⦂ bool → bool → bool, infix(word('T')), emit_infix("T")),
-          expop(ltlU ⦂ bool → bool → bool, infix(word('U')), emit_infix("U")),
-          expop(ltlUI ⦂ bool → bool → bool, infix(word('UI')), emit_infix("UI")),
-          expop(ltlV ⦂ bool → bool → bool, infix(word('V')), emit_infix("V")),
+                [_,[A],T]>>fmt_str(T, '(O ~w)', [A])),
+          % S - Since [Timed]  [[MTL]]
+          % true at first argument and as long as second argument is true
+          % X S Y   :: Out = X or (Y and (false -> pre Out)
+          %
+          %      A  B  C  D  E    F    G
+          % X    ___1_____1__111__1____111__
+          % Y    ______1__1__1____111__111__
+          % Out  ___1_____1__1____111__111__
+          expop(ltlS ⦂ bool → bool → bool, infix(chrs('S ')), emit_infix("S")),
+          % SI - Since Inclusive [Timed]  [[MTL]]
+          % true at first argument when and for as long as second argument is true
+          % X SI Y  :: Out = Y and (X or (false -> pre Out)
+          %
+          %      A  B  C  D  E    F    G
+          % X    ___1_____1__111__1____111__
+          % Y    ______1__1__1____111__111__
+          % Out  _________1__1____111__111__
+          expop(ltlSI ⦂ bool → bool → bool, infix(chrs('SI ')), emit_infix("SI")),
+          % T - Triggers  [[MITL]]
+          expop(ltlT ⦂ bool → bool → bool, infix(word('T ')), emit_infix("T")),
+          % TT - Triggers Timed -- unsupported
+          % U - Until [Timed]  [[MTL]]
+          % first argument has to hold AT LEAST until second argument becomes
+          % true, which must hold at the current or a future position
+          expop(ltlU ⦂ bool → bool → bool, infix(word('U ')), emit_infix("U")),
+          % UI - Until Inclusive [Timed]  [[MTL]]
+          expop(ltlUI ⦂ bool → bool → bool, infix(word('UI ')), emit_infix("UI")),
+          % V - Releases (converse of T), (aka R)
+          % second argument has to be true until and including the point where
+          % the first argument becomes true.  If the first argument never becomes
+          % true, the second argument must remain true forever.
+          expop(ltlV ⦂ bool → bool → bool, infix(word('V ')), emit_infix("V")),
+          % VT - Releases Timed -- unsupported
           expop(ltlO ⦂ bool → bool, [[]>>lexeme(word('O')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(O ~w)', [A])),
+                [_,[A],T]>>fmt_str(T, '(O ~w)', [A])),
+          % X - Next
+          % arg must hold (be true) at the next state
           expop(ltlX ⦂ bool → bool, [[]>>lexeme(word('X')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(X ~w)', [A])),
+                [_,[A],T]>>fmt_str(T, '(X ~w)', [A])),
+          % Y - PrevFalse
           expop(ltlY ⦂ bool → bool, [[]>>lexeme(word('Y')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(Y ~w)', [A])),
+                [_,[A],T]>>fmt_str(T, '(Y ~w)', [A])),
+          % Z - PrevTrue
           expop(ltlZ ⦂ bool → bool, [[]>>lexeme(word('Z')), subexpr],
-                  [_,[A],T]>>fmt_str(T, '(Z ~w)', [A])),
-          expop(ltlF_bound ⦂ range → bool → bool,
-                [[]>>lexeme(chrs('F')), subexpr, subexpr],
-                [_,[R,A],T]>>fmt_str(T, '(F~w ~w)', [R,A])),
+                [_,[A],T]>>fmt_str(T, '(Z ~w)', [A])),
+          % TODO: allowing this creates a parse ambiguity: is FALSE the term(lit(false), bool), or is is an ltlF_bound(term(ident("ALSE"), bool), _) ??
+          %% expop(ltlF_bound ⦂ range → bool → bool,
+          %%       [[]>>lexeme(chrs('F')), subexpr, subexpr],
+          %%       [_,[R,A],T]>>fmt_str(T, '(F~w ~w)', [R,A])),
           expop(ltlG_bound ⦂ range → bool → bool,
                 [[]>>lexeme(chrs('G')), subexpr, subexpr],
                 [_,[R,A],T]>>fmt_str(T, '(G~w ~w)', [R,A])),
@@ -122,7 +166,7 @@ ltl_langdef(
                 [[]>>lexeme(chrs('[')), subexpr,
                  lexeme(chrs(',')), subexpr, lexeme(chrs(']'))],
                 [_,[L,R],T]>>fmt_str(T, '[~w, ~w]', [L, R])),
-          expop(implies ⦂ a → a → a, infix(chrs('->')), emit_infix("->")),
+          expop(implies ⦂ bool → bool → bool, infix(chrs('->')), emit_infix("->")),
           expop(eq ⦂ a → a → bool, infix(chrs('=')), emit_infix("=")),
           expop(equiv ⦂ a → a → bool, infix(chrs('<=>')), emit_infix("<=>")),
           expop(equiv ⦂ a → a → bool, infix(chrs('<->')), emit_infix("<=>")),
@@ -138,123 +182,163 @@ ltl_langdef(
           expop(mul ⦂ number → number → number, infix(chrs('*')), emit_infix("*")),
           expop(divd ⦂ number → number → number, infix(chrs('/')), emit_infix("/")),
           expop(expo ⦂ number → number → number, infix(chrs('^')), emit_infix("^"))
-               %% TODO: at the next occurrence of BOOL
-               %% TODO: at the previous occurrence of BOOL
+          %% TODO: at the next occurrence of BOOL
+          %% TODO: at the previous occurrence of BOOL
         ]}).
 
 
-% ------------------------------------------------------------
-
-% fmap walks an AST, depth first calling the supplied Op for each element.  The
-% Op should return (as the second parameter) any desired element
-% modification---or just the passed element by default.
-
-%% KWQ: remove fmap_
-%% fmap_(Op, val(N), V) :- call(Op, val(N), V).
-%% fmap_(Op, id(I), O) :- call(Op, id(I), O).
-%% fmap_(Op, boolid(I), O) :- call(Op, boolid(I), O).
-%% fmap_(Op, true, V) :- call(Op, true, V).
-%% fmap_(Op, false, V) :- call(Op, false, V).
-%% fmap_(Op, neg(E), O) :- fmap_(Op, E, I), call(Op, neg(I), O).
-%% fmap_(Op, call(I, Args), O) :- call(Op, callid(I), callid(OI)),
-%%                               maplist(fmap_(Op), Args, OArgs),
-%%                               call(Op, call(OI, OArgs), O).
-%% fmap_(Op, expo(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                            call(Op, expo(OL, OR), O).
-%% fmap_(Op, add(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                           call(Op, add(OL, OR), O).
-%% fmap_(Op, ltlH_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                                  call(Op, ltlH_bound(OL, OR), O).
-%% fmap_(Op, ltlO_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                                  call(Op, ltlO_bound(OL, OR), O).
-%% fmap_(Op, ltlG_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                                  call(Op, ltlG_bound(OL, OR), O).
-%% fmap_(Op, ltlF_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                                  call(Op, ltlF_bound(OL, OR), O).
-%% fmap_(Op, ltlBefore_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                                  call(Op, ltlBefore_bound(OL, OR), O).
-%% fmap_(Op, ltlAfter_bound(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                                      call(Op, ltlAfter_bound(OL, OR), O).
-%% fmap_(Op, ltlH(L), O) :- fmap_(Op, L, OL), call(Op, ltlH(OL), O).
-%% fmap_(Op, ltlO(L), O) :- fmap_(Op, L, OL), call(Op, ltlO(OL), O).
-%% fmap_(Op, ltlG(L), O) :- fmap_(Op, L, OL), call(Op, ltlG(OL), O).
-%% fmap_(Op, ltlF(L), O) :- fmap_(Op, L, OL), call(Op, ltlF(OL), O).
-%% %% fmap_(Op, ltlBefore(L), O) :- fmap_(Op, L, OL), call(Op, ltlBefore(OL), O).
-%% %% fmap_(Op, ltlAfter(L), O) :- fmap_(Op, L, OL), call(Op, ltlAfter(OL), O).
-%% fmap_(Op, ltlY(L), O) :- fmap_(Op, L, OL), call(Op, ltlY(OL), O).
-%% fmap_(Op, ltlX(L), O) :- fmap_(Op, L, OL), call(Op, ltlX(OL), O).
-%% fmap_(Op, ltlZ(L), O) :- fmap_(Op, L, OL), call(Op, ltlZ(OL), O).
-%% fmap_(Op, ltlSI(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                             call(Op, ltlSI(OL, OR), O).
-%% fmap_(Op, ltlS(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                            call(Op, ltlS(OL, OR), O).
-%% fmap_(Op, ltlT(L), O) :- fmap_(Op, L, OL), call(Op, ltlT(OL), O).
-%% fmap_(Op, ltlUI(L), O) :- fmap_(Op, L, OL), call(Op, ltlUI(OL), O).
-%% fmap_(Op, ltlU(L), O) :- fmap_(Op, L, OL), call(Op, ltlU(OL), O).
-%% fmap_(Op, ltlV(L), O) :- fmap_(Op, L, OL), call(Op, ltlV(OL), O).
-%% fmap_(Op, not(E), O) :- fmap_(Op, E, I), call(Op, not(I), O).
-%% fmap_(Op, eq(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                          call(Op, eq(OL, OR), O).
-%% fmap_(Op, le(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                          call(Op, le(OL, OR), O).
-%% fmap_(Op, ge(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                          call(Op, ge(OL, OR), O).
-%% fmap_(Op, lt(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                          call(Op, lt(OL, OR), O).
-%% fmap_(Op, gt(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                          call(Op, gt(OL, OR), O).
-%% fmap_(Op, neq(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                           call(Op, neq(OL, OR), O).
-%% fmap_(Op, next(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                            call(Op, next(OL, OR), O).
-%% fmap_(Op, prev(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                            call(Op, prev(OL, OR), O).
-%% fmap_(Op, boolcall(I, Args), O) :- call(Op, callid(I), callid(OI)),
-%%                                   maplist(fmap_(Op), Args, OArgs),
-%%                                   call(Op, boolcall(OI, OArgs), O).
-%% fmap_(Op, and(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                           call(Op, and(OL, OR), O).
-%% fmap_(Op, or(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                          call(Op, or(OL, OR), O).
-%% fmap_(Op, xor(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                           call(Op, xor(OL, OR), O).
-%% fmap_(Op, implies(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                               call(Op, implies(OL, OR), O).
-%% fmap_(Op, equiv(L, R), O) :- fmap_(Op, L, OL), fmap_(Op, R, OR),
-%%                             call(Op, equiv(OL, OR), O).
-%% fmap_(Op, range2(A, B), O) :- fmap_(Op, A, OA), fmap_(Op, B, OB),
-%%                              call(Op, range2(OA, OB), O).
-%% fmap_(Op, salt_le(A), O) :- fmap_(Op, A, OA), call(Op, salt_le(OA), O).
-%% fmap_(Op, salt_ge(A), O) :- fmap_(Op, A, OA), call(Op, salt_ge(OA), O).
-%% fmap_(Op, salt_lt(A), O) :- fmap_(Op, A, OA), call(Op, salt_lt(OA), O).
-%% fmap_(Op, salt_gt(A), O) :- fmap_(Op, A, OA), call(Op, salt_gt(OA), O).
-%% fmap_(Op, salt_eq(A), O) :- fmap_(Op, A, OA), call(Op, salt_eq(OA), O).
-%% fmap_(Op, salt_neq(A), O) :- fmap_(Op, A, OA), call(Op, salt_neq(OA), O).
-%% fmap_(_, Elem, Elem) :-
-%%     print_message(warning, no_fmap__for_elem(Elem)).
-
-%% prolog:message(no_fmap__for_elem(Elem)) -->
-%%     [ 'No fmap_ for ~w~n' - [Elem] ].
-
 % ----------------------------------------------------------------------
 
-optimize(add(val(X), val(Y)), val(V)) :- V is X + Y, !.
-optimize(sub(val(X), val(Y)), val(V)) :- V is X - Y, !.
-optimize(not(ltlY(true)), ltlZ(false)) :- !.
-optimize(not(ltlZ(false)), ltlY(true)) :- !.
-optimize(not(not(E)), E) :- !.
-optimize(ltlS(L,and(L,R)), ltlSI(L,R)) :- !.
-optimize(ltlS(L,and(R,L)), ltlSI(L,R)) :- !.
+% Optimizations are initiated from fret-electron/app/parser/CacheSemantics.js
+
+% These optimizations parallel those in fret-electron/;support/xform.js
+optimize(op(add(term(num(X), number), term(num(Y), number)), number), term(num(V), number)) :- V is X + Y, writeln(opt_add_consts), !.
+optimize(op(sub(term(num(X), number), term(num(Y), number)), number), term(num(V), number)) :- V is X - Y, writeln(opt_sub_consts), !.
+
+% These optimizations parallel those in fret-electron/;support/xform.js
+% booleanSimplifications
+optimize(op(not(op(not(E), bool)), bool), E) :- !.
+optimize(op(or(E, E), bool), E) :- !.
+optimize(op(and(E, E), bool), E) :- !.
+% !(!p & !q) --> p | q
+optimize(op(not(op(and(op(not(P), bool), op(not(Q), bool)), bool), bool)),
+         op(or(P, Q), bool)) :- !.
+% (p & q) | (p & r) --> p & (q | r)  [and variations]
+optimize(op(or(op(and(P, Q), bool), op(and(P, R), bool)), bool),
+         op(and(P, op(or(Q, R), bool)), bool)) :- !.
+optimize(op(or(op(and(Q, P), bool), op(and(P, R), bool)), bool),
+         op(and(P, op(or(Q, R), bool)), bool)) :- !.
+optimize(op(or(op(and(P, Q), bool), op(and(R, P), bool)), bool),
+         op(and(P, op(or(Q, R), bool)), bool)) :- !.
+optimize(op(or(op(and(Q, P), bool), op(and(R, P), bool)), bool),
+         op(and(P, op(or(Q, R), bool)), bool)) :- !.
+% !p | (p & q) --> !p | q  [and variations]
+optimize(op(or(op(not(P), bool), op(and(P, Q), bool)), bool),
+         op(or(op(not(P), bool), Q), bool)) :- !.
+optimize(op(or(op(not(P), bool), op(and(Q, P), bool)), bool),
+         op(or(op(not(P), bool), Q), bool)) :- !.
+% !p & !(q | p) --> !p & !q [and variations]
+optimize(op(and(op(not(P), bool), op(not(op(or(Q, P), bool)), bool)), bool),
+         op(and(op(not(P), bool), op(not(Q), bool)), bool)) :- !.
+optimize(op(and(op(not(P), bool), op(not(op(or(P, Q), bool)), bool)), bool),
+         op(and(op(not(P), bool), op(not(Q), bool)), bool)) :- !.
+% !p & !(q & p) --> !p [and variations]
+optimize(op(and(op(not(P), bool), op(not(op(and(_, P), bool)), bool)), bool),
+         op(not(P), bool)) :- !.
+optimize(op(and(op(not(P), bool), op(not(op(and(P, _), bool)), bool)), bool),
+         op(not(P), bool)) :- !.
+% p & !(!p & q) --> p  [and variations]
+optimize(op(and(P, op(not(op(and(op(not(P), bool), _), bool)), bool)), bool),
+         P) :- !.
+optimize(op(and(P, op(not(op(and(_, op(not(P), bool)), bool)), bool)), bool),
+         P) :- !.
+% !(p & q) & !(r | q) --> !q & !r [ and variations ]
+optimize(op(and(op(not(op(and(_, Q), bool)), bool), op(not(op(or(R, Q), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+optimize(op(and(op(not(op(and(Q, _), bool)), bool), op(not(op(or(R, Q), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+optimize(op(and(op(not(op(and(_, Q), bool)), bool), op(not(op(or(Q, R), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+optimize(op(and(op(not(op(and(Q, _), bool)), bool), op(not(op(or(Q, R), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+optimize(op(and(op(not(op(or(R, Q), bool)), bool), op(not(op(and(_, Q), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+optimize(op(and(op(not(op(or(Q, R), bool)), bool), op(not(op(and(_, Q), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+optimize(op(and(op(not(op(or(R, Q), bool)), bool), op(not(op(and(Q, _), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+optimize(op(and(op(not(op(or(Q, R), bool)), bool), op(not(op(and(Q, _), bool)), bool)), bool),
+         op(and(op(not(Q), bool), op(not(R), bool)), bool)) :- !.
+
+optimize(op(not(term(lit(false), bool)), bool), term(lit(true), bool)) :- !.
+optimize(op(not(term(lit(true), bool)), bool), term(lit(false), bool)) :- !.
+
+optimize(op(or(term(lit(false), bool), E), bool), E) :- !.
+optimize(op(or(E, term(lit(false), bool)), bool), E) :- !.
+optimize(op(or(term(lit(true), bool), _), bool), term(lit(true), bool)) :- !.
+optimize(op(or(_, term(lit(true), bool)), bool), term(lit(true), bool)) :- !.
+optimize(op(and(term(lit(true), bool), E), bool), E) :- !.
+optimize(op(and(E, term(lit(true), bool)), bool), E) :- !.
+optimize(op(and(term(lit(false), bool), _), bool), term(lit(false), bool)) :- !.
+optimize(op(and(_, term(lit(false), bool)), bool), term(lit(false), bool)) :- !.
+
+optimize(op(implies(term(lit(true), bool), E), bool), E) :- !.
+optimize(op(implies(term(lit(false), bool), _), bool), term(lit(true), bool)) :- !.
+
+% These optimizations parallel those in fret-electron/support/xform.js
+% pastTimeSimplications
+optimize(op(not(op(ltlY(term(lit(true), bool)), bool)), bool),
+         op(ltlZ(term(lit(false), bool)), bool)) :- !.
+optimize(op(not(op(ltlZ(term(lit(false), bool)), bool)), bool),
+         op(ltlY(term(lit(true), bool)), bool)) :- !.
+optimize(op(ltlO(term(lit(false), bool)), bool), term(lit(false), bool)) :- !.
+optimize(op(ltlO(term(lit(true), bool)), bool), term(lit(true), bool)) :- !.
+% O(Z _) --> true
+optimize(op(ltlO(op(ltlZ(_), bool)), bool), term(lit(true), bool)) :- !.
+% H lit -> lit
+optimize(op(ltlH(term(lit(B), bool)), bool), term(lit(B), bool)) :- !.
+% H (Z FALSE) -> Z FALSE
+optimize(op(ltlH(op(ltlZ(term(lit(false), bool)), bool)), bool),
+         op(ltlZ(term(lit(false), bool)), bool)) :- !.
+% H (p & q) --> H p & H q
+optimize(op(ltlH(op(and(P, Q), bool)), bool),
+         op(and(op(ltlH(P), bool), op(ltlH(Q), bool)), bool)) :- !.
+% H (O p) --> H ((Y TRUE) | p)
+optimize(op(ltlH(op(ltlO(P), bool)), bool),
+         op(ltlH(op(or(op(ltlY(term(lit(true), bool)), bool), P), bool)), bool)) :- !.
+% H (H[0, r] p) --> H p
+optimize(op(ltlH(op(ltlH_bound(Range, P), bool)), bool), op(ltlH(P), bool)) :-
+    member(Range, [ op(range_min_max(term(num(0), number),
+                                     term(_, number)), range),
+                    op(range_max(_), range),
+                    op(range_max_incl(_), range)
+                  ]),
+    !.
+% H (Y TRUE) --> FALSE
+optimize(op(ltlH(op(ltlY(term(lit(true), bool)), bool)), bool),
+         term(lit(false), bool)) :- !.
+% !(H (!p)) --> O p
+optimize(op(not(op(ltlH(op(not(P), bool)), bool)), bool),
+         op(ltlO(P), bool)) :- !.
+% !(O (!p)) --> H p
+optimize(op(not(op(ltlO(op(not(P), bool)), bool)), bool),
+         op(ltlH(P), bool)) :- !.
+% true S p --> O p
+optimize(op(ltlS(term(lit(true), bool), P), bool), op(ltlO(P), bool)) :- !.
+% p S (p & Z false) --> H p   [and variations]
+optimize(op(ltlS(P, op(and(P, ZF), bool)), bool), op(ltlH(P), bool)) :-
+    ZF = op(ltlZ(term(lit(false), bool)), bool), !.
+optimize(op(ltlS(P, op(and(ZF, P), bool)), bool), op(ltlH(P), bool)) :-
+    ZF = op(ltlZ(term(lit(false), bool)), bool), !.
+% p S p --> p
+optimize(op(ltlS(P, P), bool), P) :- !.
+% ((Y true) & p) S q --> p S q   [and variations]
+optimize(op(ltlS(op(and(op(ltlY(term(lit(true), bool)), bool), P), bool), Q), bool),
+         op(ltlS(P, Q), bool)) :- !.
+optimize(op(ltlS(op(and(op(P, ltlY(term(lit(true), bool)), bool)), bool), Q), bool),
+         op(ltlS(P, Q), bool)) :- !.
+% (Y true) S q --> O q
+optimize(op(ltlS(op(ltlY(term(lit(true), bool)), bool), Q), bool),
+         op(ltlO(Q), bool)) :- !.
+% (Y true) & (Y p) --> Y p   [and variations]
+optimize(op(and(op(ltlY(term(lit(true), bool)), bool), op(ltlY(P), bool)), bool),
+         op(ltlY(P), bool)) :- !.
+optimize(op(and(op(ltlY(P), bool), op(ltlY(term(lit(true), bool)), bool)), bool),
+         op(ltlY(P), bool)) :- !.
+% (Z false) | Y p -> Z p   [and variations]
+optimize(op(or(op(ltlZ(term(lit(false), bool)), bool), op(ltlY(P), bool)), bool),
+         op(ltlZ(P), bool)) :- !.
+optimize(op(or(op(ltlY(P), bool), op(ltlZ(term(lit(false), bool)), bool)), bool),
+         op(ltlZ(P), bool)) :- !.
+
+
+% These optimizations parallel those in
+% fret-electron/support/LTLParser/LTLASTSemantics.js introduce_SinceInclusive.
+% These are verified by tests/S_SI_xform.lus.
+optimize(op(ltlS(L,op(and(L,R), bool)), bool), op(ltlSI(L,R), bool)) :- !.
+optimize(op(ltlS(L,op(and(R,L), bool)), bool), op(ltlSI(L,R), bool)) :- !.
+
 optimize(X, X).
 
-%% past_optimize(and(E1, E2), and(E1O, E2O)) :-
-%%     !, past_optimize(E1, E1O), past_optimize(E2, E2O).
-%% past_optimize(or(E1, E2), or(E1O, E2O)) :-
-%%     !, past_optimize(E1, E1O), past_optimize(E2, E2O).
-%% past_optimize(implies(E1, E2), implies(E1O, E2O)) :-
-%%     !, past_optimize(E1, E1O), past_optimize(E2, E2O).
-%% past_optimize(ltlH(E), ltlH(EO)) :- !, past_optimize(E, EO).
-%% past_optimize(ltlZ(false), not(ltlY(true))) :- !.  % R8, R1
-%% past_optimize(AST, AST).
 
 % ----------------------------------------------------------------------

@@ -900,9 +900,6 @@ lexeme(R, O, U) --> call(R, O, U).
 lexeme(R, O, P, U) --> ws(_), { ! }, lexeme(R, O, P, U).
 lexeme(R, O, P, U) --> call(R, O, P, U).
 
-lexeme(R, O, P, Q, U) --> ws(_), { ! }, lexeme(R, O, P, Q, U).
-lexeme(R, O, P, Q, U) --> call(R, O, P, Q, U).
-
 ws(span(N,N)) --> [(N,C)], { char_type(C, space) }.
 
 prolog:message(bad_scope_mode(V, S)) -->

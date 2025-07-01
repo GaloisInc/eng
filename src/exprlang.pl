@@ -156,6 +156,10 @@ exprParts(Language, Env, _ → TPS, [subexpr|Parsers], OpArgs,
     % n.b. TParam will be checked against TypedArg after the entire expression is
     % parsed at the call site (above).
     exprParts(Language, Env2, TPS, Parsers, [TypedArg|OpArgs], Terms, OutEnv).
+exprParts(Language, Env, TPS, [swapargs|Parsers], [OA1,OA2|OpArgs],
+          Terms, OutEnv) -->
+    !,
+    exprParts(Language, Env, TPS, Parsers, [OA2,OA1|OpArgs], Terms, OutEnv).
 exprParts(Language, Env, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
     call(Parser),
     !,
@@ -202,9 +206,7 @@ set_type(M, T, op(A, O), op(ANew, O)) :-
 
 % if this is a reference to a variable, return the name of the referenced variable
 var_ref(Language, term(Term, _), V) :- variable_ref(Language, RS),
-                                       writeln(var_ref__),
                                        member(R,RS),
-                                       writeln(R),
                                        Term =.. [R, V].
 
 
@@ -500,7 +502,7 @@ typecheck_exp_(_, Env, OType, [], TypeVars, Env, [], RType) :-
     % tc8
     member((OType, RType), TypeVars),
     !.
-typecheck_exp_(_, Env, OType, [], TypeVars, Env, [], OType).  % tc9: final known/fixed type
+typecheck_exp_(_, Env, OType, [], _TypeVars, Env, [], OType).  % tc9: final known/fixed type
 typecheck_exp_(_, Env, OpType, Terms, _, Env, Terms, OpType) :-
     print_message(error, invalid_expr_types(OpType, Terms)),
     !,
@@ -522,12 +524,12 @@ prolog:message(invalid_expr_types(TypeSpec, Terms)) -->
 % by expression context) as a free variable, updating the Env and possibly
 % returning the pre-determined type from the Env.
 fresh_var(Env, VName, typevar, Env, Type) -->
-    { known_var(Env, VName, Type), writeln(knownvar__same),
+    { known_var(Env, VName, Type),
       % already saw this one, as a variable (up to alpha renaming)
       !
     }.
 fresh_var(Env, VName, Type, Env, Type) -->
-    { known_var(Env, VName, Type), writeln(knownvar__same),
+    { known_var(Env, VName, Type),
       % already saw this one, same type
       ! }.
 fresh_var(Env, VName, Type, Env, badtype) -->
@@ -623,17 +625,44 @@ fmap_abt(Language, F, op(O, T), R) :-
 fmap_abt(_Language, F, term(O, T), R) :- call(F, term(O, T), R).
 
 
+subst_term(Language, Mark, Repl, InABT, OutABT) :-
+    fmap_abt(Language, [Term, TermOut]>>subst_term_(Mark, Repl, Term, TermOut),
+             InABT, OutABT).
+subst_term(Language, _, _, InABT, _) :-
+    !,
+    print_message(error, invalid_ABT(Language, InABT)),
+    fail.
+
+subst_term_(Mark, Repl, term(Mark, T), ORepl) :-
+    type_of(Repl, type_unassigned(U)),
+    !,
+    set_type(type_unassigned(U), T, Repl, ORepl).
+subst_term_(Mark, Repl, term(Mark, type_unassigned(_)), Repl) :-
+    % KWQ: assign type of Repl throughout?  Need Env and full ABT for that...
+    !.
+subst_term_(Mark, Repl, term(Mark, T), Repl) :-
+    type_of(Repl, T),
+    !.
+subst_term_(Mark, Repl, term(Mark, T), Repl) :-
+    !,
+    print_message(error, wrong_term_subst_type(term(Mark, T), Repl)),
+    fail.
+subst_term_(_, _, Term, Term).
+
+
+prolog:message(invalid_ABT(Language, ABT)) -->
+    [ 'Invalid ABT for ~w: ~w~n' - [ Language, ABT ]].
+prolog:message(wrong_term_subst_type(Term, Repl)) -->
+    [ 'Type mismatch when replacing ~w with ~w' - [ Term, Repl ]].
+
+
 extract_vars(Language, op(O, _), Vars) :-
-    writeln(ev1),
     O =.. [_|OpArgs],
     !,
-    writeln(ev2),
     maplist(extract_vars(Language), OpArgs, OpArgVars),
-    writeln(ev3),
     append(OpArgVars, SuperVars),
     list_to_set(SuperVars, Vars).
 extract_vars(Language, term(T, Ty), [V⦂Ty]) :-
-    writeln(ev4),
     variable_ref(Language, VRefs),
     member(VRef, VRefs),
     T =.. [ VRef, V ],

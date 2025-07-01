@@ -122,14 +122,16 @@ test(bool_expr_5, [nondet]) :-
 
 test(bool_expr_6, [nondet]) :-
     check_parsing("(O[=2 +1] alarm_enabled)",
-                  "OT((2 + 1), (2 + 1), alarm_enabled)").
+                  "OT(3, 3, alarm_enabled)").
 
 test(bool_expr_7, [nondet]) :-
     check_parsing("shutdown_running S startup",
                   op(ltlS(term(ident("shutdown_running"), bool),
                           term(ident("startup"), bool)),
                      bool),
-                  "S(shutdown_running, startup)").
+                  % note that CoCoSpec reverses the order of arguments to S and
+                  % SI for helpers
+                  "S(startup, shutdown_running)").
 
 test(bool_expr_8, [nondet]) :-
     check_parsing("((shutdown_running) S (startup & (Z (! startup))))",
@@ -140,16 +142,31 @@ test(bool_expr_8, [nondet]) :-
                                     bool)),
                              bool)),
                      bool),
-                  "S(shutdown_running, (startup and ZtoPre((not startup))))").
+                  % note that CoCoSpec reverses the order of arguments to S and
+                  % SI for helpers
+                  "S((startup and ZtoPre((not startup))), shutdown_running)").
+
+test(bool_opt_9, [nondet]) :-
+    check_parsing("(((alarm_enabled & (! FALSE) | (! TRUE) & TRUE | FALSE) & (! (! disable_alarm))) & (! (! (Z (! (! FALSE))))))",
+                  % !(! X) optimizes to X
+                  % (! TRUE) optimizes to FALSE
+                  % (! FALSE) optimizes to TRUE
+                  % !(Z FALSE) optimizes to (Y TRUE)
+                  % !(Y TRUE) optimizes to (Z FALSE)
+                  op(and(op(and(term(ident("alarm_enabled"), bool),
+                                term(ident("disable_alarm"), bool)), bool),
+                         op(ltlZ(term(lit(false), bool)), bool)),
+                     bool),
+                  "((alarm_enabled and disable_alarm) and ZtoPre(false))").
 
 test(bool_expr_with_ltl_func, [nondet]) :-
     check_parsing("(H ((Y (awake & ((H[0,2] wet) & (H[0,1] (Y TRUE))))) -> ((noise = croaking) | (! (Y TRUE)))))",
     % n.b. (! (Y TRUE)) is optimized to (Z FALSE)
-                  "H((YtoPre((awake and (HT(2, 0, wet) and HT(1, 0, YtoPre(true))))) => ((noise = croaking) or (not YtoPre(true)))))").
+                  "H((YtoPre((awake and (HT(2, 0, wet) and HT(1, 0, YtoPre(true))))) => ((noise = croaking) or ZtoPre(false))))").
 
 test(bool3_expr_unary_timed_bound, [nondet]) :-
     check_parsing("((H ((O[<=2 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm))))) -> ((H (! (alarm_enabled & disable_alarm))) | (! (alarm_disabled))))) & (H ((O[=2 +1] (((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))) & (! (alarm_disabled)))) -> (O[<2 +1] ((Z FALSE) | (alarm_disabled))))))",
-                  "(H((OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm))))) => (H((not (alarm_enabled and disable_alarm))) or (not alarm_disabled)))) and H((OT((2 + 1), (2 + 1), (((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm)))) and (not alarm_disabled))) => OT(((2 + 1) - 1), 0, (ZtoPre(false) or alarm_disabled)))))").
+                  "(H((OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm))))) => (H((not (alarm_enabled and disable_alarm))) or (not alarm_disabled)))) and H((OT(3, 3, (((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm)))) and (not alarm_disabled))) => OT((3 - 1), 0, (ZtoPre(false) or alarm_disabled)))))").
 
 
 test(bool_expr_mid_term, [nondet]) :-
@@ -199,23 +216,30 @@ test(upon_next_expr, [nondet]) :-
                                                           term(num(0), number)),
                                                      bool)),
                                               bool),
-                                           op(not(op(ltlY(term(lit(true), bool)),
-                                                     bool)),
+                                           op(ltlZ(term(lit(false), bool)),
                                               bool)),
                                         bool)),
                              bool)),
                      bool),
-                  "H((YtoPre(((not_y and l) and ZtoPre((not (not_y and l))))) => ((m and (i >= 0)) or (not YtoPre(true)))))").
+                  "H((YtoPre(((not_y and l) and ZtoPre((not (not_y and l))))) => ((m and (i >= 0)) or ZtoPre(false))))").
 
 
 test(in_upon_next_expr, [nondet]) :-
     %% In braking upon start_button the Car shall at the next timepoint satisfy is_moving.
+    %% see frettish.plt in_upon_next_satisfy test
+    %% in,regular,next,satisfaction
     %% Inp is ptExpanded_fetched with var replacements
     check_parsing("((H (((! braking) & (Y braking)) -> (Y (((Y (start_button & ((Y (! start_button)) | (braking & (Z (! braking)))))) -> (is_moving | (braking & (Z (! braking))))) S (((Y (start_button & ((Y (! start_button)) | (braking & (Z (! braking)))))) -> (is_moving | (braking & (Z (! braking))))) & (braking & (Z (! braking)))))))) & (((! ((! braking) & (Y braking))) S ((! ((! braking) & (Y braking))) & (braking & (Z (! braking))))) -> (((Y (start_button & ((Y (! start_button)) | (braking & (Z (! braking)))))) -> (is_moving | (braking & (Z (! braking))))) S (((Y (start_button & ((Y (! start_button)) | (braking & (Z (! braking)))))) -> (is_moving | (braking & (Z (! braking))))) & (braking & (Z (! braking)))))))",
+
                   % Without optimization, the above should directly convert to:
-                  "(H((((not braking) and YtoPre(braking)) => YtoPre(S((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))), ((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))) and (braking and ZtoPre((not braking)))))))) and (S((not ((not braking) and YtoPre(braking))), ((not ((not braking) and YtoPre(braking))) and (braking and ZtoPre((not braking))))) => S((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))), ((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))) and (braking and ZtoPre((not braking)))))))").
-                  %% % However, with term rewriting optimization, it reduces to:
-                  %% "(H(((not (braking) and YtoPre(braking)) => YtoPre(SI((braking and ZtoPre(not (braking))),(YtoPre((start_button and (YtoPre(not (start_button)) or (braking and ZtoPre(not (braking)))))) => (is_moving or (braking and ZtoPre(not (braking))))))))) and (SI((braking and ZtoPre(not (braking))),not ((not (braking) and YtoPre(braking)))) => SI((braking and ZtoPre(not (braking))),(YtoPre((start_button and (YtoPre(not (start_button)) or (braking and ZtoPre(not (braking)))))) => (is_moving or (braking and ZtoPre(not (braking))))))))").
+                  %% "(H((((not braking) and YtoPre(braking)) => YtoPre(S((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))), ((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))) and (braking and ZtoPre((not braking)))))))) and (S((not ((not braking) and YtoPre(braking))), ((not ((not braking) and YtoPre(braking))) and (braking and ZtoPre((not braking))))) => S((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))), ((YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))) and (braking and ZtoPre((not braking)))))))").
+
+                  %% However, with term rewriting optimization, it reduces to the
+                  %% following (note that CoCoSpec reverses the order of
+                  %% arguments to S and SI for helpers).  Note that original FRET
+                  %% does not place a space between the two arguments of SI
+                  %% whereas eng does, so there are three added spaces below.
+                  "(H((((not braking) and YtoPre(braking)) => YtoPre(SI((braking and ZtoPre((not braking))), (YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))))))) and (SI((braking and ZtoPre((not braking))), (not ((not braking) and YtoPre(braking)))) => SI((braking and ZtoPre((not braking))), (YtoPre((start_button and (YtoPre((not start_button)) or (braking and ZtoPre((not braking)))))) => (is_moving or (braking and ZtoPre((not braking))))))))").
 
 same_string(S, S).
 same_string(A, B) :-

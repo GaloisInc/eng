@@ -26,6 +26,10 @@ dev =
         eqil parsing =
           type = EXE
           runner = EXE:prolog tests
+        S_SI_xform =
+          type = EXE
+          runner = EXE:kind2_contract
+          Input = test/S_SI_xform.lus
 
       testrunner =
         EXE:prolog tests =
@@ -33,6 +37,9 @@ dev =
         EXE:lando =
           exec =
             ./eng doc lando {Input}
+        EXE:kind2_contract =
+          exec =
+            kind2 --enable CONTRACTCK {Input}
         KAT:lando =
           exec =
             mkdir -p $(dirname {Output})  # for {TestName}

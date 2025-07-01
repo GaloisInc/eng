@@ -57,14 +57,23 @@ lustre_langdef(
                 [[]>>lexeme(chrs('O(')), subexpr, lexeme(chrs(')'))],
                 [_,[A],T]>>fmt_str(T, 'O(~w)', [A])),
           expop(ltlS ⦂ bool → bool → bool,
-                [[]>>lexme(chars('S(')), subexpr, []>>lexeme(chrs(',')), subexpr, lexeme(chrs(')'))],
-                [_,[A,B],T]>>fmt_str(T, 'S(~w, ~w)', [A,B])),
+                [[]>>lexme(chars('S(')), subexpr, []>>lexeme(chrs(',')),
+                 subexpr, lexeme(chrs(')')),
+                 % n.b. ltlS arguments in CoCoSpec helper format are reversed
+                 % from LTL; the LTL ordering is canonical.
+                 swapargs],
+                [_,[A,B],T]>>fmt_str(T, 'S(~w, ~w)', [B,A])),
           expop(ltlSI ⦂ bool → bool → bool,
-                [[]>>lexme(chars('SI(')), subexpr, []>>lexeme(chrs(',')), subexpr, lexeme(chrs(')'))],
-                [_,[A,B],T]>>fmt_str(T, 'SI(~w, ~w)', [A,B])),
+                [[]>>lexme(chars('SI(')), subexpr, []>>lexeme(chrs(',')),
+                 subexpr, lexeme(chrs(')')),
+                 % n.b. ltlSI arguments in CoCoSpec helper format are reversed
+                 % from LTL; the LTL ordering is canonical.
+                 swapargs],
+                [_,[A,B],T]>>fmt_str(T, 'SI(~w, ~w)', [B,A])),
           expop(ltlT ⦂ bool → bool → bool,
                 [[]>>lexme(chars('T(')), subexpr, []>>lexeme(chrs(',')), subexpr, lexeme(chrs(')'))],
                 [_,[A,B],T]>>fmt_str(T, 'T(~w, ~w)', [A,B])),
+          % TODO: ST (S Timed) and SIT (S Interval Timed)?
           expop(ltlU ⦂ bool → bool → bool,
                 [[]>>lexme(chars('U(')), subexpr, []>>lexeme(chrs(',')), subexpr, lexeme(chrs(')'))],
                 [_,[A,B],T]>>fmt_str(T, 'U(~w, ~w)', [A,B])),
@@ -123,7 +132,7 @@ lustre_langdef(
                 infix(chrs(',')),
                 [_,[Min,Max],T]>>fmt_str(T, '~w, ~w', [Max, Min])),
           %% expop(exor ⦂ bool → bool → bool, infix(word(xor)), emit_infix("xor")),
-          expop(implies ⦂ a → a → bool, infix(chrs('=>')), emit_infix("=>")),
+          expop(implies ⦂ bool → bool → bool, infix(chrs('=>')), emit_infix("=>")),
           expop(eq ⦂ a → a → bool, infix(chrs('=')), emit_infix("=")),
           expop(equiv ⦂ a → a → bool, infix(chrs('=')), emit_infix("=")),
           expop(neq ⦂ a → a → bool, infix(chrs('<>')), emit_infix("<>")),
