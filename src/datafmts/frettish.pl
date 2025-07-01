@@ -15,8 +15,7 @@
 %                                    pre_condition:,
 %                                    qualifier_word:,
 %                                    regular_condition:},[COND_VAR_NAMES]),
-%                    component_info({component:,
-%                                    component_name:},
+%                    component_info({component:}),
 %                    timing_info({timing:[,duration:|stop_condition:]},
 %                                [TIMING_VAR_NAMES]),
 %                    response_info({response:,
@@ -453,13 +452,13 @@ qcond1___(C, Q, E) --> lexeme(tok(is)), lexeme(tok(false)), !,  % green cut
 qcond1___(C, Q, E) --> { qcond1_true_(Q,E,C) }.
 
 qcond1_true_(Q,E,C) :-
-    format(atom(PCA), "(~w)", [E]), atom_string(PCA, PC),
+    format_str(PC, "(~w)", [E]),
     C = _{ qualifier_word:Q,
            pre_condition: PC,
            regular_condition: PC
          }.
 qcond1_false_(Q,E,C) :-
-    format(atom(PCA), "(!(~w))", [E]), atom_string(PCA, PC), % n.b. negated
+    format_str(PC, "(!(~w))", [E]),
     C = _{ qualifier_word:Q,
            pre_condition: PC,
            regular_condition: PC
@@ -471,7 +470,7 @@ qcond2_(C0,V0,C,Vars) -->
     qcond1_(C1,V1),
     { get_dict(pre_condition, C0, C0P),
       get_dict(pre_condition, C1, C1P),
-      format(atom(PCA), '((~w) | (~w))', [ C0P, C1P ]), atom_string(PCA, PC),
+      format_str(PC, '((~w) | (~w))', [ C0P, C1P ]),
       get_dict(qualifier_word, C1, C1QW),
       append(V0, V1, Vars),
       C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
@@ -484,7 +483,7 @@ qcond2_and_(C0,V0,C,Vars) -->
     qcond1_(C1,V1),
     { get_dict(pre_condition, C0, C0P),
       get_dict(pre_condition, C1, C1P),
-      format(atom(PCA), '((~w) & (~w))', [ C0P, C1P ]), atom_string(PCA, PC),
+      format_str(PC, '((~w) & (~w))', [ C0P, C1P ]),
       get_dict(qualifier_word, C1, C1QW),
       append(V0, V1, Vars),
       C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
@@ -598,9 +597,12 @@ timing(fail, []) --> any(20, T, P),
 duration_lower(D) --> duration_upper(D).
 duration_upper(D) --> lexeme(num, Dur),
                       lexeme(timeunit),
-                      { % ensure JSON outputs numbers as a string because
-                        % that's how FRET does it.
-                        format_str(D, "~w ", [Dur])
+                      {
+                          % ensure JSON outputs numbers as a string (because
+                          % that's how FRET does it) by adding a trailing space
+                          % which prevents it from looking like an integer to
+                          % the JSON conversion.
+                          format_str(D, "~w ", [Dur])
                       }.
 
 timeunit --> lexeme(tok(ticks)).
@@ -638,7 +640,7 @@ responses(fail, []) --> lexeme(tok(help)), [(_, '!')], !,
                         { print_message(help, responses_help), fail }.
 responses(_{response: "satisfaction", post_condition: E}, Vars) -->
     postcond(EP, AllVars),
-    { format(atom(EA), '(~w)', [EP]), atom_string(EA, E),
+    { format_str(E, '(~w)', [EP]),
       list_to_set(AllVars, Vars)
     }.
 
