@@ -1,4 +1,4 @@
-:- module(exprlang, [ define_language/2,
+:- module(exprlang, [ define_language/2, show_language/1,
                       parse_expr/3, initial_gamma/1, expr/6,
                       op(750, xfy, →),
                       op(760, yfx, ⦂),
@@ -26,6 +26,29 @@ define_language(LangDef, Defs) :-
     maplist([A,R]>>assertz(atom(LangName, A), R), LangAtoms, AtomDefs),
     maplist([P,R]>>assertz(lang(LangName, P), R), LangPhrases, PhraseDefs),
     append([[LNDef], TypeDefs, AtomDefs, PhraseDefs], Defs).
+
+show_language(Language) :-
+    format('____ Language: ~w ____~n', [Language]),
+    show_lang_types(Language),
+    show_lang_atoms(Language),
+    ( show_lang_expops(Language)
+    ; format('____ <end of ~w definition> ____~n', [Language])
+    ).
+show_lang_types(Language) :-
+    findall(T, type(Language, T), TS),
+    format('◀ Types ▶ ~w~n', [TS]).
+show_lang_atoms(Language) :-
+    findall(T, atom(Language, T), TS),
+    format('◀ Atoms ▶ ~w~n', [TS]).
+show_lang_expops(Language) :-
+    lang(Language, expop(Decl, infix(_Parser), _Emitter)),
+    format('◀ infix Expr Op ▶ ~w~n', [ Decl ]),
+    fail.
+show_lang_expops(Language) :-
+    lang(Language, expop(Decl, Parser, _Emitter)),
+    is_list(Parser),
+    format('◀ sqnce Expr Op ▶ ~w~n', [ Decl ]),
+    fail.
 
 
 %% ----------------------------------------------------------------------
