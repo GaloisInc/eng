@@ -1,5 +1,6 @@
 :- module(exprlang, [ define_language/2, show_language/1,
-                      parse_expr/3, initial_gamma/1, expr/6,
+                      initial_gamma/1, fresh_var/7,
+                      parse_expr/3, parse_expr/4, expr/6, expr/7,
                       op(750, xfy, →),
                       op(760, yfx, ⦂),
                       emit_expr/3, emit_simple_term/3, emit_infix/4,
@@ -59,12 +60,21 @@ show_lang_expops(Language) :-
 
 
 parse_expr(LangDef, Expr, ABT) :-
+    parse_expr_(LangDef, Expr, ABT, _FinalEnv, anytype).
+
+parse_expr(LangDef, Expr, ABT, TopType) :-
+    parse_expr_(LangDef, Expr, ABT, _ParsedEnv, TopType).
+
+parse_expr_(LangDef, Expr, ABT, FinalEnv, TopType) :-
     string_chars(Expr, ECodes),
     enumerate(ECodes, Input),
     initial_gamma(Env),
     define_language(LangDef, _),
     get_dict(language, LangDef, Language),
-    phrase(expr(Language, Env, ABT, _FinalEnv), Input, Rem),
+    ( TopType == anytype, !,
+      phrase(expr(Language, Env, ABT, FinalEnv), Input, Rem)
+    ; phrase(expr(Language, Env, TopType, ABT, FinalEnv), Input, Rem)
+    ),
     (Rem == [], !
     ; print_message(error, unparsed(Rem)), !, fail
     ).
@@ -74,6 +84,23 @@ prolog:message(unparsed(Remainder)) -->
       string_chars(Text, Codes)
     },
     [ 'Parsing failed at position ~w: ~w~n' - [ CharNum, Text ] ].
+
+expr(Language, Env, ExprType, OutExprABT, OutEnv) -->
+    expr(Language, Env, ExprABT, Env1),
+    { verify_expr_type(Language, Env1, ExprABT, ExprType, OutExprABT, OutEnv) }.
+
+verify_expr_type(_, Env, Expr, ExprType, Expr, Env) :-
+    type_of(Expr, ExprType), !.
+verify_expr_type(Language, Env, Expr, ExprType, Expr, Env) :-
+    type_of(Expr, OtherType),
+    type(Language, OtherType),
+    !,
+    print_message(error, invalid_term_type(Language, ExprType, Expr)),
+    fail.
+verify_expr_type(_, Env, Expr, ExprType, OutExpr, Env) :-
+    type_of(Expr, type_unassigned(U)),
+    set_type(type_unassigned(U), ExprType, Expr, OutExpr).
+
 
 expr(Language, Env, OutExpr, OutEnv) -->
     { lang(Language, expop(Op ⦂ OpType, OpParser, _)),
@@ -140,13 +167,19 @@ prolog:message(invalid_expr(E, V, P)) -->
 
 %% ----------------------------------------
 
-initial_gamma(gamma{vartypes:[], bindnum:0}).  % list of (Name:str, type:atom)
+initial_gamma(gamma{vartypes:[],
+                    typeEquiv:[],
+                    bindnum:0}).  % list of (Name:str, type:atom)
 
 pending_binding_type(Env, OutEnv, type_unassigned(T)) :-
     get_dict(bindnum, Env, N),
     succ(N, M),
     put_dict(bindnum, Env, M, OutEnv),
     format(atom(T), '⚲T~w', N).
+
+set_type_equiv(Env, OrigType, EquivType, OutEnv) :-
+    get_dict(typeEquiv, Env, TE),
+    put_dict(typeEquiv, Env, [(OrigType,EquivType)|TE], OutEnv).
 
 % get the type of a term/op
 type_of(term(_, T), T).
@@ -214,7 +247,27 @@ typecheck_expr(Language, Env, ExprType, Terms, OutEnv, OTerms, OType) :-
     % information and can unify all the types with their discovered fixed values
     % (if any).
     typecheck_exp_(Language, Env, ExprType, Terms, [], E1, A1, _),
-    typecheck_exp_(Language, E1, ExprType, A1, [], OutEnv, OTerms, OType).
+    maplist(rewrite_equivs(E1), A1, A2),
+    typecheck_exp_(Language, E1, ExprType, A2, [], OutEnv, OTerms, OType).
+
+
+rewrite_equivs(Env, term(T, TT), term(T, NT)) :-
+    get_dict(typeEquiv, Env, TES),
+    member((TT, NT), TES),
+    !.
+rewrite_equivs(Env, term(T, TT), term(T, TT)).
+rewrite_equivs(Env, op(O, OT), op(OO, NT)) :-
+    get_dict(typeEquiv, Env, TES),
+    member((OT, NT), TES),
+    !,
+    O =.. [Op|Args],
+    maplist(rewrite_equivs(Env), Args, UpdArgs),
+    OO =.. [Op|UpdArgs].
+rewrite_equivs(Env, op(O, OT), op(OO, OT)) :-
+    O =.. [Op|Args],
+    maplist(rewrite_equivs(Env), Args, UpdArgs),
+    OO =.. [Op|UpdArgs].
+
 
 %% typecheck_exp_
 %%
@@ -256,7 +309,7 @@ typecheck_exp_(Language, _, LType → _, [Term|_], _, _, _, _) :-
     % LType and LTType are different fixed types (if they were the same type it
     % would have been matched above).
     !,
-    print_message(error, invalid_term_type(LType, Term)),
+    print_message(error, invalid_term_type(Language, LType, Term)),
     fail.
 typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [Term|OTerms], OType) :-
@@ -276,7 +329,7 @@ typecheck_exp_(Language, _, LType → _, [Term|_], TypeVars, _, _, OType) :-
     % op type LType is fixed, but Term type is a typevar (else it would have been
     % matched above) but set to a different type.
     !,
-    print_message(error, invalid_term_type(LType, Term)),
+    print_message(error, invalid_term_type(Language, LType, Term)),
     fail.
 typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [OTerm|OTerms], OType) :-
@@ -320,7 +373,9 @@ typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
     selectchk((LType, type_unassigned(U)), TypeVars, TV2),
     remap_fresh_var(Env, type_unassigned(U), LTType, Env2),
     set_type(type_unassigned(U), LTType, Term, OTerm),  % KWQ : update previous term parts?!
-    typecheck_exp_(Language, Env2, RType, Terms, [(LType,LTType)|TV2],
+    set_type_equiv(Env2, type_unassigned(U), LTType, Env3),
+    typecheck_exp_(Language, Env3, RType, Terms,
+                   [(LType,LTType),(type_unassigned(U),LTType)|TV2],
                    OutEnv, OTerms, OType).
 typecheck_exp_(Language, _, LType → _, [Term|_], TypeVars, _, _, _) :-
     % tc4
@@ -331,7 +386,7 @@ typecheck_exp_(Language, _, LType → _, [Term|_], TypeVars, _, _, _) :-
     member((LType, OtherType), TypeVars),
     % expr type var has been assigned and does NOT match
     !,
-    print_message(error, invalid_term_type(OtherType, Term)),
+    print_message(error, invalid_term_type(Language, OtherType, Term)),
     fail.
 typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [Term|OTerms], OType) :-
@@ -452,9 +507,9 @@ typecheck_exp_(_, Env, OpType, Terms, _, Env, Terms, OpType) :-
 
 prolog:message(invalid_type(TermID, Val, TermType)) -->
     [ 'Invalid type for ~w of "~w"; expected type ~w' - [TermID, Val, TermType]].
-prolog:message(invalid_term_type(WantedType, Arg)) -->
-    { type_of(Arg, AType) },
-    [ 'Invalid type for ~w of "~w"; expected ~w' - [Arg, AType, WantedType]].
+prolog:message(invalid_term_type(Language, WantedType, Arg)) -->
+    { type_of(Arg, AType), emit_expr(Language, Arg, ArgText) },
+    [ 'Invalid type for ~w of "~w"; expected ~w' - [ArgText, AType, WantedType]].
 prolog:message(invalid_expr_types(TypeSpec, Terms)) -->
     { maplist([A,S]>>fmt_str(S,'    arg: ~w~n', [A]), Terms, ArgInfos),
       atomic_list_concat(ArgInfos, "", ArgInfo)

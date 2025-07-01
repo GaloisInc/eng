@@ -31,9 +31,35 @@ rtpe(LangDef, Inp, ExpABT) :-
     emit_expr(Language, ABT2, Out2),
     assertion(InpTrimmed == Out2).
 
+rtpe(LangDef, Inp, ExpABT, ExpOut, ExpType) :-
+    parse_expr(LangDef, Inp, ABT, ExpType),
+    !,
+    assertion(ExpABT = ABT),
+    get_dict(language, LangDef, Language),
+    emit_expr(Language, ABT, Out),
+    assertion(ExpOut = Out),
+    % above may have normalized: ensure it is still parseable
+    parse_expr(LangDef, Out, ABT2, ExpType),
+    !,
+    assertion(ABT == ABT2),
+    emit_expr(Language, ABT2, Out2),
+    assertion(ExpOut == Out2).
+
 rtpe(LangDef, Inp, ExpABT, ExpOut) :-
     parse_expr(LangDef, Inp, ABT),
     !,
+    assertion(ExpABT = ABT),
+    get_dict(language, LangDef, Language),
+    emit_expr(Language, ABT, Out),
+    assertion(ExpOut = Out),
+    % above may have normalized: ensure it is still parseable
+    parse_expr(LangDef, Out, ABT2),
+    !,
+    assertion(ABT == ABT2),
+    emit_expr(Language, ABT2, Out2),
+    assertion(ExpOut == Out2).
+
+verify_rtpe_results(LangDef, Inp, ExpABT, ExpOut, ABT) :-
     assertion(ExpABT = ABT),
     get_dict(language, LangDef, Language),
     emit_expr(Language, ABT, Out),
@@ -57,8 +83,12 @@ langdef1(
           term(lit ⦂ bool, [true]>>word(true), emit_simple_term(lit)),
           term(lit ⦂ bool, [false]>>word(false), emit_simple_term(lit)),
           term(ident ⦂ a, word, emit_simple_term(ident)),
+          expop(or ⦂ a → a → bool, infix(chrs('|')), emit_infix("|")),
           expop(add ⦂ number → number → number, infix(chrs('+')), emit_infix("+")),
           expop(sub ⦂ number → number → number, infix(chrs('-')), emit_infix("-")),
+          % nb. 'xor' and 'div' are higher-level builtins and will not parse
+          % properly if they are used as the Op.
+          expop(exor ⦂ number → number → number, infix(chrs('^')), emit_infix("^")),
           expop(cmpeq ⦂ a → a → bool, infix(chrs('==')), emit_infix("==")),
           expop(const ⦂ a → b → a, [[]>>lexeme(word(const)),
                                     []>>chrs('('),
@@ -67,7 +97,14 @@ langdef1(
                                     subexpr,
                                     []>>lexeme(chrs(')'))
                                    ],
-                [F,[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))
+                [F,[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B])),
+          expop(id ⦂ a → a,
+                [[]>>lexeme(word('id')), subexpr],
+                [F,[A],T]>>fmt_str(T, 'id ~w', [A]))
+          %% expop(call(Fn),
+          %%       [[Fn]>>lexeme(word(Fn)),
+          %%        chrs('('), subexpr, chrs(','), subexpr, chrs(')')],
+          %%      [call(F),[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))
         ]}).
 
 
@@ -120,14 +157,16 @@ test(infix_expr_terms_paren, [nondet]) :-
 
 test(infix_expr_nested, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "32 + 19 - 54 + 87",
+    rtpe(LangDef1, "32 + 19 - 54 + 87 ^ 69966996",
          op(add(term(num(32), number),
                 op(sub(term(num(19), number),
-                       op(add(term(num(54), number), term(num(87), number)),
+                       op(add(term(num(54), number),
+                              op(exor(term(num(87), number),
+                                      term(num(69966996), number)), number)),
                           number)),
                    number)),
             number),
-        "(32 + (19 - (54 + 87)))").
+        "(32 + (19 - (54 + (87 ^ 69966996))))").
 
 test(infix_expr_nested_parens, [nondet]) :-
     langdef1(LangDef1),
@@ -269,3 +308,62 @@ test(fixed_incompat_vars_reverse, [nondet, fail]) :-
     rtpe(LangDef1, "const(other_thing, other_thing == true) + some_num",
          op(other_thing, bool),
          "other_thing is a bool, but add requires a number").
+
+test(result_determines_vartype, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(some_num, true)",
+         op(const(term(ident("some_num"), bool),
+                  term(lit(true), bool)),
+            bool),
+         "const(some_num, true)",
+        bool).
+
+test(result_determines_vartypes_id_syntax, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(const(id some_num, other), other == 33)",
+         op(const(op(const(op(id(term(ident("some_num"), bool)), bool),
+                           term(ident("other"), number)),
+                     bool),
+                  op(cmpeq(term(ident("other"), number),
+                           term(num(33), number)),
+                     bool)),
+            bool),
+         "const(const(id some_num, other), (other == 33))",
+        bool).
+
+test(infix_inline, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "true | const(some_var, ignored)",
+         op(or(term(lit(true), bool),
+               op(const(term(ident("some_var"), bool),
+                        term(ident("ignored"), type_unassigned('⚲T1'))),
+                  bool)),
+            bool),
+         "(true | const(some_var, ignored))").
+
+test(result_determines_vartypes, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(const(some_num, other), other == 33)",
+         op(const(op(const(term(ident("some_num"), bool),
+                           term(ident("other"), number)),
+                     bool),
+                  op(cmpeq(term(ident("other"), number),
+                           term(num(33), number)),
+                     bool)),
+            bool),
+         "const(const(some_num, other), (other == 33))",
+        bool).
+
+%% % KWQ: should enter name into Env as binding name to type.  Then subsequent uses can validate it.  So in the LangDef, it doesn't have a type.  Use a completely separate parser??
+%% test(named_function, [nondet]) :-
+%%     langdef1(LangDef1),
+%%     rtpe(LangDef1, "const(const(some_num, other), other == 33)",
+%%          op(const(op(const(term(ident("some_num"), bool),
+%%                            term(ident("other"), number)),
+%%                      bool),
+%%                   op(cmpeq(term(ident("other"), number),
+%%                            term(num(33), number)),
+%%                      bool)),
+%%             bool),
+%%          "const(foo(some_num, other), (other == 33))",
+%%         bool).
