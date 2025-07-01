@@ -39,8 +39,8 @@ langdef1(
           term(lit ⦂ bool, [true]>>word(true), emit_simple_term(lit)),
           term(lit ⦂ bool, [false]>>word(false), emit_simple_term(lit)),
           term(ident ⦂ a, word, emit_simple_term(ident)),
-          expop(add ⦂ number → number → number, infix(tok('+')), emit_infix("+")),
-          expop(sub ⦂ number → number → number, infix(tok('-')), emit_infix("-")),
+          expop(add ⦂ number → number → number, infix(chrs('+')), emit_infix("+")),
+          expop(sub ⦂ number → number → number, infix(chrs('-')), emit_infix("-")),
           expop(cmpeq ⦂ a → a → bool, infix(chrs('==')), emit_infix("==")),
           expop(const ⦂ a → b → a, [[]>>word(const),
                                     []>>chrs('('),
@@ -87,7 +87,7 @@ test(true_term, [nondet]) :-
 
 test(infix_expr_term, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "hello_f1rst", term(ident("hello_f1rst"), type_unassigned)).
+    rtpe(LangDef1, "hello_f1rst", term(ident("hello_f1rst"), type_unassigned('⚲T0'))).
 
 test(infix_expr_terms, [nondet]) :-
     langdef1(LangDef1),
@@ -143,27 +143,27 @@ test(multiarg_non_static_types, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "const(32, some_num)",
          op(const(term(num(32), number),
-                  term(ident("some_num"), type_unassigned)),
+                  term(ident("some_num"), type_unassigned('⚲T0'))),
               number)).
 
 test(multiarg_non_static_types_expr, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "const(32 + 54, some_num)",
          op(const(op(add(term(num(32), number), term(num(54), number)), number),
-                  term(ident("some_num"), type_unassigned)),
+                  term(ident("some_num"), type_unassigned('⚲T0'))),
             number),
         "const((32 + 54), some_num)").
 
 test(multiarg_non_static_types_complex_expr, [nondet]) :-
     langdef1(LangDef1),
-    rtpe(LangDef1, "const(32 + ((54 - 19) - 6), const(3, some_num == some_num))",
+    rtpe(LangDef1, "const(32+ ( (54-19)-6 ), const(3, some_num == some_num))",
          op(const(op(add(term(num(32), number),
                          op(sub(op(sub(term(num(54), number),
                                        term(num(19), number)), number),
                                 term(num(6), number)), number)), number),
                   op(const(term(num(3), number),
-                           op(cmpeq(term(ident("some_num"), type_unassigned),
-                                    term(ident("some_num"), type_unassigned)),
+                           op(cmpeq(term(ident("some_num"), type_unassigned('⚲T0')),
+                                    term(ident("some_num"), type_unassigned('⚲T0'))),
                               bool)),
                      number)),
             number),
@@ -172,19 +172,53 @@ test(multiarg_non_static_types_complex_expr, [nondet]) :-
 test(indeterminate_types, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "const(some_num, true)",
-         op(const(term(ident("some_num"), type_unassigned),
+         op(const(term(ident("some_num"), type_unassigned('⚲T0')),
                   term(lit(true), bool)),
-            type_unassigned),
-        "const(some_num, true)").
+            type_unassigned('⚲T0')),
+         "const(some_num, true)").
+
+test(whitespace, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "    const(   some_num   ,    true   )   ",
+         op(const(term(ident("some_num"), type_unassigned('⚲T0')),
+                  term(lit(true), bool)),
+            type_unassigned('⚲T0')),
+         "const(some_num, true)").
 
 test(result_determines_arg_types, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "const(some_num, true) == const(other_thing, 13)",
-         op(cmpeq(op(const(term(ident("some_num"), type_unassigned),
+         op(cmpeq(op(const(term(ident("some_num"), type_unassigned('⚲T0')),
                            term(lit(true), bool)),
-                     type_unassigned),
-                  op(const(term(ident("other_thing"), type_unassigned),
+                     type_unassigned('⚲T0')),
+                  op(const(term(ident("other_thing"), type_unassigned('⚲T0')),
                            term(num(13), number)),
-                     type_unassigned)),
+                     type_unassigned('⚲T0'))),
             bool),
          "(const(some_num, true) == const(other_thing, 13))").
+
+test(complex_nesting_indeterminate_types, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "   const(some_num, true == const(foo, 32+const(19-38, unruly)))
+                    == const(const(other_thing, this_thing), 13)",
+         op(cmpeq(op(const(term(ident("some_num"), type_unassigned('⚲T0')),
+                           op(cmpeq(term(lit(true), bool),
+                                    op(const(term(ident("foo"), bool),
+                                             op(add(term(num(32), number),
+                                                    op(const(op(sub(term(num(19), number),
+                                                                    term(num(38), number)),
+                                                                number),
+                                                             term(ident("unruly"),
+                                                                  type_unassigned('⚲T2'))),
+                                                      number)),
+                                                number)),
+                                       bool)),
+                              bool)),
+                     type_unassigned('⚲T0')) ,
+                  op(const(op(const(term(ident("other_thing"), type_unassigned('⚲T0')),
+                           term(ident("this_thing"), type_unassigned('⚲T4'))),
+                              type_unassigned('⚲T0')),
+                           term(num(13), number)),
+                     type_unassigned('⚲T0'))),
+            bool),
+         "(const(some_num, (true == const(foo, (32 + const((19 - 38), unruly))))) == const(const(other_thing, this_thing), 13))").

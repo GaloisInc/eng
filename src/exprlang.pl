@@ -64,7 +64,16 @@ parse_expr(LangDef, Expr, ABT) :-
     initial_gamma(Env),
     define_language(LangDef, _),
     get_dict(language, LangDef, Language),
-    phrase(expr(Language, Env, ABT, _FinalEnv), Input).
+    phrase(expr(Language, Env, ABT, _FinalEnv), Input, Rem),
+    (Rem == [], !
+    ; print_message(error, unparsed(Rem)), !, fail
+    ).
+
+prolog:message(unparsed(Remainder)) -->
+    { enum_(CharNum, Codes, Remainder),
+      string_chars(Text, Codes)
+    },
+    [ 'Parsing failed at position ~w: ~w~n' - [ CharNum, Text ] ].
 
 expr(Language, Env, OutExpr, OutEnv) -->
     { lang(Language, expop(Op ⦂ OpType, OpParser, _)),
@@ -97,10 +106,15 @@ exprMore(Language, Env, LeftTerm, OutEnv, op(Expr, OT)) -->
                      OutEnv, [LT, RT], OT),
       Expr =.. [Op, LT, RT]
     }.
+exprMore(Language, Env, Expr, OutEnv, OutExpr) -->
+    %% consume (trailing) whitespace
+    ws(_),
+    exprMore(Language, Env, Expr, OutEnv, OutExpr).
 exprMore(_, Env, E, Env, E) --> [].
-%% exprMore(_, Env, E, Env, _) -->
-%%     any(20, V, P),
-%%     { print_message(error, invalid_expr(E, V, P)), !, fail }.
+exprMore(_, Env, E, Env, _) -->
+    any(20, V, P),
+    { print_message(error, invalid_expr(E, V, P)), !, fail }.
+
 
 exprParts(Language, Env, _ → TPS, [subexpr|Parsers], OpArgs,
           Terms, OutEnv) -->
@@ -121,15 +135,31 @@ prolog:message(invalid_expr(E, V, P)) -->
 
 %% ----------------------------------------
 
-initial_gamma([]).  % list of (Name:str, type:atom)
+initial_gamma(gamma{vartypes:[], bindnum:0}).  % list of (Name:str, type:atom)
+
+pending_binding_type(Env, OutEnv, type_unassigned(T)) :-
+    get_dict(bindnum, Env, N),
+    succ(N, M),
+    put_dict(bindnum, Env, M, OutEnv),
+    format(atom(T), '⚲T~w', N).
 
 % get the type of a term/op
 type_of(term(_, T), T).
 type_of(op(_, T), T).
 
-% set the type of a term/op
-type_of(term(A, _), T, term(A, T)).
-type_of(op(A, _), T, op(A, T)).
+% set the matched old type of a term/op (recursively) to the new type; no change
+% if old type not matched.
+set_type(M, T, term(A, M), term(A, T)) :- !.
+set_type(_, _, term(A, O), term(A, O)).
+set_type(M, T, op(A, M), op(ANew, T)) :-
+    !,
+    A =.. [Op|Args],
+    maplist(set_type(M, T), Args, UpdArgs),
+    ANew =.. [Op|UpdArgs].
+set_type(M, T, op(A, O), op(ANew, O)) :-
+    A =.. [Op|Args],
+    maplist(set_type(M, T), Args, UpdArgs),
+    ANew =.. [Op|UpdArgs].
 
 % if this is a reference to a variable, return the name of the referenced variable
 var_ref(Language, term(Term, _), V) :- variable_ref(Language, RS),
@@ -182,7 +212,8 @@ typecheck(_Language, Env, _TermID, Val, _, OutEnv, ValType) -->
 %% | typevar:assigned → ... | fixed    | no  | tc4  |                       |
 %% | typevar → ...          | fixed    |     | tc5  | add typevar unassigne |
 %% | typevar:assigned → ... | var      |     | tc6  | fresh var exptype     |
-%% | typevar → ...          | var      |     | ?    |                       |
+%% | typevar:assigned → ... | typevar  |     | tca  | use typevar:assigned  |
+%% | typevar → ...          | var      |     | tc7  |                       |
 %% | typevar:assigned [out] | --       |     | tc8  | return assigned       |
 %% | fixed type [out]       | --       |     | tc9  | return fixed type     |
 %% | other                  | other    |     |      | invalid_expr_types    |
@@ -252,15 +283,28 @@ typecheck_expr(Language, Env, LType → RType, [Term|Terms],
     % tc6
     var_ref(Language, Term, LI),
     % Neither LType nor LTType are fixed types, otherwise they would have been
-    % matched above.
+    % matched above, and Term is a variable.
     member((LType, AType), TypeVars),
     !,
     % But LType has been assigned
     fresh_var(Env, LI, AType, Env2),
     % And LTType has already or just now been assigned to the same type
     !,
-    type_of(Term, AType, OTerm),
+    type_of(Term, LTType),
+    set_type(LTType, AType, Term, OTerm),
     typecheck_expr(Language, Env2, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [OTerm|OTerms], OType) :-
+    % tca
+    % Neither LType nor LTType are fixed types, otherwise they would have been
+    % matched above.  Term is not a variable, but has a type driven by a variable.
+    member((LType, AType), TypeVars),
+    % LType has been assigned, and term has LType due to the op's type signature, so assign
+    % Term the same AType.
+    !,
+    type_of(Term, LTType),
+    set_type(LTType, AType, Term, OTerm),
+    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
 typecheck_expr(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [Term|OTerms], OType) :-
     % tc7
@@ -272,8 +316,8 @@ typecheck_expr(Language, Env, LType → RType, [Term|Terms],
     %   * that the type for the term is an existential; somewhat unusual, and
     %     probably indicative that the term is unused, but it should be allowed
     %     (e.g. const ⦂ a → b → a).
-    typecheck_expr(Language, Env, RType, Terms,
-                   [(LType, type_unassigned)|TypeVars],
+    type_of(Term, BType),
+    typecheck_expr(Language, Env, RType, Terms, [(LType, BType)|TypeVars],
                    OutEnv, OTerms, OType).
 typecheck_expr(_, Env, OType, [], TypeVars, Env, [], RType) :-
     % tc8
@@ -310,32 +354,78 @@ fresh_var(Env, VName, Type, Env, Type) -->
       % already saw this one, same type
       ! }.
 fresh_var(Env, VName, Type, Env, badtype) -->
-    { known_var(Env, VName, VType), !,
+    { known_var(Env, VName, VType),
+      !,
       print_message(var_already_defined_with_other_type(VName, VType, Type)),
       fail
     }.
-fresh_var(Env, VName, typevar, [var(VName, type_unassigned)|Env],
-          type_unassigned) --> [].
-fresh_var(Env, VName, VType, [var(VName, VType)|Env], VType) --> [].
+fresh_var(Env, VName, typevar, OutEnv, BType) -->
+    { get_dict(vartypes, Env, VT),
+      pending_binding_type(Env, Env1, BType),
+      put_dict(vartypes, Env1, [var(VName, BType)|VT], OutEnv)
+    }.
+fresh_var(Env, VName, VType, OutEnv, VType) -->
+    { get_dict(vartypes, Env, VT),
+      put_dict(vartypes, Env, [var(VName, VType)|VT], OutEnv)
+    }.
+
 
 % fresh_var/4 (non-DCG). Called when VName is seen as a term and the VType is
-% known; this either verifies that the VName is already assigned this VType, or
-% else it assigns the VType to the VName in an update environment.
+% known from previous information (although it could be a type_unassigned(X) with
+% a the definitive type yet unknown); this either verifies that the VName is
+% already assigned this VType, or else it assigns the VType to the VName in an
+% update environment.
 fresh_var(Env, VName, VType, Env) :-
-    member((VName, VType), Env),
+    known_var(Env, VName, VType),
     % VName is already assigned this VType
     !.
-fresh_var(Env, VName, VType, [(VName, VType)|Env1]) :-
-    selectchk(var(VName, type_unassigned), Env, Env1),
-    % VName is known, now assigning the type.
-    !.
+fresh_var(Env, VName, type_unassigned(N), OutEnv) :-
+    known_var(Env, VName, type_unassigned(T)),
+    !,
+    % Here, this variable is known but not its type, and now we have a new
+    % unassigned type (i.e. the variable was used in a different part of the
+    % expression where the type is not fixed but is driven from some other
+    % portion of the expression).  The unassigned types must be unified; the
+    % argument is an input only, so re-map all references to the previously-known
+    % type to the new unassigned type.
+    remap_fresh_var(Env, type_unassigned(T), type_unassigned(N), OutEnv).
+fresh_var(Env, VName, VType, OutEnv) :-
+    known_var(Env, VName, type_unassigned(T)),
+    !,
+    % This var was previously known but didn't have an actual type.  Now that we
+    % have a type (which must be explicit since the previous match would have
+    % taken care of an assignment to the same unassigned type), set that type for
+    % *this* variable *and* all other variables with this unassigned type.
+    remap_fresh_var(Env, type_unassigned(T), VType, OutEnv).
 fresh_var(Env, VName, NewType, Env) :-
-    member((VName, VType), Env),
+    known_var(Env, VName, VType),
+    % previously checked for PrevType == NewType and for PrevType ==
+    % type_unassigned(X), so here we know there is an invalid attempt to change
+    % the variable's fixed type.
     !,
     print_message(error, cannot_reassign_type(VName, VType, NewType)),
     fail.
+fresh_var(Env, VName, VType, OutEnv) :-
+    % This var was previously unknown, so create an entry with a fresh unknown
+    % type binding.
+    get_dict(vartypes, Env, OldVars),
+    put_dict(vartypes, Env, [var(VName, VType)|OldVars], OutEnv).
 
-known_var(Env, VName, VType) :- member(var(VName, VType), Env).
+
+known_var(Env, VName, VType) :- get_dict(vartypes, Env, VarTypes),
+                                member(var(VName, VType), VarTypes).
+
+
+remap_fresh_var(Env, FromType, ToType, OutEnv) :-
+    get_dict(vartypes, Env, OldVars),
+    remap_fv_(OldVars, FromType, ToType, NewVars),
+    put_dict(vartypes, Env, NewVars, OutEnv).
+remap_fv_([], _, _, []).
+remap_fv_([var(VName, FromType)|Vars], FromType, ToType, [var(VName, ToType)|OutVars]) :-
+    !,
+    remap_fv_(Vars, FromType, ToType, OutVars).
+remap_fv_([V|Vars], FromType, ToType, [V|OVS]) :- remap_fv_(Vars, FromType, ToType, OVS).
+
 
 prolog:message(var_already_defined_with_other_type(VName, VType, Type)) -->
     [ 'Variable "~w" already defined as ~w, cannot re-define as a ~w'
