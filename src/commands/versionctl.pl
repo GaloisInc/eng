@@ -283,11 +283,13 @@ vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
     vctl_status(Context, git(VCSDir), Args, Sts),
     git_remote_head(Context, VCSDir, Fetch_SHA),
     git_build_status_url(URL, Fetch_SHA, StatusURL),
-    http_get(StatusURL, Data, [json_object(dict)|Auth]),
+    http_get(StatusURL, RData, [json_object(dict)|Auth]),
+    % gitlab returns a list; just use the first by default.
+    (is_list(RData) -> RData = [Data|_] ; Data = RData),
     (get_dict(status, Data, BldStatus)  % Gitlab
     ; (get_dict(workflow_runs, Data, []), BldStatus = "no CI"
-      ; get_dict(workflow_runs, Data, WFRuns),
-        reverse(WFRuns, [WFRun|_]),
+      ; get_dict(workflow_runs, Data, WFRuns),  % Github
+        reverse(WFRuns, [WFRun|_]),  % use the latest github workflow run
         ( get_dict(status, WFRun, "completed"),
           get_dict(conclusion, WFRun, BldStatus)
         ; get_dict(status, WFRun,  BldStatus)
@@ -323,19 +325,36 @@ git_remote_head(_, VCSDir, RmtHeadSHA) :-
     read_file_to_string(FHFile, FHData, []),
     split_string(FHData, "\t ", "", [RmtHeadSHA|_]).
 git_remote_head(Context, VCSDir, RmtHead) :-
+    % n.b. this is a fallback from the previous matching clause that is not
+    % always reliable (the refs/remotes below does not always exist, and it's not
+    % clear what a consistent ref would be); warn when using this method.
+    print_message(warning, unreliable_git_remote_head(VCSDir)),
     do_exec(Context, 'vcs remote head', [ 'VCSDir' = VCSDir ],
             capture([git, '-C', VCSDir, 'show-ref' ]),
             [], curdir, StdOut),
     member(L, StdOut),
     split_string(L, "\t ", "", [RmtHead, "refs/remotes/origin/HEAD"]).
 
-git_build_status_url(URL, _Fetch_SHA, StatusURL) :-
+prolog:message(unreliable_git_remote_head(VCSDir)) -->
+    [ "Using unreliable fallback to get git remote head SHA from ~w" - [VCSDir]].
+
+%% git_current_branch(Context, VCSDir, CurBranch) :-
+%%     do_exec(Context, 'vcs remote head', [ 'VCSDir' = VCSDir ],
+%%             capture([git, '-C', VCSDir, status ]),
+%%             [], curdir, StdOut),
+%%     member(L, StdOut),
+%%     split_string(L, " ", "", ["On", "branch", CurBranch]).
+
+git_build_status_url(URL, Fetch_SHA, StatusURL) :-
     member(host(H), URL),
     sub_string(H, _, _, _, "gitlab"),  %% <--- selector
     git_repo_path(URL, PathParts),
     intercalate(PathParts, "%2F", Project),
     intercalate(["api", "v4", "projects", Project,
-                 "repository", "commits", "main" ], "/", SPath),
+                 % "repository", "commits", "master" ],  % n.b. needs correct branch name, does not accept SHA
+                 % "commits", Fetch_SHA, "status"],  % used to be "builds" instead of "commits";
+                 "repository", "commits", Fetch_SHA, "statuses" ],
+                "/", SPath),
     string_concat("/", SPath, SPath2),
     string_concat(SPath2, "/", StatusPath),
     replace_url_path(URL, StatusPath, StatusURLP),
