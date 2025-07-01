@@ -214,8 +214,13 @@ wchar(C) :- \+ char_type(C, space),
                           '$',
                           '/']).
 
-num(V) --> digit(N), num(NS), V is (N * 10) + NS.
-num(N) --> digit(N).
+num(V) --> num_(Digits), { to_num(Digits, 0, V) }.
+num_([N|NS]) --> digit(N), num_(NS).
+num_([N]) --> digit(N).
+
+to_num([], A, A).
+to_num([D|DS], A, V) :- N is A * 10 + D, to_num(DS, N, V).
+
 digit(D) --> [ (C) ], { char_type(C, digit),
                         atom_codes(C, [CS]),
                         atom_codes('0', [ZS]),

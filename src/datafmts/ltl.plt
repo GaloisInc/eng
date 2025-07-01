@@ -80,11 +80,11 @@ test(bool_expr_4, [nondet]) :-
     same_string(CoCo, "((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm))))").
 
 test(bool_expr_5, [nondet]) :-
-    Inp = "(O[<=2 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))))",
+    Inp = "(O[<=23456 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))))",
     parse_ltl(Inp, AST),
     !,
     emit_CoCoSpec(AST, CoCo),
-    same_string(CoCo, "OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm)))))").
+    same_string(CoCo, "OT(23456, 0, ((alarm_enabled and disable_alarm) and ZtoPre(not ((alarm_enabled and disable_alarm)))))").
 
 test(bool_expr_6, [nondet]) :-
     Inp = "(O[=2 +1] alarm_enabled)",
