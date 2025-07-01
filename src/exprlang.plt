@@ -48,7 +48,7 @@ langdef1(
                                     subexpr,
                                     []>>lexeme(chrs(')'))
                                    ],
-                [F,A,B,T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))
+                [F,[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))
         ]}).
 
 
@@ -89,40 +89,40 @@ test(infix_expr_term, [nondet]) :-
 test(infix_expr_terms, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 + 54",
-         term(add(term(num(32), number), term(num(54), number)), number),
+         op(add(term(num(32), number), term(num(54), number)), number),
         "(32 + 54)").
 
 test(infix_expr_terms_paren, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "(32 + 54)",
-         term(add(term(num(32), number), term(num(54), number)), number)).
+         op(add(term(num(32), number), term(num(54), number)), number)).
 
 test(infix_expr_nested, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 + 19 - 54 + 87",
-         term(add(term(num(32), number),
-                  term(sub(term(num(19), number),
-                           term(add(term(num(54), number), term(num(87), number)),
-                                number)),
-                       number)),
-              number),
+         op(add(term(num(32), number),
+                op(sub(term(num(19), number),
+                       op(add(term(num(54), number), term(num(87), number)),
+                          number)),
+                   number)),
+            number),
         "(32 + (19 - (54 + 87)))").
 
 test(infix_expr_nested_parens, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 + (19 - 54) + 87",
-         term(add(term(num(32), number),
-                  term(add(term(sub(term(num(19), number),
-                                    term(num(54), number)), number),
-                           term(num(87), number)),
-                       number)),
-              number),
-        "(32 + ((19 - 54) + 87))").
+         op(add(term(num(32), number),
+                op(add(op(sub(term(num(19), number),
+                              term(num(54), number)), number),
+                       term(num(87), number)),
+                   number)),
+            number),
+         "(32 + ((19 - 54) + 87))").
 
 test(infix_expr_bool, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 == 19",
-         term(cmpeq(term(num(32), number), term(num(19), number)), bool),
+         op(cmpeq(term(num(32), number), term(num(19), number)), bool),
         "(32 == 19)").
 
 test(infix_expr_bool_badtypes, [nondet, fail]) :-
@@ -133,12 +133,35 @@ test(infix_expr_bool_badtypes, [nondet, fail]) :-
 test(infix_expr_bool_ident, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 == some_num",
-         term(cmpeq(term(num(32), number), term(ident("some_num"), number)),
-              bool),
+         op(cmpeq(term(num(32), number), term(ident("some_num"), number)), bool),
         "(32 == some_num)").
 
 test(multiarg_non_static_types, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "const(32, some_num)",
-         term(const(term(num(32), number), term(ident("some_num"), type_unassigned)),
+         op(const(term(num(32), number),
+                  term(ident("some_num"), type_unassigned)),
               number)).
+
+test(multiarg_non_static_types_expr, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(32 + 54, some_num)",
+         op(const(op(add(term(num(32), number), term(num(54), number)), number),
+                  term(ident("some_num"), type_unassigned)),
+            number),
+        "const((32 + 54), some_num)").
+
+test(multiarg_non_static_types_complex_expr, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(32 + ((54 - 19) - 6), const(3, some_num == some_num))",
+         op(const(op(add(term(num(32), number),
+                         op(sub(op(sub(term(num(54), number),
+                                       term(num(19), number)), number),
+                                term(num(6), number)), number)), number),
+                  op(const(term(num(3), number),
+                           op(cmpeq(term(ident("some_num"), type_unassigned),
+                                    term(ident("some_num"), type_unassigned)),
+                              bool)),
+                     number)),
+            number),
+        "const((32 + ((54 - 19) - 6)), const(3, (some_num == some_num)))").
