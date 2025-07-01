@@ -404,7 +404,8 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
 show_kind2_result(O, "falsifiable", Sts, Sts) :-
     !,
     get_dict(counterExample, O, [CounterEx|OtherCounterEx]),
-    get_dict(name, CounterEx, Name),
+    get_dict(name, O, FullName),
+    simple_varname(FullName, Name),
     get_dict(streams, CounterEx, Streams),
     findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
     findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
