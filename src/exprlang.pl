@@ -535,7 +535,7 @@ fresh_var(Env, VName, Type, Env, Type) -->
 fresh_var(Env, VName, Type, Env, badtype) -->
     { known_var(Env, VName, VType),
       !,
-      print_message(var_already_defined_with_other_type(VName, VType, Type)),
+      print_message(error, var_already_defined_with_other_type(VName, VType, Type)),
       fail
     }.
 fresh_var(Env, VName, typevar, OutEnv, BType) -->
