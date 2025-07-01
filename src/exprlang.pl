@@ -80,7 +80,7 @@ expr(Language, Env, OutExpr, OutEnv) -->
       is_list(OpParser)
     },
     exprParts(Language, Env, OpType, OpParser, [], Terms, Env1),
-    { typecheck_expr(Language, Env1, OpType, Terms, [], Env2, OutTerms, OpOutType),
+    { typecheck_expr(Language, Env1, OpType, Terms, Env2, OutTerms, OpOutType),
       Expr =.. [Op|OutTerms]
     },
     exprMore(Language, Env2, op(Expr, OpOutType), OutEnv, OutExpr).
@@ -102,7 +102,7 @@ exprMore(Language, Env, LeftTerm, OutEnv, op(Expr, OT)) -->
     lexeme(call(OpParser)),
     lexeme(expr(Language, Env, RTP, Env1)),
     !,
-    { typecheck_expr(Language, Env1, OpType, [LeftTerm, RTP], [],
+    { typecheck_expr(Language, Env1, OpType, [LeftTerm, RTP],
                      OutEnv, [LT, RT], OT),
       Expr =.. [Op, LT, RT]
     }.
@@ -201,32 +201,49 @@ typecheck(_Language, Env, _TermID, Val, _, OutEnv, ValType) -->
 %% typecheck(_Language, Env, TermID, Val, TermType, Env, TermType) -->
 %%     { print_message(error, invalid_type(TermID, Val, TermType)), !, fail }.
 
+typecheck_expr(Language, Env, ExprType, Terms, OutEnv, OTerms, OType) :-
+    % Run twice: the first time should find all variables and assign them either
+    % a known fixed value or a pending type assignment, but it does so by
+    % interatively processing the terms, so things processed earlier are not
+    % easily updated by information learned later; the second pass now has full
+    % information and can unify all the types with their discovered fixed values
+    % (if any).
+    typecheck_exp_(Language, Env, ExprType, Terms, [], E1, A1, T1),
+    typecheck_exp_(Language, E1, ExprType, A1, [], OutEnv, OTerms, OType).
 
-%% typecheck_expr
+%% typecheck_exp_
 %%
 %% | exptype                | termtype | cmp | case | vars                  |
 %% |------------------------+----------+-----+------+-----------------------|
 %% | fixed → ...            | fixed    | ==  | tc1  |                       |
 %% | fixed → ...            | fixed    | no  | tc2  |                       |
+%% | fixed → ...            | typevar  | ==  | tcb  |                       |
+%% | fixed → ...            | typevar  | no  | tcc  |                       |
+%% | fixed → ...            | new typevar |  | tcd  | var type assigned     |
 %% | typevar:assigned → ... | fixed    | ==  | tc3  |                       |
+%% | typevar:pending → ...  | fixed    |     | tce  | typevar & var assigned |
 %% | typevar:assigned → ... | fixed    | no  | tc4  |                       |
 %% | typevar → ...          | fixed    |     | tc5  | add typevar unassigne |
+%% | typevar:assigned → ... | var:type | ==  | tcg  |                       |
+%% | typevar:pending → ...  | var:type |     | tch  | typevar:type          |
+%% | typevar:assigned → ... | var:type | no  | tcf  |                       |
+%% | typevar → ...          | var:type |     | tci  | typevar:type          |
 %% | typevar:assigned → ... | var      |     | tc6  | fresh var exptype     |
 %% | typevar:assigned → ... | typevar  |     | tca  | use typevar:assigned  |
-%% | typevar → ...          | var      |     | tc7  |                       |
+%% | typevar → ...          | <any>    |     | tc7  |                       |
 %% | typevar:assigned [out] | --       |     | tc8  | return assigned       |
 %% | fixed type [out]       | --       |     | tc9  | return fixed type     |
 %% | other                  | other    |     |      | invalid_expr_types    |
 
-typecheck_expr(Language, Env, Type → RType, [Term|Terms],
+typecheck_exp_(Language, Env, Type → RType, [Term|Terms],
                TypeVars, OutEnv, [Term|OTerms], OType) :-
     % tc1
     type_of(Term, Type),
     type(Language, Type),
     % types match and this is a base type
     !,
-    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, _, LType → _, [Term|_], _, _, _, _) :-
+    typecheck_exp_(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_exp_(Language, _, LType → _, [Term|_], _, _, _, _) :-
     % tc2
     type(Language, LType),  % expr sig is fixed type
     type_of(Term, LTType),
@@ -236,7 +253,38 @@ typecheck_expr(Language, _, LType → _, [Term|_], _, _, _, _) :-
     !,
     print_message(error, invalid_term_type(LType, Term)),
     fail.
-%% typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [Term|OTerms], OType) :-
+    % tcb
+    type(Language, LType),
+    % op type LType is fixed, but Term type is not (else it would have been
+    % matched above) but its typevar is already set and matches LType, so OK.
+    type_of(Term, TType),
+    member((TType, LType), TypeVars),
+    !,
+    typecheck_exp_(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_exp_(Language, _, LType → _, [Term|_], TypeVars, _, _, OType) :-
+    % tcc
+    type(Language, LType),
+    type_of(Term, TType),
+    member((TType, OType), TypeVars),
+    % op type LType is fixed, but Term type is a typevar (else it would have been
+    % matched above) but set to a different type.
+    !,
+    print_message(error, invalid_term_type(LType, Term)),
+    fail.
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [OTerm|OTerms], OType) :-
+    % tcd
+    type(Language, LType),
+    % op type LType is fixed, but Term type is not (else it would have been
+    % matched above) so set Term type var to LType.
+    type_of(Term, TType),
+    !,
+    set_type(TType, LType, Term, OTerm),
+    typecheck_exp_(Language, Env, RType, Terms, [(TType, LType)|TypeVars],
+                   OutEnv, OTerms, OType).
+%% typecheck_exp_(Language, Env, LType → RType, [term(LT, LTType)|Terms],
 %%                TypeVars, OutEnv, [term(LT, LType)|OTerms], OType) :-
 %%     type(Language, LType),  % expr sig is fixed type
 %%     % LType is fixed, but LTType is a variable (or it would have been matched
@@ -244,8 +292,8 @@ typecheck_expr(Language, _, LType → _, [Term|_], _, _, _, _) :-
 %%     known_var(Env, LT, LType),
 %%     % LTType variable is known to be the same as LType
 %%     !,
-%%     typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+%%     typecheck_exp_(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [Term|OTerms], OType) :-
     % tc3
     type_of(Term, LTType),
@@ -254,8 +302,22 @@ typecheck_expr(Language, Env, LType → RType, [Term|Terms],
     % above)
     member((LType, LTType), TypeVars), % expr type var has been assigned and matches
     !,
-    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, _, LType → _, [Term|_], TypeVars, _, _, _) :-
+    typecheck_exp_(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [OTerm|OTerms], OType) :-
+    % tce
+    member((LType, type_unassigned(U)), TypeVars),
+    type_of(Term, LTType),
+    type(Language, LTType),
+    % LType is not fixed and is explicitly unassigned, but LTType is fixed, so
+    % update LType and the expression/variables to LTType.
+    !,
+    selectchk((LType, type_unassigned(U)), TypeVars, TV2),
+    remap_fresh_var(Env, type_unassigned(U), LTType, Env2),
+    set_type(type_unassigned(U), LTType, Term, OTerm),  % KWQ : update previous term parts?!
+    typecheck_exp_(Language, Env2, RType, Terms, [(LType,LTType)|TV2],
+                   OutEnv, OTerms, OType).
+typecheck_exp_(Language, _, LType → _, [Term|_], TypeVars, _, _, _) :-
     % tc4
     type_of(Term, LTType),
     type(Language, LTType),  % term type is fixed
@@ -266,7 +328,7 @@ typecheck_expr(Language, _, LType → _, [Term|_], TypeVars, _, _, _) :-
     !,
     print_message(error, invalid_term_type(OtherType, Term)),
     fail.
-typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [Term|OTerms], OType) :-
     % tc5
     type_of(Term, LTType),
@@ -276,9 +338,63 @@ typecheck_expr(Language, Env, LType → RType, [Term|Terms],
     % previous two clauses would have matched.  Therefore, it's free and can be
     % assigned here.
     !,
-    typecheck_expr(Language, Env, RType, Terms, [(LType, LTType)|TypeVars],
+    typecheck_exp_(Language, Env, RType, Terms, [(LType, LTType)|TypeVars],
                    OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [OTerm|OTerms], OType) :-
+    % tcg
+    var_ref(Language, Term, VName),
+    known_typed_var(Env, VName, VType),
+    member((LType, VType), TypeVars),
+    % Neither LType nor LTType are fixed types, otherwise they would have been
+    % matched above, and Term is a typed variable which matches LType.
+    !,
+    % ensure Term type matches var type (it may already match)
+    type_of(Term, LTType),
+    set_type(LTType, VType, Term, OTerm),
+    typecheck_exp_(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [OTerm|OTerms], OType) :-
+    % tch
+    var_ref(Language, Term, VName),
+    known_typed_var(Env, VName, VType),
+    member((LType, type_unassigned(U)), TypeVars),
+    % Neither LType nor LTType are fixed types, otherwise they would have been
+    % matched above, and Term is a typed variable.
+    !,
+    % ensure Term type matches var type (it may already match)
+    type_of(Term, LTType),
+    set_type(LTType, VType, Term, OTerm),
+    selectchk((LType, type_unassigned(U)), TypeVars, TV2),
+    typecheck_exp_(Language, Env, RType, Terms, [(LType, VType)|TV2],
+                   OutEnv, OTerms, OType).
+typecheck_exp_(Language, Env, LType → _, [Term|_],
+               TypeVars, _, _, _) :-
+    % tcf
+    var_ref(Language, Term, VName),
+    known_typed_var(Env, VName, VType),
+    member((LType, AType), TypeVars),
+    % Neither LType nor LTType are fixed types, otherwise they would have been
+    % matched above, and Term is a typed variable whose type does not match the
+    % LType.
+    !,
+    print_message(error, var_already_defined_with_other_type(VName, VType, AType)),
+    fail.
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [OTerm|OTerms], OType) :-
+    % tci
+    var_ref(Language, Term, VName),
+    known_typed_var(Env, VName, VType),
+    % Neither LType nor LTType are fixed types, otherwise they would have been
+    % matched above, and Term is a typed variable and LType is still unassigned
+    % in TypeVars.
+    !,
+    % ensure Term type matches var type (it may already match)
+    type_of(Term, LTType),
+    set_type(LTType, VType, Term, OTerm),
+    typecheck_exp_(Language, Env, RType, Terms, [(LType, VType)|TypeVars],
+                   OutEnv, OTerms, OType).
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [OTerm|OTerms], OType) :-
     % tc6
     var_ref(Language, Term, LI),
@@ -292,8 +408,8 @@ typecheck_expr(Language, Env, LType → RType, [Term|Terms],
     !,
     type_of(Term, LTType),
     set_type(LTType, AType, Term, OTerm),
-    typecheck_expr(Language, Env2, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+    typecheck_exp_(Language, Env2, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [OTerm|OTerms], OType) :-
     % tca
     % Neither LType nor LTType are fixed types, otherwise they would have been
@@ -304,8 +420,8 @@ typecheck_expr(Language, Env, LType → RType, [Term|Terms],
     !,
     type_of(Term, LTType),
     set_type(LTType, AType, Term, OTerm),
-    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+    typecheck_exp_(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_exp_(Language, Env, LType → RType, [Term|Terms],
                TypeVars, OutEnv, [Term|OTerms], OType) :-
     % tc7
     % Neither LType nor LTType are fixed types, otherwise they would have been
@@ -317,23 +433,23 @@ typecheck_expr(Language, Env, LType → RType, [Term|Terms],
     %     probably indicative that the term is unused, but it should be allowed
     %     (e.g. const ⦂ a → b → a).
     type_of(Term, BType),
-    typecheck_expr(Language, Env, RType, Terms, [(LType, BType)|TypeVars],
+    typecheck_exp_(Language, Env, RType, Terms, [(LType, BType)|TypeVars],
                    OutEnv, OTerms, OType).
-typecheck_expr(_, Env, OType, [], TypeVars, Env, [], RType) :-
+typecheck_exp_(_, Env, OType, [], TypeVars, Env, [], RType) :-
     % tc8
     member((OType, RType), TypeVars),
     !.
-typecheck_expr(_, Env, OType, [], _, Env, [], OType).  % tc9: final known/fixed type
-typecheck_expr(_, Env, OpType, Terms, _, Env, Terms, OpType) :-
+typecheck_exp_(_, Env, OType, [], TypeVars, Env, [], OType).  % tc9: final known/fixed type
+typecheck_exp_(_, Env, OpType, Terms, _, Env, Terms, OpType) :-
     print_message(error, invalid_expr_types(OpType, Terms)),
     !,
     fail.
 
 prolog:message(invalid_type(TermID, Val, TermType)) -->
     [ 'Invalid type for ~w of "~w"; expected type ~w' - [TermID, Val, TermType]].
-
-prolog:message(invalid_term_type(WantedType, term(T, TermType))) -->
-    [ 'Invalid term type: ~w ⦂ ~w but expected type ~w' - [T, TermType, WantedType]].
+prolog:message(invalid_term_type(WantedType, Arg)) -->
+    { type_of(Arg, AType) },
+    [ 'Invalid type for ~w of "~w"; expected ~w' - [Arg, AType, WantedType]].
 prolog:message(invalid_expr_types(TypeSpec, Terms)) -->
     { maplist([A,S]>>fmt_str(S,'    arg: ~w~n', [A]), Terms, ArgInfos),
       atomic_list_concat(ArgInfos, "", ArgInfo)
@@ -414,6 +530,9 @@ fresh_var(Env, VName, VType, OutEnv) :-
 
 known_var(Env, VName, VType) :- get_dict(vartypes, Env, VarTypes),
                                 member(var(VName, VType), VarTypes).
+
+known_typed_var(Env, VName, VType) :- known_var(Env, VName, VType),
+                                      \+ (VType = type_unassigned(_)).
 
 
 remap_fresh_var(Env, FromType, ToType, OutEnv) :-

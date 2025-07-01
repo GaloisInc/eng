@@ -222,3 +222,32 @@ test(complex_nesting_indeterminate_types, [nondet]) :-
                      type_unassigned('⚲T0'))),
             bool),
          "(const(some_num, (true == const(foo, (32 + const((19 - 38), unruly))))) == const(const(other_thing, this_thing), 13))").
+
+test(fixed_vars, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "some_num + other_thing",
+         op(add(term(ident("some_num"), number),
+                term(ident("other_thing"), number)), number),
+         "(some_num + other_thing)").
+
+test(align_terms_result, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(other_thing, other_thing == true)",
+         op(const(term(ident("other_thing"), bool),
+                  op(cmpeq(term(ident("other_thing"), bool),
+                           term(lit(true), bool)),
+                     bool)),
+            bool),
+         "const(other_thing, (other_thing == true))").
+
+test(fixed_incompat_vars, [nondet, fail]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "some_num + const(other_thing, other_thing == true)",
+         op(other_thing, bool),
+         "other_thing is a bool, but add requires a number").
+
+test(fixed_incompat_vars_reverse, [nondet, fail]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(other_thing, other_thing == true) + some_num",
+         op(other_thing, bool),
+         "other_thing is a bool, but add requires a number").
