@@ -1,4 +1,5 @@
-:- module(exprlang, [ parse_expr/3, initial_gamma/1, expr/6,
+:- module(exprlang, [ define_language/2,
+                      parse_expr/3, initial_gamma/1, expr/6,
                       op(750, xfy, →),
                       op(760, yfx, ⦂),
                       emit_expr/3, emit_simple_term/3, emit_infix/5,
@@ -9,45 +10,63 @@
 
 :- use_module(library(yall)).
 
+:- dynamic language_name/2, type/2, atom/2, lang/2.
+
+define_language(LangDef, Defs) :-
+    get_dict(language, LangDef, LangName),
+    get_dict(types, LangDef, LangTypes),
+    get_dict(atoms, LangDef, LangAtoms),
+    get_dict(phrases, LangDef, LangPhrases),
+    retractall(language_name(LangName)),
+    retractall(type(LangName, _)),
+    retractall(atom(LangName, _)),
+    retractall(lang(LangName, _)),
+    asserta(language_name(LangName), LNDef),
+    maplist([T,R]>>assertz(type(LangName, T), R), LangTypes, TypeDefs),
+    maplist([A,R]>>assertz(atom(LangName, A), R), LangAtoms, AtomDefs),
+    maplist([P,R]>>assertz(lang(LangName, P), R), LangPhrases, PhraseDefs),
+    append([[LNDef], TypeDefs, AtomDefs, PhraseDefs], Defs).
+
+
+%% ----------------------------------------------------------------------
+%% Parsing the language
+
 
 parse_expr(LangDef, Expr, ABT) :-
     string_chars(Expr, ECodes),
     enumerate(ECodes, Input),
     initial_gamma(Env),
-    phrase(expr(LangDef, Env, ABT, _FinalEnv), Input).
+    define_language(LangDef, _),
+    get_dict(language, LangDef, Language),
+    phrase(expr(Language, Env, ABT, _FinalEnv), Input).
 
-expr(LangDef, Env, Expr, Env2) -->
-    { get_dict(phrases, LangDef, LangPhrases),
-      member(term(TermID ⦂ TermType, TermParser, _), LangPhrases)
-    },
+expr(Language, Env, Expr, Env2) -->
+    { lang(Language, term(TermID ⦂ TermType, TermParser, _)) },
     lexeme(call(TermParser, P)),
-    typecheck(LangDef, Env, TermID, P, TermType, Env1, CheckedTermType),
+    typecheck(Language, Env, TermID, P, TermType, Env1, CheckedTermType),
     { Term =.. [TermID, P] },
-    exprMore(LangDef, Env1, term(Term, CheckedTermType), Env2, Expr).
-expr(LangDef, Env, term(Expr, OutType), OutEnv) -->
-    { get_dict(phrases, LangDef, LangPhrases),
-      member(expop(Op ⦂ OpType, OpParser, _), LangPhrases),
+    exprMore(Language, Env1, term(Term, CheckedTermType), Env2, Expr).
+expr(Language, Env, term(Expr, OutType), OutEnv) -->
+    { lang(Language, expop(Op ⦂ OpType, OpParser, _)),
       is_list(OpParser)
     },
-    exprParts(LangDef, Env, OpType, OpParser, [], Terms, Env1),
-    { typecheck_expr(LangDef, Env1, OpType, Terms, [], OutEnv, OutTerms, OutType),
+    exprParts(Language, Env, OpType, OpParser, [], Terms, Env1),
+    { typecheck_expr(Language, Env1, OpType, Terms, [], OutEnv, OutTerms, OutType),
       Expr =.. [Op|OutTerms]
     }.
-expr(LangDef, Env, Expr, OutEnv) -->
+expr(Language, Env, Expr, OutEnv) -->
     lexeme(chrs('(')),
-    expr(LangDef, Env, SubExpr, Env1),
+    expr(Language, Env, SubExpr, Env1),
     lexeme(chrs(')')),
-    exprMore(LangDef, Env1, SubExpr, OutEnv, Expr).
+    exprMore(Language, Env1, SubExpr, OutEnv, Expr).
 expr(_, Env, end, Env) --> [].
 
-exprMore(LangDef, Env, LeftTerm, OutEnv, term(Expr, OT)) -->
-    { get_dict(phrases, LangDef, LangPhrases),
-      member(expop(Op ⦂ OpType, infix(OpParser), _), LangPhrases)
-    },
+exprMore(Language, Env, LeftTerm, OutEnv, term(Expr, OT)) -->
+    { lang(Language, expop(Op ⦂ OpType, infix(OpParser), _)) },
     lexeme(call(OpParser)),
-    lexeme(expr(LangDef, Env, RTP, Env1)),
+    lexeme(expr(Language, Env, RTP, Env1)),
     !,
-    { typecheck_expr(LangDef, Env1, OpType, [LeftTerm, RTP], [],
+    { typecheck_expr(Language, Env1, OpType, [LeftTerm, RTP], [],
                      OutEnv, [LT, RT], OT),
       Expr =.. [Op, LT, RT]
     }.
@@ -56,19 +75,19 @@ exprMore(_, Env, E, Env, E) --> [].
 %%     any(20, V, P),
 %%     { print_message(error, invalid_expr(E, V, P)), !, fail }.
 
-exprParts(LangDef, Env, _ → TPS, [subexpr|Parsers], OpArgs,
+exprParts(Language, Env, _ → TPS, [subexpr|Parsers], OpArgs,
           Terms, OutEnv) -->
     !,
-    lexeme(expr(LangDef, Env, term(Arg, ArgType), Env1)),
+    lexeme(expr(Language, Env, term(Arg, ArgType), Env1)),
     { Arg =.. [TermID, P] },
-    typecheck(LangDef, Env1, TermID, P, ArgType, Env2, CheckedArgType),
+    typecheck(Language, Env1, TermID, P, ArgType, Env2, CheckedArgType),
     % n.b. TParam will be checked against ArgType after the entire expression is
     % parsed at the call site (above).
-    exprParts(LangDef, Env2, TPS, Parsers,
+    exprParts(Language, Env2, TPS, Parsers,
               [term(Arg, CheckedArgType)|OpArgs], Terms, OutEnv).
-exprParts(LangDef, Env, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
+exprParts(Language, Env, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
     call(Parser),
-    exprParts(LangDef, Env, TPS, Parsers, OpArgs, Terms, OutEnv).
+    exprParts(Language, Env, TPS, Parsers, OpArgs, Terms, OutEnv).
 exprParts(_, Env, _OpType, [], OpArgs, Terms, Env) -->
     [], { reverse(OpArgs, Terms) }.
 
@@ -79,66 +98,59 @@ prolog:message(invalid_expr(E, V, P)) -->
 
 initial_gamma([]).  % list of (Name:str, type:atom)
 
-typecheck(LangDef, Env, TermID, _Val, TermType, Env, TermType) -->
-    { get_dict(atoms, LangDef, LangAtoms),
-      member(TermID, LangAtoms),
-      % Atom term, always valid (TermID and TermType came from LangDef)
+typecheck(Language, Env, TermID, _Val, TermType, Env, TermType) -->
+    { atom(Language, TermID),
+      % Atom term, always valid (TermID and TermType came from Language)
       !
     }.
-typecheck(LangDef, Env, _TermID, Val, TermType, OutEnv, TermType) -->
-    { get_dict(types, LangDef, LangTypes),
-      member(TermType, LangTypes),
+typecheck(Language, Env, _TermID, Val, TermType, OutEnv, TermType) -->
+    { type(Language, TermType),
       % term has static type
       !,
       % ensure that if this static type either matches the var or assign this
       % static type to the vari if it has no assigned type.
       fresh_var(Env, Val, TermType, OutEnv)
     }.
-typecheck(_LangDef, Env, _TermID, Val, _, OutEnv, ValType) -->
+typecheck(_Language, Env, _TermID, Val, _, OutEnv, ValType) -->
     % At this point missing the above indictes that TermType is a type variable
     %% TODO: combine TermID and Val for more precise fresh_var matching?
     fresh_var(Env, Val, typevar, OutEnv, ValType).
-%% typecheck(_LangDef, Env, TermID, Val, TermType, Env, TermType) -->
+%% typecheck(_Language, Env, TermID, Val, TermType, Env, TermType) -->
 %%     { print_message(error, invalid_type(TermID, Val, TermType)), !, fail }.
 
 
-typecheck_expr(LangDef, Env, LType → RType, [term(LT, LType)|Terms],
+typecheck_expr(Language, Env, LType → RType, [term(LT, LType)|Terms],
                TypeVars, OutEnv, [term(LT, LType)|OTerms], OType) :-
-    get_dict(types, LangDef, LangTypes),
-    member(LType, LangTypes),
+    type(Language, LType),
     !,
-    typecheck_expr(LangDef, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(LangDef, _, LType → _, [term(LT, LTType)|_], _, _, _, _) :-
-    get_dict(types, LangDef, LangTypes),
-    member(LType, LangTypes),  % expr sig is fixed type
-    member(LTType, LangTypes), % term sig is also fixed type
+    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_expr(Language, _, LType → _, [term(LT, LTType)|_], _, _, _, _) :-
+    type(Language, LType),  % expr sig is fixed type
+    type(Language, LTType), % term sig is also fixed type
     % LType and LTType are different fixed types (if they were the same type it
     % would have been matched above).
     !,
     print_message(error, invalid_term_type(LType, term(LT, LTType))),
     fail.
-%% typecheck_expr(LangDef, Env, LType → RType, [term(LT, LTType)|Terms],
+%% typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
 %%                TypeVars, OutEnv, [term(LT, LType)|OTerms], OType) :-
-%%     get_dict(types, LangDef, LangTypes),
-%%     member(LType, LangTypes),  % expr sig is fixed type
+%%     type(Language, LType),  % expr sig is fixed type
 %%     % LType is fixed, but LTType is a variable (or it would have been matched
 %%     % above)
 %%     known_var(Env, LT, LType),
 %%     % LTType variable is known to be the same as LType
 %%     !,
-%%     typecheck_expr(LangDef, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(LangDef, Env, LType → RType, [term(LT, LTType)|Terms],
+%%     typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
                TypeVars, OutEnv, [term(LT, LTType)|OTerms], OType) :-
-    get_dict(types, LangDef, LangTypes),
-    member(LTType, LangTypes),  % term type is fixed
+    type(Language, LTType),  % term type is fixed
     % LTType is fixed, but LType is a variable (or it would have been matched
     % above)
     member((LType, LTType), TypeVars), % expr type var has been assigned and matches
     !,
-    typecheck_expr(LangDef, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(LangDef, _, LType → _, [term(LT, LTType)|_], TypeVars, _, _, _) :-
-    get_dict(types, LangDef, LangTypes),
-    member(LTType, LangTypes),  % term type is fixed
+    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_expr(Language, _, LType → _, [term(LT, LTType)|_], TypeVars, _, _, _) :-
+    type(Language, LTType),  % term type is fixed
     % LTType is fixed, but LType is a variable (or it would have been matched
     % above)
     member((LType, OtherType), TypeVars),
@@ -146,18 +158,17 @@ typecheck_expr(LangDef, _, LType → _, [term(LT, LTType)|_], TypeVars, _, _, _)
     !,
     print_message(error, invalid_term_type(OtherType, term(LT, LTType))),
     fail.
-typecheck_expr(LangDef, Env, LType → RType, [term(LT, LTType)|Terms],
+typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
                TypeVars, OutEnv, [term(LT, LTType)|OTerms], OType) :-
-    get_dict(types, LangDef, LangTypes),
-    member(LTType, LangTypes),  % term type is fixed
+    type(Language, LTType),  % term type is fixed
     % LTType is fixed, but LType is a variable (or it would have been matched
     % above). Also know that LType has not been assigned otherwise one of the
     % previous two clauses would have matched.  Therefore, it's free and can be
     % assigned here.
     !,
-    typecheck_expr(LangDef, Env, RType, Terms, [(LType, LTType)|TypeVars],
+    typecheck_expr(Language, Env, RType, Terms, [(LType, LTType)|TypeVars],
                    OutEnv, OTerms, OType).
-typecheck_expr(LangDef, Env, LType → RType, [term(ident(LI), _LTType)|Terms],
+typecheck_expr(Language, Env, LType → RType, [term(ident(LI), _LTType)|Terms],
                TypeVars, OutEnv, [term(ident(LI), AType)|OTerms], OType) :-
     % Neither LType nor LTType are fixed types, otherwise they would have been
     % matched above.
@@ -167,15 +178,15 @@ typecheck_expr(LangDef, Env, LType → RType, [term(ident(LI), _LTType)|Terms],
     fresh_var(Env, LI, AType, Env2),
     % And LTType has already or just now been assigned to the same type
     !,
-    typecheck_expr(LangDef, Env2, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(LangDef, Env, _LType → RType, [term(ident(LI), LTType)|Terms],
+    typecheck_expr(Language, Env2, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+typecheck_expr(Language, Env, _LType → RType, [term(ident(LI), LTType)|Terms],
                TypeVars, OutEnv, [term(ident(LI), LTType)|OTerms], OType) :-
     % Neither LType nor LTType are fixed types, otherwise they would have been
     % matched above.  Also, LType has not been assigned a particular value.  In
     % this case, the type for the term is an existential; somewhat unusual, and
     % probably indicative that the term is unused, but it should be allowed
     % (e.g. const ⦂ a → b → a).
-    typecheck_expr(LangDef, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
 typecheck_expr(_, Env, OType, [], TypeVars, Env, [], RType) :-
     member((OType, RType), TypeVars),
     !.
@@ -244,20 +255,17 @@ prolog:message(var_already_defined_with_other_type(VName, VType, Type)) -->
 
 %% ----------------------------------------------------------------------
 
-emit_expr(LangDef, term(P, type_unassigned), Expr) :-
-    get_dict(phrases, LangDef, LangPhrases),
-    member(term(_Term ⦂ TermType, _, TermEmitter), LangPhrases),
+emit_expr(Language, term(P, type_unassigned), Expr) :-
+    lang(Language, term(_Term ⦂ TermType, _, TermEmitter)),
     call(TermEmitter, term(P, TermType), Expr).
-emit_expr(LangDef, term(P, TermType), Expr) :-
-    get_dict(phrases, LangDef, LangPhrases),
-    member(term(_Term ⦂ _, _, TermEmitter), LangPhrases),
+emit_expr(Language, term(P, TermType), Expr) :-
+    lang(Language, term(_Term ⦂ _, _, TermEmitter)),
     call(TermEmitter, term(P, TermType), Expr).
-emit_expr(LangDef, term(Op, _TermType), Expr) :-
+emit_expr(Language, term(Op, _TermType), Expr) :-
     Op =.. [ BinOp, Arg1, Arg2 ],
-    get_dict(phrases, LangDef, LangPhrases),
-    member(expop(BinOp ⦂ _, _, TermEmitter), LangPhrases),
-    emit_expr(LangDef, Arg1, A),
-    emit_expr(LangDef, Arg2, B),
+    lang(Language, expop(BinOp ⦂ _, _, TermEmitter)),
+    emit_expr(Language, Arg1, A),
+    emit_expr(Language, Arg2, B),
     call(TermEmitter, BinOp, A, B, Expr).
 emit_expr(_, end, "") :- !.
 emit_expr(_, ABT, Expr) :- fmt_str(Expr, '<<~w>>', [ABT]).

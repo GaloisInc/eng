@@ -5,7 +5,8 @@
 rtpe(LangDef, Inp) :-
     parse_expr(LangDef, Inp, ABT),
     !,
-    emit_expr(LangDef, ABT, Out),
+    get_dict(language, LangDef, Language),
+    emit_expr(Language, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
     assertion(InpTrimmed == Out).
 
@@ -13,7 +14,8 @@ rtpe(LangDef, Inp, ExpABT) :-
     parse_expr(LangDef, Inp, ABT),
     !,
     assertion(ExpABT = ABT),
-    emit_expr(LangDef, ABT, Out),
+    get_dict(language, LangDef, Language),
+    emit_expr(Language, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
     assertion(InpTrimmed == Out).
 
@@ -21,12 +23,14 @@ rtpe(LangDef, Inp, ExpABT, ExpOut) :-
     parse_expr(LangDef, Inp, ABT),
     !,
     assertion(ExpABT = ABT),
-    emit_expr(LangDef, ABT, Out),
+    get_dict(language, LangDef, Language),
+    emit_expr(Language, ABT, Out),
     assertion(ExpOut = Out).
 
 
 langdef1(
     langdef{
+        language: testlang,
         types: [ number, bool ],
         atoms: [ lit, num ],
         phrases:
@@ -50,9 +54,15 @@ langdef1(
 
 %% --------------------
 
-test(empty, [nondet]) :- rtpe(langdef{phrases:[]}, "").
+test(empty, [nondet]) :- rtpe(langdef{language:t1,
+                                      types:[],
+                                      atoms:[],
+                                      phrases:[]}, "").
 
-test(no_langdef, [nondet, fail]) :- rtpe(langdef{phrases:[]}, "32").
+test(no_langdef, [nondet, fail]) :- rtpe(langdef{language:t2,
+                                                 types:[],
+                                                 atoms:[],
+                                                 phrases:[]}, "32").
 
 test(num_term, [nondet]) :- langdef1(LangDef1), rtpe(LangDef1, "32").
 
