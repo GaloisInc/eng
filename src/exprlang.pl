@@ -1,6 +1,9 @@
-:- module(exprlang, [ parse_expr/3, emit_expr/3,
+:- module(exprlang, [ parse_expr/3,
+                      op(900, xfy, →),
+                      op(910, yfx, ⦂),
+                      emit_expr/3, emit_simple_term/2, emit_infix/5,
                       % Helpers
-                      num/3, word/3,
+                      num/3, word/3, lexeme/3, tok/3, chrs/3,
                       fmt_str/3
                     ]).
 
@@ -14,12 +17,19 @@ parse_expr(LangDef, Expr, ABT) :-
 
 expr(_, end) --> [].
 expr(LangDef, Expr) -->
-    { get_dict(terms, LangDef, LangTerms),
-      member(term(TermType, TermParser, _), LangTerms)
+    { get_dict(phrases, LangDef, LangPhrases),
+      member(term(TermType, TermParser, _), LangPhrases)
     },
     lexeme(call(TermParser, P)),
     exprMore(LangDef, term(P, TermType), Expr).
 
+exprMore(LangDef, LeftTerm, Expr) -->
+    { get_dict(phrases, LangDef, LangPhrases),
+      member(expop(Op ⦂ OpType, infix(OpParser), _), LangPhrases)
+    },
+    lexeme(call(OpParser)),
+    lexeme(expr(LangDef, RT)),
+    { Expr =.. [Op, LeftTerm, RT] }.
 exprMore(LangDef, E, E) --> [].
 exprMore(_, E, _) -->
     any(20, V, P),
@@ -31,12 +41,21 @@ prolog:message(invalid_expr(E, V, P)) -->
 %% ----------------------------------------------------------------------
 
 emit_expr(LangDef, term(P, TermType), Expr) :-
-    get_dict(terms, LangDef, LangTerms),
-    member(term(TermType, _, TermEmitter), LangTerms),
+    get_dict(phrases, LangDef, LangPhrases),
+    member(term(TermType, _, TermEmitter), LangPhrases),
     call(TermEmitter, term(P, TermType), Expr).
+emit_expr(LangDef, Op, Expr) :-
+    Op =.. [ BinOp, Arg1, Arg2 ],
+    get_dict(phrases, LangDef, LangPhrases),
+    member(expop(BinOp ⦂ _, _, TermEmitter), LangPhrases),
+    emit_expr(LangDef, Arg1, A),
+    emit_expr(LangDef, Arg2, B),
+    call(TermEmitter, BinOp, A, B, Expr).
 emit_expr(_, end, "") :- !.
 emit_expr(_, ABT, Expr) :- fmt_str(Expr, '<<~w>>', [ABT]).
 
+emit_simple_term(term(A, _), T) :- fmt_str(T, '~w', A).
+emit_infix(Repr, _, LA, RA, T) :- fmt_str(T, '~w ~w ~w', [ LA, Repr, RA ]).
 
 %% ----------------------------------------------------------------------
 %% Parsing Helpers
@@ -90,3 +109,7 @@ any_case_match(Candidates, Word) :- to_lower(Word, LCWord),
 to_lower(I, O) :- atom_string(IA, I), downcase_atom(IA, OA), atom_string(OA, O).
 
 ws(span(N,N)) --> [(N,C)], { char_type(C, space) }.
+
+chrs(Chars) --> { atom_chars(Chars, [C|CS]) }, [(_,C)], chrs_(CS).
+chrs_([C|CS]) --> [(_,C)], chrs_(CS).
+chrs_([]) --> [].
