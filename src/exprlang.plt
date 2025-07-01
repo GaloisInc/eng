@@ -4,16 +4,25 @@
 
 rtpe(LangDef, Inp) :-
     parse_expr(LangDef, Inp, ABT),
+    !,
     emit_expr(LangDef, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
     assertion(InpTrimmed == Out).
 
 rtpe(LangDef, Inp, ExpABT) :-
     parse_expr(LangDef, Inp, ABT),
+    !,
     assertion(ExpABT = ABT),
     emit_expr(LangDef, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
     assertion(InpTrimmed == Out).
+
+rtpe(LangDef, Inp, ExpABT, ExpOut) :-
+    parse_expr(LangDef, Inp, ABT),
+    !,
+    assertion(ExpABT = ABT),
+    emit_expr(LangDef, ABT, Out),
+    assertion(ExpOut = Out).
 
 
 langdef1(
@@ -37,6 +46,7 @@ langdef1(
                                    ],
                 [F,A,B,T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))
         ]}).
+
 
 %% --------------------
 
@@ -69,6 +79,12 @@ test(infix_expr_term, [nondet]) :-
 test(infix_expr_terms, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 + 54",
+         term(add(term(num(32), number), term(num(54), number)), number),
+        "(32 + 54)").
+
+test(infix_expr_terms_paren, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "(32 + 54)",
          term(add(term(num(32), number), term(num(54), number)), number)).
 
 test(infix_expr_nested, [nondet]) :-
@@ -79,12 +95,25 @@ test(infix_expr_nested, [nondet]) :-
                            term(add(term(num(54), number), term(num(87), number)),
                                 number)),
                        number)),
-              number)).
+              number),
+        "(32 + (19 - (54 + 87)))").
+
+test(infix_expr_nested_parens, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "32 + (19 - 54) + 87",
+         term(add(term(num(32), number),
+                  term(add(term(sub(term(num(19), number),
+                                    term(num(54), number)), number),
+                           term(num(87), number)),
+                       number)),
+              number),
+        "(32 + ((19 - 54) + 87))").
 
 test(infix_expr_bool, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 == 19",
-         term(cmpeq(term(num(32), number), term(num(19), number)), bool)).
+         term(cmpeq(term(num(32), number), term(num(19), number)), bool),
+        "(32 == 19)").
 
 test(infix_expr_bool_badtypes, [nondet, fail]) :-
     langdef1(LangDef1),
@@ -95,7 +124,8 @@ test(infix_expr_bool_ident, [nondet]) :-
     langdef1(LangDef1),
     rtpe(LangDef1, "32 == some_num",
          term(cmpeq(term(num(32), number), term(ident("some_num"), number)),
-              bool)).
+              bool),
+        "(32 == some_num)").
 
 test(multiarg_non_static_types, [nondet]) :-
     langdef1(LangDef1),

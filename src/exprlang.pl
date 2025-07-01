@@ -33,7 +33,11 @@ expr(LangDef, Env, term(Expr, OutType), OutEnv) -->
     { typecheck_expr(LangDef, Env1, OpType, Terms, [], OutEnv, OutTerms, OutType),
       Expr =.. [Op|OutTerms]
     }.
-
+expr(LangDef, Env, Expr, OutEnv) -->
+    lexeme(chrs('(')),
+    expr(LangDef, Env, SubExpr, Env1),
+    lexeme(chrs(')')),
+    exprMore(LangDef, Env1, SubExpr, OutEnv, Expr).
 expr(_, Env, end, Env) --> [].
 
 exprMore(LangDef, Env, LeftTerm, OutEnv, term(Expr, OT)) -->
@@ -270,7 +274,7 @@ emit_expr(_, end, "") :- !.
 emit_expr(_, ABT, Expr) :- fmt_str(Expr, '<<~w>>', [ABT]).
 
 emit_simple_term(X, term(Y, _), T) :- Y =.. [X, A], fmt_str(T, '~w', A).
-emit_infix(Repr, _, LA, RA, T) :- fmt_str(T, '~w ~w ~w', [ LA, Repr, RA ]).
+emit_infix(Repr, _, LA, RA, T) :- fmt_str(T, '(~w ~w ~w)', [ LA, Repr, RA ]).
 
 %% ----------------------------------------------------------------------
 %% Parsing Helpers
