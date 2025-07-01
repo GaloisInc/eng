@@ -401,7 +401,7 @@ requirements(FailStrm, UID, Requirements) -->
     clseq(ICS),
     sseq,
     [ w(requirements, SL, SC) ], !,
-    saw(FailStrm, events, SL, requirements_(UID, ICS, SL, SC, Requirements)).
+    saw(FailStrm, events, SL, requirements_(FailStrm, UID, ICS, SL, SC, Requirements)).
 requirements_(FailStrm, UID, ICS, SL, SC, Requirements) -->
     commonEventReqScenario(FailStrm, requirements, UID, ICS, SL, SC, Requirements0, ES),
     { addElemPart(_{requirements: ES}, Requirements0, Requirements) }.
