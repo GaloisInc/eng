@@ -37,15 +37,19 @@ lando_req_to_fret_json(Lando_Req, JSONDict) :-
 %   dictionary of "semantics" portion of FRET JSON for that fretment.
 %
 fretment_to_fretsemantics(Fretment, Ranges, JSONDict) :-
-    Fretment = fretment(scope_info(Scope, ScopeVars),
-                        condition_info(Condition, CondVars),
+    Fretment = fretment(scope_info(Scope, _),
+                        condition_info(Condition, _),
                         component_info(Comp),
-                        timing_info(Timing, TimingVars),
-                        response_info(Response, RespVars)),
+                        timing_info(Timing, _),
+                        response_info(Response, _)),
 
     % Now "hydrate" the information with all of the additional things that the
     % FRET tool expects to find in the JSON form.
 
+    fretment_vars(scope, FretMent, ScopeVars),
+    fretment_vars(condition, FretMent, CondVars),
+    fretment_vars(timing, FretMent, TimingVars),
+    fretment_vars(response, FretMent, RespVars),
     append([ScopeVars, CondVars, TimingVars, RespVars], AllVars),
     list_to_set(AllVars, Vars),
     SemanticsBase = semantics{ type: "nasa",

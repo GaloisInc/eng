@@ -1,9 +1,12 @@
 % Parses the FRETish statements supported by the NASA Fret tool
 % (https://github.com/NASA-SW-VnV/fret).
 
-:- module(frettish, [ parse_fret/3, emit_fretish/2, emit_fretish/3 ]).
+:- module(frettish, [ parse_fret/3, emit_fretish/2, emit_fretish/3,
+                      fretment_vars/3
+                    ]).
 
 :- use_module('../englib').
+:- use_module('../exprlang').
 
 %% Parses a FRETish English requirement to a Fret structured requirement, using
 %% the definitions and templates provided to enhance the structured requirement.
@@ -90,11 +93,11 @@ emit_fretish(Fretment, English, Ranges) :-
 % textual forms; this code is for regenerating FRETish from the AST.
 
 fretish_parts(Fretment, ScopeText, CondText, CompText, TimingText, ResponseText) :-
-    Fretment = fretment(scope_info(Scope, _ScopeVars),
-                        condition_info(Condition, _CondVars),
+    Fretment = fretment(scope_info(Scope, _),
+                        condition_info(Condition, _),
                         component_info(Comp),
-                        timing_info(Timing, _TimingVars),
-                        response_info(Response, _RespVars)),
+                        timing_info(Timing, _),
+                        response_info(Response, _)),
     scope_fretish(Scope, ScopeText),
     condition_fretish(Condition, CondText),
     component_fretish(Comp, CompText),
@@ -266,12 +269,28 @@ Note: use help! for any of the capitalized sections above to get more
 information on specifying that portion of the FRETish statement.
 ").
 
+
+fretment_vars(scope, fretment(scope_info(_, vars(VS)), _, _, _, _), VS).
+fretment_vars(condition, fretment(_, condition_info(_{condition:"null"}, _), _, _, _), []) :- !.
+fretment_vars(condition, fretment(_, condition_info(C, _), _, _, _), VS) :-
+    get_dict(regular_condition, C, Expr),
+    fretish_expr_langdef(LangDef),
+    get_dict(language, LangDef, Language),
+    extract_vars(Language, Expr, VS).
+fretment_vars(timing, fretment(_, _, _, timing_info(_, vars(VS)), _), VS).
+fretment_vars(response, fretment(_, _, _, _, response_info(R, _)), VS) :-
+    get_dict(post_condition, R, Expr),
+    fretish_expr_langdef(LangDef),
+    get_dict(language, LangDef, Language),
+    extract_vars(Language, Expr, VS).
+
+
 % scope conditions component shall timing responses
-fretish(fretment(scope_info(Scope, ScopeVars),
-                 condition_info(Condition, CondVars),
+fretish(fretment(scope_info(Scope, vars(ScopeVars)),
+                 condition_info(Condition, vars(CondVars)),
                  component_info(Comp),
-                 timing_info(Timing, TimingVars),
-                 response_info(Responses, RespVars)
+                 timing_info(Timing, vars(TimingVars)),
+                 response_info(Responses, vars(RespVars))
                 )) -->
     intro(Scope, ScopeVars, Condition, CondVars),
     target(Comp),
