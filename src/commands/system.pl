@@ -37,7 +37,7 @@ system_help(Info) :-
 |     spec =
 |       SPECIFICATION =
 |         name = NAME OF SPECIFICATION
-|         file = TOP_LEVEL_RELATIVE_FILENAME
+|         file = TOP_LEVEL_RELATIVE_FILENAME(S)
 |         format = { lando | other }
 |         generate =
 |           OUTPUT_FILENAME

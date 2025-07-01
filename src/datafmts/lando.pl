@@ -23,9 +23,24 @@ parse_lando_file(File, SSL) :-
     print_message(informational, parsing_lando_file(File)),
     read_file_to_string(File, Contents, []),
     import_lando_from_string(File, Contents, SSL).
+parse_lando_file(Files, SSL) :-
+    split_string(Files, " \n\t", "", FileList),
+    maplist(parse_lando_file, FileList, SSLs),
+    !,
+    merge_ssls(SSLs, SSL).
 parse_lando_file(File, _{}) :-
     \+ access_file(File, read),
     print_message(warning, file_not_found(File)).
+
+merge_ssls([], _{body:[], comments:[]}).
+merge_ssls([S|SS], _{body:AllB, comments:AllC}) :-
+    merge_ssls(SS, SubSSL),
+    get_dict(body, S, B),
+    get_dict(comments, S, C),
+    get_dict(body, SubSSL, SubB),
+    get_dict(comments, SubSSL, SubC),
+    append(B, SubB, AllB),
+    append(C, SubC, AllC).
 
 import_lando_from_string(Source, LandoText, Result) :-
     lando_ssl(Source, LandoText, Result, Leftover),
