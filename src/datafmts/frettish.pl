@@ -4,11 +4,16 @@
 :- module(frettish, [ parse_fret/4, emit_fretish/2, emit_fretish/3,
                       fretment_vars/3,
                       fretish_expr_langdef/1,
-                      scenarios_type_name/2
+                      scenarios_type_name/2,
+                      fretish_ptltl/2,
+                      xform_past_temporal_unbounded/2,
+                      xform_past_temporal/2,
+                      xform_past_optimize/2
                     ]).
 
 :- use_module('../englib').
 :- use_module('../exprlang').
+:- use_module(ltl).
 
 %% Parses a FRETish English requirement to a Fret structured requirement, using
 %% the definitions and templates provided to enhance the structured requirement.
@@ -25,7 +30,6 @@
 %                               [,scope_mode:[, exclusive:bool, required:bool]]
 %                               }, [SCOPE_VAR_NAMES]),
 %                    condition_info({condition:,
-%                                    pre_condition:,
 %                                    qualifier_word:,
 %                                    regular_condition:}),
 %                    component_info({component:}),
@@ -35,11 +39,6 @@
 %                                   post_condition:}),
 %
 parse_fret(Context, LangEnv, English, FretMent) :-
-    %% fretish_expr_langdef(LangDef),
-    %% define_language(LangDef, _),
-    %% get_dict(language, LangDef, Language),
-    %% show_language(Language),
-
     string_chars(English, ECodes),
     enumerate(ECodes, Input),
     phrase(fretish(LangEnv, FretMent), Input, Remaining),
@@ -536,7 +535,6 @@ set_cond(C, ReqCond) :-
     (get_dict(qualifier_word, C, "whenever") -> CND = "holding" ; CND = "regular"),
     put_dict(C, _{condition:CND}, ReqCond).
 
-
 cond_(Env, C, OutEnv) --> qcond1_(Env, C0, Env1),
                           opt_comma,
                           !,
@@ -565,12 +563,10 @@ qcond1___(C, Q, E) --> lexeme(tok(is)), lexeme(tok(false)), !,  % green cut
 qcond1___(C, Q, E) --> { qcond1_true_(Q,E,C) }.
 
 qcond1_true_(Q,E, _{ qualifier_word:Q,
-                     pre_condition: fretish(E),
                      regular_condition: fretish(E)
                    }).
 
 qcond1_false_(Q,E, _{ qualifier_word:Q,
-                      pre_condition: fretish(not(E)),
                       regular_condition: fretish(not(E))
                     }).
 
@@ -582,7 +578,6 @@ qcond2_(Env, C0, C, OutEnv) -->
       get_dict(regular_condition, C1, fretish(C1P)),
       get_dict(qualifier_word, C1, C1QW),
       C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
-             pre_condition: fretish(or(C0P, C1P)),
              regular_condition: fretish(or(C0P, C1P))
            }
     }.
@@ -594,7 +589,6 @@ qcond2_and_(Env, C0, C, OutEnv) -->
       get_dict(regular_condition, C1, fretish(C1P)),
       get_dict(qualifier_word, C1, C1QW),
       C = _{ qualifier_word: C1QW,  % XXX: always just uses *last* qualifier?!
-             pre_condition: fretish(and(C0P, C1P)),
              regular_condition: fretish(and(C0P, C1P))
            }
     }.
@@ -919,3 +913,175 @@ ws(span(N,N)) --> [(N,C)], { char_type(C, space) }.
 
 prolog:message(bad_scope_mode(V, S)) -->
     [ 'Expected scope mode at ~w: ~w' - [S, V]].
+
+
+% ----------------------------------------------------------------------
+
+fretish_ptltl(Fretish, cocospec(PAST)) :-
+    Fretish = fretment(scope_info(Scope, _),
+                       condition_info(Condition),
+                       component_info(_),
+                       timing_info(Timing, _),
+                       response_info(Response)),
+    get_dict(scope, Scope, S),
+    get_dict(type, S, ST),
+    get_dict(condition, Condition, CT),
+    get_dict(timing, Timing, TT),
+    get_dict(response, Response, RT),
+    atom_string(STA, ST),
+    atom_string(CTA, CT),
+    atom_string(TTA, TT),
+    atom_string(RTA, RT),
+    lando_fret:fret_semantics(STA, CTA, TTA, RTA, Semantics),
+    get_dict(ptExpanded, Semantics, PTE),
+    parse_ltl(PTE, PTELTL),
+    transformed_scope_mode_pt(Scope, SMPT),
+    transformed_regular_condition_smvpt(Semantics, SMPT, Condition, RCSMV),
+    transformed_stop_condition_smvpt(Semantics, SMPT, Timing, SCSMV),
+    transformed_post_condition_smvpt(Semantics, SMPT, Response, PCSMV),
+    tmplsubs_ltl_seq([ (RCSMV, '$regular_condition$'),
+                       (PCSMV, '$post_condition$'),
+                       (SCSMV, '$stop_condition$'),
+                       (SMPT, '$scope_mode$')
+                     ],
+                     PTELTL, PASTRaw),
+    xform_past_optimize(PASTRaw, PAST).
+
+transformed_scope_mode_pt(Scope, SMPT) :-
+    get_dict(scope, Scope, S),
+    get_dict(type, S, ST),
+    sc_mo_tr(ST, Scope, SMPT).
+sc_mo_tr(null, _, "BAD_PT") :- !.
+sc_mo_tr(_, Scope, ltl(MP)) :-
+    get_dict(scope_mode, Scope, fretish(MD)),
+    xform_past_temporal_unbounded(MD, MP).
+
+transformed_regular_condition_smvpt(Semantics, SMPT, Condition, RCSMV) :-
+    get_dict(regular_condition, Condition, fretish(C)), !,
+    xform_cond(Semantics, SMPT, C, RCSMV).
+transformed_regular_condition_smvpt(_, _, _, "no_regular_condition!").
+
+transformed_stop_condition_smvpt(Semantics, SMPT, Timing, SCSMV) :-
+    get_dict(stop_condition, Timing, fretish(C)), !,
+    xform_cond(Semantics, SMPT, C, SCSMV).
+transformed_stop_condition_smvpt(_, _, _, "no_stop_condition!").
+
+transformed_post_condition_smvpt(Semantics, SMPT, Response, PCSMV) :-
+    get_dict(post_condition, Response, fretish(C)), !,
+    xform_cond(Semantics, SMPT, C, PCSMV).
+transformed_post_condition_smvpt(_, _, _, "no_post_condition!").
+
+xform_cond(Defs, SMPT, C, SMVPT) :-
+    xform_past_temporal(C, CP),
+    get_dict(endpoints, Defs, Endpoints),
+    get_dict('SMVptExtleft', Endpoints, SMVLeft),
+    parse_ltl(SMVLeft, SMVLeftLTL),
+    subst_term(LTL, '$Left$', SMVLeftLTL, CP, CPS1),
+    subst_term(LTL, '$scope_mode$', SMPT, CPS1, SMVPT).
+
+tmplsubs_ltl_seq([], FLTL, FLTL).
+tmplsubs_ltl_seq([(SrcLTL, TgtTempl)|Flds], InpFLTL, OutFLTL) :-
+    !,  % no backtracking on failures after this point
+    tmplsubs_ltl(SrcLTL, TgtTempl, InpFLTL, FLTL2),
+    !,  % no backtracking on failures after this point
+    tmplsubs_ltl_seq(Flds, FLTL2, OutFLTL).
+
+tmplsubs_ltl(SrcLTL, ForTemplate, InpLTL, OutLTL) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, Language),
+    subst_term(Language, ForTemplate, SrcLTL, InpLTL, OutLTL).
+
+% --------------------
+
+xform_past_temporal_unbounded(AST, O) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    fmap_abt(LTL, frettish:xptu, AST, O),
+    !.
+
+xform_past_temporal(AST, O) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    fmap_abt(LTL, frettish:xpt, AST, O),
+    !.
+
+
+
+% fret-electron/support/xform.js pastTemporalConditionsNoBounds
+xptu(op(persisted(Dur, Cond), bool),
+     op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool)).
+xptu(op(persisted(Start, Dur, Cond), bool),
+    op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
+xptu(op(occurred(Dur, Cond), bool),
+    op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)).
+xptu(op(occurred(Start, Dur, Cond), bool),
+    op(ltlO_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
+xptu(op(prevOcc(P,Q), bool),
+     op(ltlS(op(ltlY(op(not(P), bool)), bool),
+             op(and(P, Q), bool)), bool)).
+% user specification of future terms is invalid for a past-time formula
+xptu(op(persists(_, _), bool), R) :- impossible_xform(R).
+xptu(op(persists(_, _, _), bool), R) :- impossible_xform(R).
+xptu(op(occurs(_, _), bool), R) :- impossible_xform(R).
+xptu(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
+xptu(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
+xptu(I, I).
+
+% fret-electron/support/xform.js pastTemporalConditions
+xpt(term(ident('FTP'), bool), op(ltlZ(term(lit(false), bool)), bool)).
+xpt(op(persisted(Dur, Cond), bool),
+    op(and(op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool),
+           op(ltlH_bound(op(range_max(Dur), range),
+                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
+       bool)).
+xpt(op(persisted(Start, Dur, Cond), bool),
+    op(and(op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool),
+           op(ltlH_bound(op(range_max(Dur), range),
+                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
+       bool)).
+xpt(op(occurred(Dur, Cond), bool),
+    op(and(op(ltlS(op(not(term(ident('$Left$'), bool)), bool),
+                   Cond), bool),
+           op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)),
+       bool)).
+xpt(op(occurred(Start, Dur, Cond), bool),
+    op(ltlS_bound(op(range_min_max(Start, Dur), range),
+                  op(not(term(ident('$Left$'), bool)), bool),
+                  Cond),
+       bool)).
+xpt(op(prevOcc(P,Q), bool),
+    op(or(term(ident('$Left$'), bool),
+          op(ltlY(op(implies(op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
+                                            op(not(P), bool)),
+                                        bool),
+                                     P),
+                                bool),
+                             op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
+                                            op(not(P), bool)),
+                                        bool),
+                                     op(and(P, Q), bool)),
+                                bool)),
+                     bool)),
+             bool)),
+       bool)).
+xpt(op(preBool(Init,P), bool),
+    op(or(op(and(op(ltlZ(term(lit(false), bool)), bool),
+                 Init), bool),
+          op(and(op(ltlY(term(lit(true), bool)), bool),
+                 op(ltlY(P), bool)), bool)), bool)).
+xpt(op(persists(_, _), bool), R) :- impossible_xform(R).
+xpt(op(persists(_, _, _), bool), R) :- impossible_xform(R).
+xpt(op(occurs(_, _), bool), R) :- impossible_xform(R).
+xpt(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
+xpt(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
+xpt(I, I).
+
+impossible_xform(op(and(term(lit(false), bool),
+                        op(and(term(lit(false), bool),
+                               op(and(term(lit(false), bool),
+                                      term(lit(false), bool)),
+                                  bool)),
+                           bool)),
+                    bool)).
+
+xform_past_optimize(I, I). % provided/returns AST; already done by ltl_parse

@@ -12,8 +12,10 @@
 :- use_module(src/datafmts/lando).
 :- use_module(src/lando_fret).
 :- use_module(src/datafmts/frettish).
+:- use_module(src/datafmts/ltl).
 :- use_module(src/datafmts/lustre).
 :- use_module(englib).
+:- use_module(exprlang).
 :- use_module(commands/exec_subcmds).
 :- use_module(lando_fret).
 
@@ -35,6 +37,8 @@
 %  body.
 %
 fret_kind2(EnumVals, FretReqs, Vars, Kind2Comps) :-
+    define_ltl_language,
+    define_lustre_language,
     connected_components(FretReqs, Vars, 0, CComps),
     fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps),
     warn_about_skipped_models(Kind2Comps).
@@ -131,24 +135,28 @@ req_comp_name(Req, CompName) :-
     get_dict(component, Comp, CompName).
 
 req_out_varnames(Vars, FretReq, VS) :-
-    get_dict(requirement, FretReq, Req),
-    get_dict(semantics, Req, ReqSem),
-    get_dict(variables, ReqSem, ReqVars),
-    out_varnames(Vars, ReqVars, VS).
+    get_dict(lando_req, FretReq, LR),
+    get_dict(fret_req, LR, FR),
+    % Could get just response fretment_vars, but this will filter on usage so
+    % checking all variables reduces assumptions.
+    findall(RVS, fretment_vars(_, FR, RVS), AllRVars),
+    append(AllRVars, RVars),
+    out_varnames(Vars, RVars, VS).
 
 out_varnames(_, [], []).
-out_varnames(Vars, [V|VS], [V|VNMS]) :-
-    out_varname(Vars, V),
+out_varnames(Vars, [V|VS], [VName|VNMS]) :-
+    var_name(V, VName),
+    out_varname(Vars, VName),
     !,
     out_varnames(Vars, VS, VNMS).
 out_varnames(Vars, [_|VS], VNMS) :- out_varnames(Vars, VS, VNMS).
 
-out_varname([constr(_,_,_,_)|VS], VName) :-
-    !, out_varname(VS, VName).  % constructors cannot be vars
-out_varname([V|_], VName) :- get_dict(varname, V, VName),
-                             !,
-                             get_dict(usage, V, "Output").
-out_varname([_|VS], VName) :- out_varname(VS, VName).
+out_varname(VS, VName) :-
+    member(V, VS),
+    \+ constr(_, _, _, _) = V,  % constructors cannot be vars
+    get_dict(varname, V, VName),
+    get_dict(usage, V, "Output").
+
 
 %% ----------------------------------------------------------------------
 
@@ -203,11 +211,11 @@ enum_mode(Var, [(N,_V)|VS], [Mode|Modes]) :-
 % by the requirements in this CC, but they shouldn't hurt anything by being
 % defined.
 
-%% implicit_vars(Vars, Kind2Decls) :-
-%%     implicit_vars_(Vars, Decls),
-%%     intercalate(Vars, "\n", Decls).
-
 implicit_vars(_, [], []).
+implicit_vars(EnumVals, [constr(VName, _, _, _)|VS], DS) :-
+    !,
+    % format('TODO TODO: handle implicit_vars for ~w~n', [VName]),
+    implicit_vars(EnumVals, VS, DS).
 implicit_vars(EnumVals, [V|VS], [D|DS]) :-
     get_dict(usage, V, "Internal"),
     get_dict(varname, V, VarName),
@@ -215,7 +223,7 @@ implicit_vars(EnumVals, [V|VS], [D|DS]) :-
     !,
     get_dict(type, V, VarType),
     convert_type(VarType, KindType),
-    get_dict(assignment, V, ValStr),  % KWQ XXX KWQ XXX FIXME
+    get_dict(assignment, V, ValStr),
     string_trim(ValStr, Val),
     format(atom(D), "var ~w : ~w = ~w;", [ VarName, KindType, Val ]),
     implicit_vars(EnumVals, VS, DS).
@@ -266,15 +274,9 @@ find_named_var(Name, VS, V) :-
     get_dict(varname, V, Name).
 
 
-get_var_type([(VName,VarType)|_], VName, _, VarType) :- !.  % KWQ: obsolete?
-get_var_type([(VNameBase,VarType)|_], VName, _, VarType) :-
-    scenarios_final_var_name(VNameBase, VName), !.
-get_var_type([_|VTS], VName, V, VarType) :- get_var_type(VTS, VName, V, VarType).
-get_var_type([], _, V, VarType) :- get_dict(dataType, V, VarType).
-
-add_if_not_present(_, Decl, [], DS, [Decl|DS]).
-add_if_not_present(Var, _, [Var|_], DS, DS) :- !.
-add_if_not_present(Var, Decl, [_|VS], DS, Out) :-
+add_if_not_present(_, Decl, [], DS, [Decl|DS]).   % end-of list: add Decl
+add_if_not_present(Var, _, [Var|_], DS, DS) :- !. % Var is in list, no add
+add_if_not_present(Var, Decl, [_|VS], DS, Out) :- % No match, check next
     add_if_not_present(Var, Decl, VS, DS, Out).
 
 convert_type("integer", "int") :- !.
@@ -286,13 +288,12 @@ req_internalvars([R|RS], [G|GS], [D|DS]) :-
     get_dict(lando_req, R, LR),
     get_dict(req_name, LR, RID),
     normalize_kind2_var(RID, V),
+    !,
 
     get_dict(fret_req, LR, Fretish),
     emit_fretish(Fretish, FT),
 
-    get_dict(requirement, R, JReq),
-    get_dict(semantics, JReq, Sem),
-    get_dict('CoCoSpecCode', Sem, cocospec(E)),
+    fretish_ptltl(Fretish, cocospec(E)),
     emit_CoCoSpec(E, CoCo),
 
     format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, CoCo ]),
@@ -300,12 +301,13 @@ req_internalvars([R|RS], [G|GS], [D|DS]) :-
     req_internalvars(RS, GS, DS).
 
 is_req_var(VName, Reqs) :-
-    member(Req, Reqs),
-    get_dict(requirement, Req, JReq),
-    get_dict(semantics, JReq, ReqSem),
-    get_dict(variables, ReqSem, Vars),
-    member(VName, Vars),
-    !.
+    member(FretReq, Reqs),
+    get_dict(lando_req, FretReq, LR),
+    get_dict(fret_req, LR, FR),
+    findall(RVS, fretment_vars(_, FR, RVS), AllRVars),
+    append(AllRVars, RVars),
+    maplist(var_name, RVars, RVNames),
+    member(VName, RVNames).
 
 normalize_kind2_var(Inp, Out) :-
     subst('-', '_', Inp, Out).
@@ -322,7 +324,6 @@ validate(Context, Kind2File, OutDirectory, Args, ResultFile, Status) :-
               'OutDir' = OutDirectory,
               'Kind2Args' = Args,
               'JSONFile' = ResultFile ],
-            %% [ "kind2 -json --enable CONTRACTCK --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
             [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
               % --lus_strict
             ], [], ".", Sts),

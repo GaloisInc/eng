@@ -26,6 +26,8 @@
 list_call(Op, [X|XS], Out) :- list_call(call(Op, X), XS, Out).
 list_call(Op, [], Out) :- call(Op, Out).
 
+% Given an input list, return a list of (N, V) where N is the 0-based index and V
+% is the corresponding value from the input list.
 enumerate(I, O) :- enum_(0, I, O).
 enum_(_, [], []).
 enum_(N, [I|IS], [(N,I)|OS]) :- succ(N, M), enum_(M, IS, OS).

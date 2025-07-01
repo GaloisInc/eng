@@ -76,7 +76,12 @@ fretment_to_fretsemantics(Fretment, Ranges, JSONDict) :-
     ),
 
     get_dict(conditionTextRange, Ranges, CndTR),
-    put_dict(Condition, _{conditionTextRange: CndTR}, ConditionJSON),
+    (get_dict(regular_condition, Condition, RegCond), !
+    ; RegCond = "no_regular_condition!"
+    ),
+    put_dict(Condition, _{conditionTextRange: CndTR,
+                          pre_condition: RegCond
+                         }, ConditionJSON),
     put_dict(Sem1, ConditionJSON, Sem2),  % TODO: if no condition, this is null and breaks the next
 
     get_dict(componentTextRange, Ranges, CTR),
@@ -375,6 +380,14 @@ prolog:message(convert_JSON_failure(E)) -->
 
 % ----------------------------------------------------------------------
 
+% n.b. there is a lot of duplication of the Past-Time (PT) extraction here and in
+% the fretish_ptltl in frettish; this could/should be converted to use
+% fretish_ptltl for that particular conversion, but there are efficiencies to the
+% code here that re-uses lookups for parallel FT and non-SMV conversions.
+% Ultimately, the purpose here is to generate the fully hydrated JSON input to
+% the FRET tool, but a better approach would be for the FRET tool to read a
+% minimized JSON and reconstruct these formulas itself.
+
 generate_formulae(Defs, Inp, Out) :-
     (scope_mode_transform(Defs, Inp, O1)
     ; print_message(error, scope_transform_failed()), fail
@@ -431,8 +444,8 @@ post_condition_transform(Defs, Inp, Out) :-
     get_dict(post_condition, Inp, fretish(PC)), !,
     xform_cond(Defs, Inp, PC, PT, FT, SMVPT, SMVFT),
     put_dict(_{ post_condition_unexp_pt: PT,
-                post_condition_unexp_ft: SMVPT,
-                post_condition_SMV_pt: FT,
+                post_condition_unexp_ft: FT,
+                post_condition_SMV_pt: SMVPT,
                 post_condition_SMV_ft: SMVFT
               }, Inp, Out).
 post_condition_transform(_, Inp, Inp).
@@ -442,8 +455,8 @@ stop_condition_transform(Defs, Inp, Out) :-
     !,
     xform_cond(Defs, Inp, SC, PT, FT, SMVPT, SMVFT),
     put_dict(_{ stop_condition_unexp_pt: PT,
-                stop_condition_unexp_ft: SMVPT,
-                stop_condition_SMV_pt: FT,
+                stop_condition_unexp_ft: FT,
+                stop_condition_SMV_pt: SMVPT,
                 stop_condition_SMV_ft: SMVFT
               }, Inp, Out).
 stop_condition_transform(_, Inp, Inp). % if no stop_condition
@@ -597,13 +610,6 @@ last_is_FALSE(I, O) :-
     get_dict(language, LTLLang, LTL),
     subst_term(LTL, 'LAST', term(lit(false), bool), I, O).
 
-% --------------------
-
-xform_past_temporal_unbounded(AST, O) :-
-    ltl_langdef(LTLLang),
-    get_dict(language, LTLLang, LTL),
-    fmap_abt(LTL, fret_json:xptu, AST, O),
-    !.
 
 xform_future_temporal_unbounded(AST, O) :-
     ltl_langdef(LTLLang),
@@ -611,38 +617,11 @@ xform_future_temporal_unbounded(AST, O) :-
     fmap_abt(LTL, fret_json:xftu, AST, O),
     !.
 
-xform_past_temporal(AST, O) :-
-    ltl_langdef(LTLLang),
-    get_dict(language, LTLLang, LTL),
-    fmap_abt(LTL, fret_json:xpt, AST, O),
-    !.
-
 xform_future_temporal(AST, O) :-
     ltl_langdef(LTLLang),
     get_dict(language, LTLLang, LTL),
     fmap_abt(LTL, fret_json:xft, AST, O),
     !.
-
-
-% fret-electron/support/xform.js pastTemporalConditionsNoBounds
-xptu(op(persisted(Dur, Cond), bool),
-     op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool)).
-xptu(op(persisted(Start, Dur, Cond), bool),
-    op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
-xptu(op(occurred(Dur, Cond), bool),
-    op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)).
-xptu(op(occurred(Start, Dur, Cond), bool),
-    op(ltlO_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
-xptu(op(prevOcc(P,Q), bool),
-     op(ltlS(op(ltlY(op(not(P), bool)), bool),
-             op(and(P, Q), bool)), bool)).
-% user specification of future terms is invalid for a past-time formula
-xptu(op(persists(_, _), bool), R) :- impossible_xform(R).
-xptu(op(persists(_, _, _), bool), R) :- impossible_xform(R).
-xptu(op(occurs(_, _), bool), R) :- impossible_xform(R).
-xptu(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
-xptu(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
-xptu(I, I).
 
 % fret-electron/support/xform.js futureTemporalConditionsNoBounds
 xftu(op(persists(Dur, Cond), bool),
@@ -662,56 +641,6 @@ xftu(op(occurred(_, _), bool), R) :- impossible_xform(R).
 xftu(op(occurred(_, _, _), bool), R) :- impossible_xform(R).
 xftu(op(prevOcc(_, _), bool), R) :- impossible_xform(R).
 xftu(I, I).
-
-
-% fret-electron/support/xform.js pastTemporalConditions
-xpt(term(ident('FTP'), bool), op(ltlZ(term(lit(false), bool)), bool)).
-xpt(op(persisted(Dur, Cond), bool),
-    op(and(op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool),
-           op(ltlH_bound(op(range_max(Dur), range),
-                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
-       bool)).
-xpt(op(persisted(Start, Dur, Cond), bool),
-    op(and(op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool),
-           op(ltlH_bound(op(range_max(Dur), range),
-                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
-       bool)).
-xpt(op(occurred(Dur, Cond), bool),
-    op(and(op(ltlS(op(not(term(ident('$Left$'), bool)), bool),
-                   Cond), bool),
-           op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)),
-       bool)).
-xpt(op(occurred(Start, Dur, Cond), bool),
-    op(ltlS_bound(op(range_min_max(Start, Dur), range),
-                  op(not(term(ident('$Left$'), bool)), bool),
-                  Cond),
-       bool)).
-xpt(op(prevOcc(P,Q), bool),
-    op(or(term(ident('$Left$'), bool),
-          op(ltlY(op(implies(op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
-                                            op(not(P), bool)),
-                                        bool),
-                                     P),
-                                bool),
-                             op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
-                                            op(not(P), bool)),
-                                        bool),
-                                     op(and(P, Q), bool)),
-                                bool)),
-                     bool)),
-             bool)),
-       bool)).
-xpt(op(preBool(Init,P), bool),
-    op(or(op(and(op(ltlZ(term(lit(false), bool)), bool),
-                 Init), bool),
-          op(and(op(ltlY(term(lit(true), bool)), bool),
-                 op(ltlY(P), bool)), bool)), bool)).
-xpt(op(persists(_, _), bool), R) :- impossible_xform(R).
-xpt(op(persists(_, _, _), bool), R) :- impossible_xform(R).
-xpt(op(occurs(_, _), bool), R) :- impossible_xform(R).
-xpt(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
-xpt(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
-xpt(I, I).
 
 % fret-electron/support/xform.js futureTemporalConditions
 xft(op(persists(N, P), bool),
@@ -757,7 +686,5 @@ impossible_xform(op(and(term(lit(false), bool),
                                   bool)),
                            bool)),
                     bool)).
-
-xform_past_optimize(I, I). % provided/returns AST; already done by ltl_parse
 
 xform_future_optimize(I, I).  % TODO xform.transform(X, xform.optimizeFT)

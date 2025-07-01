@@ -261,7 +261,7 @@ typecheck(Language, Env, _TermID, Val, TermType, OutEnv, TermType) -->
       % static type to the vari if it has no assigned type.
       fresh_var(Env, Val, TermType, OutEnv)
     }.
-typecheck(_Language, Env, _TermID, Val, _, OutEnv, ValType) -->
+typecheck(_Language, Env, _TermID, Val, _TermType, OutEnv, ValType) -->
     % At this point missing the above indicates that TermType is a type variable.
     % The particular type variable can be discarded and instead this Val
     % (assumed--but not restricted--to be some sort of ident) should be
