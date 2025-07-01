@@ -89,6 +89,12 @@ write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
     !,
     maplist(write_kind2(OutDir), Kind2ConnComps, OutFiles).
 
+
+%% Writes the Lando SSL specification to files in the OutDir.  Returns the list
+%% of files written as either `contract(FName)` or `model(FName)`, depending on
+%% whether the file simply contains a contract specification or if it contains a
+%% full model (this affects the kind2 modules enabled on the command-line for
+%% analyzing that file).
 write_kind2(OutDir, Kind2Comp, contract(Kind2FName)) :-
     get_dict(files, Kind2Comp, []),
     !,
@@ -97,7 +103,6 @@ write_kind2(OutDir, Kind2Comp, contract(Kind2FName)) :-
 write_kind2(OutDir, Kind2Comp, model(Kind2FName)) :-
     % Additional model files, indicate via different filename
     write_kind2(OutDir, Kind2Comp, '~w_~w_model.lus', Kind2FName).
-
 write_kind2(OutDir, Kind2Comp, NameFmt, Kind2FName) :-
     ensure_dir(OutDir),
     get_dict(compNum, Kind2Comp, CNum),
@@ -108,10 +113,8 @@ write_kind2(OutDir, Kind2Comp, NameFmt, Kind2FName) :-
     open(Kind2FName, write, OutStrm),
     get_dict(kind2, Kind2Comp, Lustre),
     format(OutStrm, '~w~n', [Lustre]),
-
     get_dict(files, Kind2Comp, Files),
     append_files(OutStrm, Files),
-
     close(OutStrm).
 
 append_files(_, []).
