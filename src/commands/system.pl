@@ -178,7 +178,7 @@ validate_lando_fret(Context, Spec, SSL, R) :-
     ( eng:eng(system, spec, Spec, generate, Dir, format, "fret_kind2")
     ; Dir = "fret_kind2"
     ),
-    (exists_directory(Dir) ; make_directory(Dir)),
+    ensure_dir(Dir),
     !,
     % if no FRET, the next should not succeed and this predicate is false
     write_lando_fret_kind2(Dir, SSL, OutFiles),
@@ -224,6 +224,7 @@ generate_spec(_, _, _, 1).
 generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "json"),
+    ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
     ( write_lando_json(OutStrm, SSL)
     -> Result = 0,
@@ -234,6 +235,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
 generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "markdown"),
+    ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
     (write_lando_markdown(OutStrm, SSL)
     -> Result = 0,
@@ -244,6 +246,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
 generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "fret"),
+    ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
     (write_lando_fret(OutStrm, SSL)
     -> Result = 0,
@@ -263,6 +266,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
 generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "RACK"),
+    ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
     (write_lando_rack(OutStrm, SSL)
     -> Result = 0,
