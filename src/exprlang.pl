@@ -63,14 +63,15 @@ parse_expr(LangDef, Expr, ABT) :-
     get_dict(language, LangDef, Language),
     phrase(expr(Language, Env, ABT, _FinalEnv), Input).
 
-expr(Language, Env, op(Expr, OutType), OutEnv) -->
+expr(Language, Env, OutExpr, OutEnv) -->
     { lang(Language, expop(Op ⦂ OpType, OpParser, _)),
       is_list(OpParser)
     },
     exprParts(Language, Env, OpType, OpParser, [], Terms, Env1),
-    { typecheck_expr(Language, Env1, OpType, Terms, [], OutEnv, OutTerms, OutType),
+    { typecheck_expr(Language, Env1, OpType, Terms, [], Env2, OutTerms, OpOutType),
       Expr =.. [Op|OutTerms]
-    }.
+    },
+    exprMore(Language, Env2, op(Expr, OpOutType), OutEnv, OutExpr).
 expr(Language, Env, Expr, Env2) -->
     { lang(Language, term(TermID ⦂ TermType, TermParser, _)) },
     lexeme(call(TermParser, P)),
