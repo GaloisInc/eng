@@ -635,11 +635,13 @@ extract_vars(_, term(_, _), []) :- writeln(ev6).
 %% ----------------------------------------------------------------------
 %% Emitting
 
-emit_expr(Language, term(P, type_unassigned), Expr) :-
-    lang(Language, term(_Term ⦂ TermType, _, TermEmitter)),
+emit_expr(Language, term(P, type_unassigned(_U)), Expr) :-
+    P =.. [C|_],
+    lang(Language, term(C ⦂ TermType, _, TermEmitter)),
     call(TermEmitter, term(P, TermType), Expr).
 emit_expr(Language, term(P, TermType), Expr) :-
-    lang(Language, term(_Term ⦂ _, _, TermEmitter)),
+    P =.. [Constructor|_],
+    lang(Language, term(Constructor ⦂ _, _, TermEmitter)),
     call(TermEmitter, term(P, TermType), Expr).
 emit_expr(Language, op(Op, _TermType), Expr) :-
     Op =.. [ Operator|Args ],
