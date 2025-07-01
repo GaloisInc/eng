@@ -10,18 +10,21 @@
 
 :- use_module(library(yall)).
 
-:- dynamic language_name/2, type/2, atom/2, lang/2.
+:- dynamic language_name/2, type/2, atom/2, lang/2, variable_ref/2.
 
 define_language(LangDef, Defs) :-
     get_dict(language, LangDef, LangName),
     get_dict(types, LangDef, LangTypes),
     get_dict(atoms, LangDef, LangAtoms),
     get_dict(phrases, LangDef, LangPhrases),
+    get_dict(variable_ref, LangDef, LangVarRef),
     retractall(language_name(LangName)),
     retractall(type(LangName, _)),
     retractall(atom(LangName, _)),
     retractall(lang(LangName, _)),
+    retractall(variable_ref(LangName, _)),
     asserta(language_name(LangName), LNDef),
+    asserta(variable_ref(LangName, LangVarRef)),
     maplist([T,R]>>assertz(type(LangName, T), R), LangTypes, TypeDefs),
     maplist([A,R]>>assertz(atom(LangName, A), R), LangAtoms, AtomDefs),
     maplist([P,R]>>assertz(lang(LangName, P), R), LangPhrases, PhraseDefs),
@@ -120,6 +123,22 @@ prolog:message(invalid_expr(E, V, P)) -->
 
 initial_gamma([]).  % list of (Name:str, type:atom)
 
+% get the type of a term/op
+type_of(term(_, T), T).
+type_of(op(_, T), T).
+
+% set the type of a term/op
+type_of(term(A, _), T, term(A, T)).
+type_of(op(A, _), T, op(A, T)).
+
+% if this is a reference to a variable, return the name of the referenced variable
+var_ref(Language, term(Term, _), V) :- variable_ref(Language, RS),
+                                       writeln(var_ref__),
+                                       member(R,RS),
+                                       writeln(R),
+                                       Term =.. [R, V].
+
+
 typecheck(Language, Env1, term(Arg, ArgType), Env2, term(Arg, TermType)) -->
     { Arg =.. [TermID, Val] },
     typecheck(Language, Env1, TermID, Val, ArgType, Env2, TermType).
@@ -153,33 +172,38 @@ typecheck(_Language, Env, _TermID, Val, _, OutEnv, ValType) -->
 %%     { print_message(error, invalid_type(TermID, Val, TermType)), !, fail }.
 
 
-typecheck_expr(Language, Env, Type → RType, [term(LT, Type)|Terms],
-               TypeVars, OutEnv, [term(LT, Type)|OTerms], OType) :-
+%% typecheck_expr
+%%
+%% | exptype                | termtype | cmp | case | vars                  |
+%% |------------------------+----------+-----+------+-----------------------|
+%% | fixed → ...            | fixed    | ==  | tc1  |                       |
+%% | fixed → ...            | fixed    | no  | tc2  |                       |
+%% | typevar:assigned → ... | fixed    | ==  | tc3  |                       |
+%% | typevar:assigned → ... | fixed    | no  | tc4  |                       |
+%% | typevar → ...          | fixed    |     | tc5  | add typevar unassigne |
+%% | typevar:assigned → ... | var      |     | tc6  | fresh var exptype     |
+%% | typevar → ...          | var      |     | ?    |                       |
+%% | typevar:assigned [out] | --       |     | tc8  | return assigned       |
+%% | fixed type [out]       | --       |     | tc9  | return fixed type     |
+%% | other                  | other    |     |      | invalid_expr_types    |
+
+typecheck_expr(Language, Env, Type → RType, [Term|Terms],
+               TypeVars, OutEnv, [Term|OTerms], OType) :-
+    % tc1
+    type_of(Term, Type),
     type(Language, Type),
     % types match and this is a base type
     !,
     typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, Type → RType, [op(LT, Type)|Terms],
-               TypeVars, OutEnv, [op(LT, Type)|OTerms], OType) :-
-    type(Language, Type),
-    % types match and this is a base type
-    !,
-    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, _, LType → _, [term(LT, LTType)|_], _, _, _, _) :-
+typecheck_expr(Language, _, LType → _, [Term|_], _, _, _, _) :-
+    % tc2
     type(Language, LType),  % expr sig is fixed type
+    type_of(Term, LTType),
     type(Language, LTType), % term sig is also fixed type
     % LType and LTType are different fixed types (if they were the same type it
     % would have been matched above).
     !,
-    print_message(error, invalid_term_type(LType, term(LT, LTType))),
-    fail.
-typecheck_expr(Language, _, LType → _, [op(LT, LTType)|_], _, _, _, _) :-
-    type(Language, LType),  % expr sig is fixed type
-    type(Language, LTType), % term sig is also fixed type
-    % LType and LTType are different fixed types (if they were the same type it
-    % would have been matched above).
-    !,
-    print_message(error, invalid_term_type(LType, term(LT, LTType))),
+    print_message(error, invalid_term_type(LType, Term)),
     fail.
 %% typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
 %%                TypeVars, OutEnv, [term(LT, LType)|OTerms], OType) :-
@@ -190,42 +214,31 @@ typecheck_expr(Language, _, LType → _, [op(LT, LTType)|_], _, _, _, _) :-
 %%     % LTType variable is known to be the same as LType
 %%     !,
 %%     typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
-               TypeVars, OutEnv, [term(LT, LTType)|OTerms], OType) :-
+typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [Term|OTerms], OType) :-
+    % tc3
+    type_of(Term, LTType),
     type(Language, LTType),  % term type is fixed
     % LTType is fixed, but LType is a variable (or it would have been matched
     % above)
     member((LType, LTType), TypeVars), % expr type var has been assigned and matches
     !,
     typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [op(LT, LTType)|Terms],
-               TypeVars, OutEnv, [op(LT, LTType)|OTerms], OType) :-
-    type(Language, LTType),  % term type is fixed
-    % LTType is fixed, but LType is a variable (or it would have been matched
-    % above)
-    member((LType, LTType), TypeVars), % expr type var has been assigned and matches
-    !,
-    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, _, LType → _, [term(LT, LTType)|_], TypeVars, _, _, _) :-
+typecheck_expr(Language, _, LType → _, [Term|_], TypeVars, _, _, _) :-
+    % tc4
+    type_of(Term, LTType),
     type(Language, LTType),  % term type is fixed
     % LTType is fixed, but LType is a variable (or it would have been matched
     % above)
     member((LType, OtherType), TypeVars),
     % expr type var has been assigned and does NOT match
     !,
-    print_message(error, invalid_term_type(OtherType, term(LT, LTType))),
+    print_message(error, invalid_term_type(OtherType, Term)),
     fail.
-typecheck_expr(Language, _, LType → _, [op(LT, LTType)|_], TypeVars, _, _, _) :-
-    type(Language, LTType),  % term type is fixed
-    % LTType is fixed, but LType is a variable (or it would have been matched
-    % above)
-    member((LType, OtherType), TypeVars),
-    % expr type var has been assigned and does NOT match
-    !,
-    print_message(error, invalid_term_type(OtherType, term(LT, LTType))),
-    fail.
-typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
-               TypeVars, OutEnv, [term(LT, LTType)|OTerms], OType) :-
+typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [Term|OTerms], OType) :-
+    % tc5
+    type_of(Term, LTType),
     type(Language, LTType),  % term type is fixed
     % LTType is fixed, but LType is a variable (or it would have been matched
     % above). Also know that LType has not been assigned otherwise one of the
@@ -234,18 +247,10 @@ typecheck_expr(Language, Env, LType → RType, [term(LT, LTType)|Terms],
     !,
     typecheck_expr(Language, Env, RType, Terms, [(LType, LTType)|TypeVars],
                    OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [op(LT, LTType)|Terms],
-               TypeVars, OutEnv, [op(LT, LTType)|OTerms], OType) :-
-    type(Language, LTType),  % term type is fixed
-    % LTType is fixed, but LType is a variable (or it would have been matched
-    % above). Also know that LType has not been assigned otherwise one of the
-    % previous two clauses would have matched.  Therefore, it's free and can be
-    % assigned here.
-    !,
-    typecheck_expr(Language, Env, RType, Terms, [(LType, LTType)|TypeVars],
-                   OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, LType → RType, [term(ident(LI), _LTType)|Terms],
-               TypeVars, OutEnv, [term(ident(LI), AType)|OTerms], OType) :-
+typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [OTerm|OTerms], OType) :-
+    % tc6
+    var_ref(Language, Term, LI),
     % Neither LType nor LTType are fixed types, otherwise they would have been
     % matched above.
     member((LType, AType), TypeVars),
@@ -254,19 +259,27 @@ typecheck_expr(Language, Env, LType → RType, [term(ident(LI), _LTType)|Terms],
     fresh_var(Env, LI, AType, Env2),
     % And LTType has already or just now been assigned to the same type
     !,
+    type_of(Term, AType, OTerm),
     typecheck_expr(Language, Env2, RType, Terms, TypeVars, OutEnv, OTerms, OType).
-typecheck_expr(Language, Env, _LType → RType, [term(ident(LI), LTType)|Terms],
-               TypeVars, OutEnv, [term(ident(LI), LTType)|OTerms], OType) :-
+typecheck_expr(Language, Env, LType → RType, [Term|Terms],
+               TypeVars, OutEnv, [Term|OTerms], OType) :-
+    % tc7
     % Neither LType nor LTType are fixed types, otherwise they would have been
     % matched above.  Also, LType has not been assigned a particular value.  In
-    % this case, the type for the term is an existential; somewhat unusual, and
-    % probably indicative that the term is unused, but it should be allowed
-    % (e.g. const ⦂ a → b → a).
-    typecheck_expr(Language, Env, RType, Terms, TypeVars, OutEnv, OTerms, OType).
+    % this case, it may be that:
+    %   * the type will be determined by subsequent terms,
+    %   * that the overall type of the expression is indeterminate, or
+    %   * that the type for the term is an existential; somewhat unusual, and
+    %     probably indicative that the term is unused, but it should be allowed
+    %     (e.g. const ⦂ a → b → a).
+    typecheck_expr(Language, Env, RType, Terms,
+                   [(LType, type_unassigned)|TypeVars],
+                   OutEnv, OTerms, OType).
 typecheck_expr(_, Env, OType, [], TypeVars, Env, [], RType) :-
+    % tc8
     member((OType, RType), TypeVars),
     !.
-typecheck_expr(_, Env, OType, [], _, Env, [], OType).
+typecheck_expr(_, Env, OType, [], _, Env, [], OType).  % tc9: final known/fixed type
 typecheck_expr(_, Env, OpType, Terms, _, Env, Terms, OpType) :-
     print_message(error, invalid_expr_types(OpType, Terms)),
     !,

@@ -33,6 +33,7 @@ langdef1(
         language: testlang,
         types: [ number, bool ],
         atoms: [ lit, num ],
+        variable_ref: [ ident ],
         phrases:
         [ term(num ⦂ number, num, [term(num(N), number), T]>>fmt_str(T, '~w', [N])),
           term(lit ⦂ bool, [true]>>word(true), emit_simple_term(lit)),
@@ -57,11 +58,13 @@ langdef1(
 test(empty, [nondet]) :- rtpe(langdef{language:t1,
                                       types:[],
                                       atoms:[],
+                                      variable_ref:[],
                                       phrases:[]}, "").
 
 test(no_langdef, [nondet, fail]) :- rtpe(langdef{language:t2,
                                                  types:[],
                                                  atoms:[],
+                                                 variable_ref:[],
                                                  phrases:[]}, "32").
 
 test(num_term, [nondet]) :- langdef1(LangDef1), rtpe(LangDef1, "32").
@@ -165,3 +168,23 @@ test(multiarg_non_static_types_complex_expr, [nondet]) :-
                      number)),
             number),
         "const((32 + ((54 - 19) - 6)), const(3, (some_num == some_num)))").
+
+test(indeterminate_types, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(some_num, true)",
+         op(const(term(ident("some_num"), type_unassigned),
+                  term(lit(true), bool)),
+            type_unassigned),
+        "const(some_num, true)").
+
+test(result_determines_arg_types, [nondet]) :-
+    langdef1(LangDef1),
+    rtpe(LangDef1, "const(some_num, true) == const(other_thing, 13)",
+         op(cmpeq(op(const(term(ident("some_num"), type_unassigned),
+                           term(lit(true), bool)),
+                     type_unassigned),
+                  op(const(term(ident("other_thing"), type_unassigned),
+                           term(num(13), number)),
+                     type_unassigned)),
+            bool),
+         "(const(some_num, true) == const(other_thing, 13))").
