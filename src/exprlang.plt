@@ -8,7 +8,13 @@ rtpe(LangDef, Inp) :-
     get_dict(language, LangDef, Language),
     emit_expr(Language, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
-    assertion(InpTrimmed == Out).
+    assertion(InpTrimmed == Out),
+    % above may have normalized: ensure it is still parseable
+    parse_expr(LangDef, Out, ABT2),
+    !,
+    assertion(ABT == ABT2),
+    emit_expr(Language, ABT2, Out2),
+    assertion(InpTrimmed == Out2).
 
 rtpe(LangDef, Inp, ExpABT) :-
     parse_expr(LangDef, Inp, ABT),
@@ -17,7 +23,13 @@ rtpe(LangDef, Inp, ExpABT) :-
     get_dict(language, LangDef, Language),
     emit_expr(Language, ABT, Out),
     split_string(Inp, "", " ", [InpTrimmed]),
-    assertion(InpTrimmed == Out).
+    assertion(InpTrimmed == Out),
+    % above may have normalized: ensure it is still parseable
+    parse_expr(LangDef, Out, ABT2),
+    !,
+    assertion(ABT == ABT2),
+    emit_expr(Language, ABT2, Out2),
+    assertion(InpTrimmed == Out2).
 
 rtpe(LangDef, Inp, ExpABT, ExpOut) :-
     parse_expr(LangDef, Inp, ABT),
@@ -25,7 +37,13 @@ rtpe(LangDef, Inp, ExpABT, ExpOut) :-
     assertion(ExpABT = ABT),
     get_dict(language, LangDef, Language),
     emit_expr(Language, ABT, Out),
-    assertion(ExpOut = Out).
+    assertion(ExpOut = Out),
+    % above may have normalized: ensure it is still parseable
+    parse_expr(LangDef, Out, ABT2),
+    !,
+    assertion(ABT == ABT2),
+    emit_expr(Language, ABT2, Out2),
+    assertion(ExpOut == Out2).
 
 
 langdef1(
@@ -42,7 +60,7 @@ langdef1(
           expop(add ⦂ number → number → number, infix(chrs('+')), emit_infix("+")),
           expop(sub ⦂ number → number → number, infix(chrs('-')), emit_infix("-")),
           expop(cmpeq ⦂ a → a → bool, infix(chrs('==')), emit_infix("==")),
-          expop(const ⦂ a → b → a, [[]>>word(const),
+          expop(const ⦂ a → b → a, [[]>>lexeme(word(const)),
                                     []>>chrs('('),
                                     subexpr,
                                     []>>lexeme(chrs(',')),

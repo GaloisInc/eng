@@ -80,6 +80,7 @@ expr(Language, Env, OutExpr, OutEnv) -->
       is_list(OpParser)
     },
     exprParts(Language, Env, OpType, OpParser, [], Terms, Env1),
+    !,
     { typecheck_expr(Language, Env1, OpType, Terms, Env2, OutTerms, OpOutType),
       Expr =.. [Op|OutTerms]
     },
@@ -89,12 +90,15 @@ expr(Language, Env, Expr, Env2) -->
     lexeme(call(TermParser, P)),
     typecheck(Language, Env, TermID, P, TermType, Env1, CheckedTermType),
     { Term =.. [TermID, P] },
+    !,
     exprMore(Language, Env1, term(Term, CheckedTermType), Env2, Expr).
 expr(Language, Env, Expr, OutEnv) -->
     lexeme(chrs('(')),
     expr(Language, Env, SubExpr, Env1),
     lexeme(chrs(')')),
+    !,
     exprMore(Language, Env1, SubExpr, OutEnv, Expr).
+expr(Language, Env, Expr, OutEnv) --> ws(_), expr(Language, Env, Expr, OutEnv).
 expr(_, Env, end, Env) --> [].
 
 exprMore(Language, Env, LeftTerm, OutEnv, op(Expr, OT)) -->
@@ -126,6 +130,7 @@ exprParts(Language, Env, _ → TPS, [subexpr|Parsers], OpArgs,
     exprParts(Language, Env2, TPS, Parsers, [TypedArg|OpArgs], Terms, OutEnv).
 exprParts(Language, Env, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
     call(Parser),
+    !,
     exprParts(Language, Env, TPS, Parsers, OpArgs, Terms, OutEnv).
 exprParts(_, Env, _OpType, [], OpArgs, Terms, Env) -->
     [], { reverse(OpArgs, Terms) }.
@@ -198,8 +203,8 @@ typecheck(_Language, Env, _TermID, Val, _, OutEnv, ValType) -->
     %% TODO: restrict this to 'ident' or equiv?.. could be a subexpr
     %% TODO: combine TermID and Val for more precise fresh_var matching?
     fresh_var(Env, Val, typevar, OutEnv, ValType).
-%% typecheck(_Language, Env, TermID, Val, TermType, Env, TermType) -->
-%%     { print_message(error, invalid_type(TermID, Val, TermType)), !, fail }.
+typecheck(_Language, Env, TermID, Val, TermType, Env, TermType) -->
+    { print_message(error, invalid_type(TermID, Val, TermType)), !, fail }.
 
 typecheck_expr(Language, Env, ExprType, Terms, OutEnv, OTerms, OType) :-
     % Run twice: the first time should find all variables and assign them either
@@ -208,7 +213,7 @@ typecheck_expr(Language, Env, ExprType, Terms, OutEnv, OTerms, OType) :-
     % easily updated by information learned later; the second pass now has full
     % information and can unify all the types with their discovered fixed values
     % (if any).
-    typecheck_exp_(Language, Env, ExprType, Terms, [], E1, A1, T1),
+    typecheck_exp_(Language, Env, ExprType, Terms, [], E1, A1, _),
     typecheck_exp_(Language, E1, ExprType, A1, [], OutEnv, OTerms, OType).
 
 %% typecheck_exp_
@@ -559,12 +564,6 @@ emit_expr(Language, term(P, type_unassigned), Expr) :-
 emit_expr(Language, term(P, TermType), Expr) :-
     lang(Language, term(_Term ⦂ _, _, TermEmitter)),
     call(TermEmitter, term(P, TermType), Expr).
-emit_expr(Language, term(Op, _TermType), Expr) :-
-    Op =.. [ BinOp, Arg1, Arg2 ],
-    lang(Language, expop(BinOp ⦂ _, _, TermEmitter)),
-    emit_expr(Language, Arg1, A),
-    emit_expr(Language, Arg2, B),
-    call(TermEmitter, BinOp, A, B, Expr).
 emit_expr(Language, op(Op, _TermType), Expr) :-
     Op =.. [ Operator|Args ],
     lang(Language, expop(Operator ⦂ _Types, _, TermEmitter)),
