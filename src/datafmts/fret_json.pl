@@ -270,7 +270,7 @@ mk_fret_var(JSONReqs, V, FV) :-
     get_dict(comp, V, CompName),
     get_dict(usage, V, Usage),
     get_dict(desc, V, Desc),
-    (atom_concat(_, '_τ', VType)
+    ( scenarios_type_name(_, VType)
     -> Type = integer
     ; (VType == bool
       -> Type = boolean

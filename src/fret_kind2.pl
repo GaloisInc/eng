@@ -12,6 +12,7 @@
 :- use_module(src/datafmts/lando).
 :- use_module(src/lando_fret).
 :- use_module(src/datafmts/frettish).
+:- use_module(src/datafmts/lustre).
 :- use_module(englib).
 :- use_module(commands/exec_subcmds).
 :- use_module(lando_fret).
@@ -142,11 +143,11 @@ out_varnames(Vars, [V|VS], [V|VNMS]) :-
     out_varnames(Vars, VS, VNMS).
 out_varnames(Vars, [_|VS], VNMS) :- out_varnames(Vars, VS, VNMS).
 
-out_varname([constr(VName,_,_,_)|_], VName) :- !.
-out_varname([constr(_,_,_,_)|VS], VName) :- !, out_varname(VS, VName).
-out_varname([V|_], VName) :- get_dict(variable_name, V, VName),
+out_varname([constr(_,_,_,_)|VS], VName) :-
+    !, out_varname(VS, VName).  % constructors cannot be vars
+out_varname([V|_], VName) :- get_dict(varname, V, VName),
                              !,
-                             get_dict(idType, V, "Output").
+                             get_dict(usage, V, "Output").
 out_varname([_|VS], VName) :- out_varname(VS, VName).
 
 %% ----------------------------------------------------------------------
@@ -159,8 +160,7 @@ enum_types_([], [], []).
 enum_types_([(VN, EV)|EVS], [TypeDef|TypeDefs], [(VN, TypeName)|VNS]) :-
     enum_names(EV, EVNames),
     intercalate(EVNames, ", ", EVNMS),
-    format(atom(Y), '~w__T', [VN]),
-    atom_string(Y, TypeName),
+    scenarios_type_name(VN, TypeName),
     format(atom(X), 'type ~w = enum { ~w };', [ TypeName, EVNMS ]),
     atom_string(X, TypeDef),
     enum_types_(EVS, TypeDefs, VNS).
@@ -209,13 +209,13 @@ enum_mode(Var, [(N,_V)|VS], [Mode|Modes]) :-
 
 implicit_vars(_, [], []).
 implicit_vars(EnumVals, [V|VS], [D|DS]) :-
-    get_dict(idType, V, "Internal"),
-    get_dict(variable_name, V, VarName),
+    get_dict(usage, V, "Internal"),
+    get_dict(varname, V, VarName),
     \+ is_enum_val(EnumVals, VarName),
     !,
-    get_dict(dataType, V, VarType),
+    get_dict(type, V, VarType),
     convert_type(VarType, KindType),
-    get_dict(assignment, V, ValStr),
+    get_dict(assignment, V, ValStr),  % KWQ XXX KWQ XXX FIXME
     string_trim(ValStr, Val),
     format(atom(D), "var ~w : ~w = ~w;", [ VarName, KindType, Val ]),
     implicit_vars(EnumVals, VS, DS).
@@ -226,12 +226,16 @@ implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
 input_vars(VTypes, Reqs, Vars, Decls, Refs) :-
     input_vars_(VTypes, Reqs, Vars, Refs, Decls).
 input_vars_(_, _, [], _, []).
+input_vars_(VTypes, Reqs, [constr(_, _, _, _)|VS], Seen, Out) :-
+    !,
+    % constructors cannot be vars, skip this
+    input_vars_(VTypes, Reqs, VS, Seen, Out).
 input_vars_(VTypes, Reqs, [V|VS], [Name|SeenNames], Out) :-
-    get_dict(idType, V, "Input"),  % filters out Internal, Mode, and Output vars
-    get_dict(variable_name, V, Name),
+    get_dict(usage, V, "Input"),  % filters out Internal, Mode, and Output vars
+    get_dict(varname, V, Name),
     is_req_var(Name, Reqs),
     !,
-    get_var_type(VTypes, Name, V, VarType),
+    get_dict(type, V, VarType),
     convert_type(VarType, KindType),
     format(atom(Decl), '~w:~w', [Name, KindType]),
     input_vars_(VTypes, Reqs, VS, SeenNames, DS),
@@ -245,10 +249,10 @@ output_vars(VTypes, Vars, OutNames, Decls, Names) :-
 output_vars_(_, _, [], _, []).
 output_vars_(VTypes, Vars, [VN|VNS], [Name|SeenNames], Out) :-
     find_named_var(VN, Vars, V),
-    get_dict(idType, V, "Output"),  % filters out Internal and Mode vars
+    get_dict(usage, V, "Output"),
     !,
-    get_dict(variable_name, V, Name),
-    get_var_type(VTypes, Name, V, VarType),
+    get_dict(varname, V, Name),
+    get_dict(type, V, VarType),
     convert_type(VarType, KindType),
     format(atom(Decl), '~w:~w', [Name, KindType]),
     output_vars_(VTypes, Vars, VNS, SeenNames, DS),
@@ -256,9 +260,13 @@ output_vars_(VTypes, Vars, [VN|VNS], [Name|SeenNames], Out) :-
 output_vars_(VTypes, Vars, [_|VNS], Seen, Out) :-
     output_vars_(VTypes, Vars, VNS, Seen, Out).
 
-find_named_var(Name, VS, V) :- member(V, VS), get_dict(variable_name, V, Name).
+find_named_var(Name, VS, V) :-
+    member(V, VS),
+    \+ V = constr(_, _, _, _),  % constructors cannot be vars
+    get_dict(varname, V, Name).
 
-get_var_type([(VName,VarType)|_], VName, _, VarType) :- !.
+
+get_var_type([(VName,VarType)|_], VName, _, VarType) :- !.  % KWQ: obsolete?
 get_var_type([(VNameBase,VarType)|_], VName, _, VarType) :-
     scenarios_final_var_name(VNameBase, VName), !.
 get_var_type([_|VTS], VName, V, VarType) :- get_var_type(VTS, VName, V, VarType).
@@ -284,9 +292,10 @@ req_internalvars([R|RS], [G|GS], [D|DS]) :-
 
     get_dict(requirement, R, JReq),
     get_dict(semantics, JReq, Sem),
-    get_dict('CoCoSpecCode', Sem, E),
+    get_dict('CoCoSpecCode', Sem, cocospec(E)),
+    emit_CoCoSpec(E, CoCo),
 
-    format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, E ]),
+    format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, CoCo ]),
     format(atom(G), 'guarantee "~w" ~w;', [RID, V]),
     req_internalvars(RS, GS, DS).
 

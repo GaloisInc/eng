@@ -116,11 +116,14 @@ collect_var(_, _, SS, VName ⦂ _, Collected, [Var|Collected]) :-
     format_str(Desc, 'output ~w', [OD]),
     put_dict(_{varname: VName, usage:"Output", desc:Desc}, S, Var),
     !.
-collect_var(_, _, SS, VName ⦂ _, Collected, [Var|Collected]) :-
+collect_var(_, _, SS, VName ⦂ _, Collected, OutCollected) :-
     member(S, SS),
     get_dict(constructors, S, CVS),
     member((VName, Val, Desc), CVS),
-    Var = constr(VName, Val, Desc, S).
+    collect_constr(VName, constr(VName, Val, Desc, S), Collected, OutCollected).
+collect_constr(VName, _, Collected, Collected) :-
+    already_collected(VName, Collected), !.
+collect_constr(_, Constr, Collected, [Constr|Collected]).
 
 
 var_in([V|_],  VName, V) :- get_dict(varname, V, VName), !.
@@ -456,7 +459,7 @@ scenarios_var(SSLBody, Info) :-
     string_concat("scenarios state ", "variable", Expl),
     get_dict(scenarios, SpecElement, Scenarios),
     findall((C,V,D), find_scenario_var(C, Scenarios, 0, D, V), Constructors),
-    format(atom(Ty), '~w_τ', [VName]),
+    scenarios_type_name(VName, Ty),
     Info = scenario{varname: VName,
                     usage: "Input",
                     % usage: Usage,

@@ -3,7 +3,8 @@
 
 :- module(frettish, [ parse_fret/4, emit_fretish/2, emit_fretish/3,
                       fretment_vars/3,
-                      fretish_expr_langdef/1
+                      fretish_expr_langdef/1,
+                      scenarios_type_name/2
                     ]).
 
 :- use_module('../englib').
@@ -99,6 +100,9 @@ emit_fretish(Fretment, English, Ranges) :-
     (SLen == 0 -> Ranges = RS
     ; put_dict(RS, ranges{ scopeTextRange: [0, SEnd] }, Ranges)
     ).
+
+scenarios_type_name(VarName, TypeName) :-
+    atom_concat(VarName, '__T', TypeName).
 
 %% ----------------------------------------------------------------------
 %% Emitting
@@ -535,6 +539,7 @@ set_cond(C, ReqCond) :-
 
 cond_(Env, C, OutEnv) --> qcond1_(Env, C0, Env1),
                           opt_comma,
+                          !,
                           qcond2_(Env1, C0, C, OutEnv),
                           opt_comma.
 
