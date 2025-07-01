@@ -21,7 +21,12 @@ expr(LangDef, Expr) -->
     exprMore(LangDef, term(P, TermType), Expr).
 
 exprMore(LangDef, E, E) --> [].
+exprMore(_, E, _) -->
+    any(20, V, P),
+    { print_message(error, invalid_expr(E, V, P)), !, fail }.
 
+prolog:message(invalid_expr(E, V, P)) -->
+    [ 'Expected more of expression "~w" @ offset ~w: ~w' - [E, P, V]].
 
 %% ----------------------------------------------------------------------
 
@@ -41,6 +46,11 @@ enum_(_, [], []).
 enum_(N, [I|IS], [(N,I)|OS]) :- succ(N, M), enum_(M, IS, OS).
 
 fmt_str(V, Fmt, Args) :- format(atom(A), Fmt, Args), atom_string(A, V).
+
+any(N, S, P) --> any_(N, L, P), {string_codes(S, L)}.
+any_(N, [C|CS], P) --> [(P,C)], {succ(M, N)}, any_(M, CS, _).
+any_(0, [], span(99999,99999)) --> [].
+any_(_, [], span(99998,99998)) --> [].
 
 word(W) --> [(_N,C)], { word_char(C), \+ char_type(C, digit) },
             wc(CS), { string_codes(W, [C|CS]) }.
