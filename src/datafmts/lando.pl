@@ -229,6 +229,7 @@ ssl(FailStrm, Spec) -->
 body(FailStrm, LastUID, [Body|Bodies], UID) -->
     { succ(LastUID, ThisUID) },
     specElement(FailStrm, ThisUID, Body, NextUID),
+    !,
     body(FailStrm, NextUID, Bodies, UID).
 body(_, LastUID, [], LastUID) --> [].
 
@@ -597,6 +598,7 @@ moreQNames(Excluding, QS) --> [c(',',_,_)], lseq,
 explanation(P) --> paragraph(P).
 
 paragraph(P) --> sentence(S0), sequence(sentence, SS), parend(_),
+                 !,
                  { intercalate([S0|SS], " ", P) }.
 sentence(S) --> sentBody(A), optional(sentTerm(B), {B=""}), wordSep(_),
                 { string_concat(A,B,S) }.
