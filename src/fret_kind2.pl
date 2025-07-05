@@ -285,8 +285,8 @@ convert_type(integer, "int") :- !.
 convert_type(boolean, "bool") :- !.
 convert_type(Other, Other).
 
-req_internalvars([], [], []).
-req_internalvars([R|RS], [G|GS], [D|DS]) :-
+req_internalvars([], [], [], []).
+req_internalvars([R|RS], [G|GS], [D|DS], Helpers) :-
     get_dict(lando_req, R, LR),
     get_dict(req_name, LR, RID),
     normalize_kind2_var(RID, V),
@@ -296,11 +296,13 @@ req_internalvars([R|RS], [G|GS], [D|DS]) :-
     emit_fretish(Fretish, FT),
 
     fretish_ptltl(Fretish, cocospec(E)),
+    collect_kind2_helpers(E, MyHelpers),
     emit_CoCoSpec(E, CoCo),
 
     format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, CoCo ]),
     format(atom(G), 'guarantee "~w" ~w;', [RID, V]),
-    req_internalvars(RS, GS, DS).
+    req_internalvars(RS, GS, DS, MoreHelpers),
+    append(MyHelpers, MoreHelpers, Helpers).
 
 is_req_var(VName, Reqs) :-
     member(FretReq, Reqs),
@@ -630,7 +632,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     output_vars(VarTypes, Vars, CVars, Kind2OutputDecls, Kind2Outputs),
     intercalate(Kind2OutputDecls, "; ", NodeRet),
     intercalate(Kind2Outputs, ", ", NodeOutputs),
-    req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars),
+    req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars, HelpersNeeded),
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
 
@@ -638,7 +640,11 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     intercalate(Calls, "\n", NodeCalls),
 
     [NodeName] = [ CompName ],
-    kind2_helpers(Helpers),
+    !,
+    list_to_set(HelpersNeeded, HList),
+    maplist(kind2_helper_def, HList, HelperImpls),
+    intercalate(HelperImpls, "\n", Helpers),
+
     Kind2 = {|string(NodeName,
                      NodeArgDecls, NodeArgs,
                      NodeRet, NodeOutputs,
@@ -704,8 +710,39 @@ cc_model_impl_file(ImplNames, FName) :-
 
 %% ----------------------------------------------------------------------
 
-kind2_helpers(Helpers) :-
-    Helpers = {|string||
+collect_kind2_helpers(op(O, _), Helpers) :-
+    O =.. [Op|Args],
+    maplist(collect_kind2_helpers, Args, AHS),
+    append(AHS, ArgHelpers),
+    kind2_helper(Op, OH),
+    append([OH, ArgHelpers], AllHelpers),
+    list_to_set(AllHelpers, Helpers).
+collect_kind2_helpers(_, []).
+
+kind2_helper(ltlH, ["H"]).
+kind2_helper(ltlH_bound, ["HT", "OT", "delay", "OTlore"]).
+kind2_helper(ltlSI, ["SI"]).
+kind2_helper(ltlS, ["S"]).
+kind2_helper(ltlST, ["ST", "S", "OT", "delay", "OTlore"]).
+kind2_helper(ltlSIT, ["SIT", "SI", "OT", "delay", "OTlore"]).
+kind2_helper(ltlO, ["O"]).
+kind2_helper(ltlO_bound, ["OT", "delay", "OTlore"]).
+kind2_helper(preBool, ["preBool"]).
+kind2_helper(preInt, ["preInt"]).
+kind2_helper(preReal, ["preReal"]).
+kind2_helper(absInt, ["absInt"]).
+kind2_helper(absReal, ["absReal"]).
+kind2_helper(maxInt, ["maxInt"]).
+kind2_helper(maxReal, ["maxReal"]).
+kind2_helper(minInt, ["minInt"]).
+kind2_helper(minReal, ["minReal"]).
+kind2_helper(delay, ["delay"]).
+kind2_helper(ltlY, ["YtoPre"]).
+kind2_helper(ltlZ, ["ZtoPre"]).
+kind2_helper(_, []).
+
+kind2_helper_def("H", Helper) :-
+    Helper = {|string||
 | --Historically: X has always been true
 | -- As soon as X is false once, Y will be false forever
 | -- (falling edge)
@@ -714,22 +751,21 @@ kind2_helpers(Helpers) :-
 |     Y = X -> (X and (pre Y));
 | tel
 |
-| --Y since inclusive X
-| --  Y is enabler/reset: while Y, from X true onwards
-| -- or
-| --  at X, Y until false, then reset
-| node SI(X,Y: bool) returns (Z:bool);
+|}.
+kind2_helper_def("HT", Helper) :-
+    Helper = {|string||
+| -- Timed Historically: general case
+| -- True if X has been true, and for R ticks afterwards, false thereafter
+| -- Always true for at least R ticks of the timeline, even if X is never true
+| -- L is ignored
+| node HT( L: int;  R: int; X: bool) returns (Y: bool);
 | let
-| Z = Y and (X or (false -> pre Z));
+|   Y = not OT(L, R, not X);
 | tel
 |
-| --Y since X
-| -- X is true, then Y until false
-| node S(X,Y: bool) returns (Z:bool);
-| let
-| Z = X or (Y and (false -> pre Z));
-| tel
-|
+|}.
+kind2_helper_def("O", Helper) :-
+    Helper = {|string||
 | --Once
 | --  the first time X is true, Y is true forever
 | --  (rising edge)
@@ -738,6 +774,21 @@ kind2_helpers(Helpers) :-
 |  Y = X or (false -> pre Y);
 | tel
 |
+|}.
+kind2_helper_def("OT", Helper) :-
+    Helper = {|string||
+| --Timed Once: general case
+| -- True R ticks after each X first true until L ticks after X is last true
+| node OT( L: int;  R: int; X: bool) returns (Y: bool);
+| var  D:bool;
+| let
+|   D=delay(X, R);
+|   Y=OTlore(L-R, D);
+| tel
+|
+|}.
+kind2_helper_def("OTlore", Helper) :-
+    Helper = {|string||
 | --Timed Once: less than or equal to N
 | --  True every X and for N ticks afterward
 | node OTlore( N: int; X: bool) returns (Y: bool);
@@ -749,24 +800,31 @@ kind2_helpers(Helpers) :-
 |     Y = 0 <= C and C <= N;
 | tel
 |
-| --Timed Once: general case
-| -- True R ticks after each X first true until L ticks after X is last true
-| node OT( L: int;  R: int; X: bool) returns (Y: bool);
-| var  D:bool;
+|}.
+kind2_helper_def("S", Helper) :-
+    Helper = {|string||
+| --Y since X
+| -- X is true, then Y until false
+| node S(X,Y: bool) returns (Z:bool);
 | let
-|   D=delay(X, R);
-|   Y=OTlore(L-R, D);
+| Z = X or (Y and (false -> pre Z));
 | tel
 |
-| -- Timed Historically: general case
-| -- True if X has been true, and for R ticks afterwards, false thereafter
-| -- Always true for at least R ticks of the timeline, even if X is never true
-| -- L is ignored
-| node HT( L: int;  R: int; X: bool) returns (Y: bool);
+|}.
+kind2_helper_def("SI", Helper) :-
+    Helper = {|string||
+| --Y since inclusive X
+| --  Y is enabler/reset: while Y, from X true onwards
+| -- or
+| --  at X, Y until false, then reset
+| node SI(X,Y: bool) returns (Z:bool);
 | let
-|   Y = not OT(L, R, not X);
+| Z = Y and (X or (false -> pre Z));
 | tel
 |
+|}.
+kind2_helper_def("ST", Helper) :-
+    Helper = {|string||
 | -- Timed Since: general case
 | -- R ticks after X is true, for L ticks if/while Y remains true
 | node ST( L: int;  R: int; X: bool; Y: bool)  returns (Z: bool);
@@ -774,6 +832,9 @@ kind2_helpers(Helpers) :-
 |   Z = S(X, Y) and OT(L, R, X);
 | tel
 |
+|}.
+kind2_helper_def("SIT", Helper) :-
+    Helper = {|string||
 | -- Timed Since Inclusive: general case
 | -- R ticks after X is true, for L ticks if X or while Y remains true
 | node SIT( L: int;  R: int; X: bool; Y: bool) returns (Z: bool);
@@ -781,78 +842,29 @@ kind2_helpers(Helpers) :-
 |   Z = SI(X, Y) and OT(L, R, X);
 | tel
 |
-| -- Pre for integers, with an initial value at FTP
-| node preInt(InitialValue, X: int) returns (Y:int);
-| let
-|   Y = InitialValue -> pre X;
-| tel
-|
-| -- Pre for reals, with an initial value at FTP
-| node preReal(InitialValue, X: real) returns (Y:real);
-| let
-|   Y = InitialValue -> pre X;
-| tel
-|
-| -- Pre for booleans, with an initial value at FTP
-| node preBool(InitialValue, X: bool) returns (Y:bool);
-| let
-|   Y = InitialValue -> pre X;
-| tel
-|
-| -- The equivalent of LTL's Y in Lustre.
+|}.
+kind2_helper_def("YtoPre", Helper) :-
+    Helper = {|string||
+| -- The equivalent of LTL Y in Lustre.
 | --   Initially false, then the previous value of X (false, delay X by one)
 | node YtoPre(X: bool) returns (Y:bool);
 | let
 |   Y = false -> pre X;
 | tel
 |
-| -- The equivalent of LTL's Z in Lustre.
+|}.
+kind2_helper_def("ZtoPre", Helper) :-
+    Helper = {|string||
+| -- The equivalent of LTL Z in Lustre.
 | --   Initially true, then the previous value of X (true, delay X by one)
 | node ZtoPre(X: bool) returns (Y:bool);
 | let
 |   Y = true -> pre X;
 | tel
 |
-| -- Absolute value for reals
-| function absReal(x:real) returns(y: real);
-| let
-|   y = if (x >= 0.0) then x else -x;
-| tel
-|
-| -- Absolute value for integers
-| function absInt(x:int) returns(y: int);
-| let
-|   y = if (x >= 0) then x else -x;
-| tel
-|
-| -- Maximum value between two reals
-| function maxReal (a : real; b : real)
-| returns (z : real);
-| let
-|   z = (if (((a) >= (b))) then (a) else (b));
-| tel
-|
-| -- Maximum value between two integers
-| function maxInt (a : int; b : int)
-| returns (z : int);
-| let
-|   z = (if (((a) >= (b))) then (a) else (b));
-| tel
-|
-| -- Minimum value between two integers
-| function minInt (a : int; b : int)
-| returns (z : int);
-| let
-|   z = (if (((a) <= (b))) then (a) else (b));
-| tel
-|
-| -- Minimum value between two reals
-| function minReal (a : real; b : real)
-| returns (z : real);
-| let
-|   z = (if (((a) <= (b))) then (a) else (b));
-| tel
-|
+|}.
+kind2_helper_def("delay", Helper) :-
+    Helper = {|string||
 | node delay(X:bool;  R:int) returns(Y:bool);
 | var X1, X2, X3, X4, X5, X6, X7, X8, X9, X10 : bool;
 | let
@@ -880,4 +892,96 @@ kind2_helpers(Helpers) :-
 |   X9 = false -> pre X8;
 |   X10 = false -> pre X9;
 | tel
+|
 |}.
+kind2_helper_def("preInt", Helper) :-
+    Helper = {|string||
+| -- Pre for integers, with an initial value at FTP
+| node preInt(InitialValue, X: int) returns (Y:int);
+| let
+|   Y = InitialValue -> pre X;
+| tel
+|
+|}.
+kind2_helper_def("preReal", Helper) :-
+    Helper = {|string||
+| -- Pre for reals, with an initial value at FTP
+| node preReal(InitialValue, X: real) returns (Y:real);
+| let
+|   Y = InitialValue -> pre X;
+| tel
+|
+|}.
+kind2_helper_def("preBool", Helper) :-
+    Helper = {|string||
+| -- Pre for booleans, with an initial value at FTP
+| node preBool(InitialValue, X: bool) returns (Y:bool);
+| let
+|   Y = InitialValue -> pre X;
+| tel
+|
+|}.
+kind2_helper_def("absInt", Helper) :-
+    Helper = {|string||
+| -- Absolute value for integers
+| function absInt(x:int) returns(y: int);
+| let
+|   y = if (x >= 0) then x else -x;
+| tel
+|
+|}.
+kind2_helper_def("absReal", Helper) :-
+    Helper = {|string||
+| -- Absolute value for reals
+| function absReal(x:real) returns(y: real);
+| let
+|   y = if (x >= 0.0) then x else -x;
+| tel
+|
+|}.
+kind2_helper_def("maxInt", Helper) :-
+    Helper = {|string||
+| -- Maximum value between two integers
+| function maxInt (a : int; b : int)
+| returns (z : int);
+| let
+|   z = (if (((a) >= (b))) then (a) else (b));
+| tel
+|
+|}.
+kind2_helper_def("maxReal", Helper) :-
+    Helper = {|string||
+| -- Maximum value between two reals
+| function maxReal (a : real; b : real)
+| returns (z : real);
+| let
+|   z = (if (((a) >= (b))) then (a) else (b));
+| tel
+|
+|}.
+kind2_helper_def("minInt", Helper) :-
+    Helper = {|string||
+| -- Minimum value between two integers
+| function minInt (a : int; b : int)
+| returns (z : int);
+| let
+|   z = (if (((a) <= (b))) then (a) else (b));
+| tel
+|
+|}.
+kind2_helper_def("minReal", Helper) :-
+    Helper = {|string||
+| -- Minimum value between two reals
+| function minReal (a : real; b : real)
+| returns (z : real);
+| let
+|   z = (if (((a) <= (b))) then (a) else (b));
+| tel
+|
+|}.
+kind2_helper_def(H, "") :-
+    print_message(error, unknown_helper(H)),
+    fail.
+
+prolog:message(unknown_helper(H)) -->
+    [ "Unknown Kind2/Lustre helper requested: ~w"-[H]].
