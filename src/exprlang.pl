@@ -88,8 +88,6 @@ parse_expr_(Language, Expr, ABT, FinalEnv, TopType) :-
     string_chars(Expr, ECodes),
     enumerate(ECodes, Input),
     initial_gamma(Env),
-    %% define_language(LangDef, _),
-    %% get_dict(language, LangDef, Language),
     ( TopType == anytype, !,
       phrase(expr(Language, Env, ABT, FinalEnv), Input, Rem)
     ; phrase(expr(Language, Env, TopType, ABT, FinalEnv), Input, Rem)
@@ -205,6 +203,9 @@ exprParts(Language, Env, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
 exprParts(_, Env, _OpType, [], OpArgs, Terms, Env) -->
     [], { reverse(OpArgs, Terms) }.
 
+prolog:message(invalid_expr(E, V, P)) -->
+    { bool_exprHelp(H), ! },
+    [ 'Expected more of expression "~w" @ offset ~w: ~w~n~n~w' - [E, P, V, H]].
 prolog:message(invalid_expr(E, V, P)) -->
     [ 'Expected more of expression "~w" @ offset ~w: ~w' - [E, P, V]].
 
@@ -738,7 +739,7 @@ subst_term_(_, _, Term, Term).
 
 
 prolog:message(invalid_ABT_subst(Language, ABT, Subst)) -->
-    [ 'Invalid ABT for ~w: ~w~n    cannot substitute: ~w~n' - [ Language, ABT, Subst ]].
+    [ 'Invalid ABT for ~w: ~w~n    cannot substitute: ~w' - [ Language, ABT, Subst ]].
 prolog:message(wrong_term_subst_type(Term, Repl)) -->
     [ 'Type mismatch when replacing ~w with ~w' - [ Term, Repl ]].
 
@@ -789,9 +790,9 @@ emit_simple_term(X, term(Y, _), T) :- Y =.. [X, A], fmt_str(T, '~w', A).
 emit_infix(Repr, _, [LA, RA], T) :- fmt_str(T, '(~w ~w ~w)', [ LA, Repr, RA ]).
 
 prolog:message(unknown_operator(Language, Operator)) -->
-    [ '~w operator unknown for emit: ~w~n' - [Language, Operator]].
+    [ '~w operator unknown for emit: ~w' - [Language, Operator]].
 prolog:message(term_emitter_failed(Language, Operator, EArgs)) -->
-    [ '~w term emitter failed for ~w with: ~w~n' - [Language, Operator, EArgs]].
+    [ '~w term emitter failed for ~w with: ~w' - [Language, Operator, EArgs]].
 
 %% ----------------------------------------------------------------------
 %% Parsing Helpers

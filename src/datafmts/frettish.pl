@@ -880,7 +880,6 @@ fretish_expr_langdef(
           %%       [_,[A,B],T]>>fmt_str(T, '??(~w, ~w)', [A, B]))
         ]}).
 
-
 bool_expr(Env, V, FinalEnv) -->
     { fretish_expr_langdef(LangDef),
       get_dict(language, LangDef, Language)

@@ -212,7 +212,7 @@ enum_mode(Var, [(N,_V)|VS], [Mode|Modes]) :-
 % defined.
 
 implicit_vars(_, [], []).
-implicit_vars(EnumVals, [constr(VName, _, _, _)|VS], DS) :-
+implicit_vars(EnumVals, [constr(_, _, _, _)|VS], DS) :-
     !,
     % format('TODO TODO: handle implicit_vars for ~w~n', [VName]),
     implicit_vars(EnumVals, VS, DS).

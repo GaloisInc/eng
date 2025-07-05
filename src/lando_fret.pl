@@ -67,9 +67,7 @@ prolog:message(fret_conversion_errors(_Cnt)) --> [ 'FRET extractions failed' ].
 
 fret_results(SSLBody, 0, InpReqs, OutReqs, OutVars) :-
     !,
-    fretish_expr_langdef(LangDef),
-    get_dict(language, LangDef, Language),
-    collect_vars(Language, SSLBody, InpReqs, OutReqs, OutVars).
+    collect_vars(SSLBody, InpReqs, OutReqs, OutVars).
 fret_results(_SSLBody, 0, InpReqs, InpReqs, []) :-
     !.
 fret_results(_, Status, _, _, _) :-
@@ -81,11 +79,11 @@ resource(fret_semantics, 'src/semantics.json').
 
 % --------------------
 
-collect_vars(Lang, SSLBody, InpReqs, OutReqs, OutVars) :-
+collect_vars(SSLBody, InpReqs, OutReqs, OutVars) :-
     findall(C, component_var(SSLBody, C), CS),
     findall(E, events_var(SSLBody, E), ES),
     findall(S, scenarios_var(SSLBody, S), SS),
-    collect_vars(Lang, SSLBody, InpReqs, [], OutReqs, UsedVars),
+    collect_vars(SSLBody, InpReqs, [], OutReqs, UsedVars),
     foldl(collect_var(CS, ES, SS), UsedVars, [], OutVars).
 
 collect_var(_, _, _, VName ⦂ _, Collected, Collected) :-
@@ -125,16 +123,16 @@ already_collected(VName, [constr(_, _, _, _)|VS]) :- !, already_collected(VName,
 already_collected(VName, [V|_]) :- get_dict(varname, V, VName), !.
 already_collected(VName, [_|VS]) :- already_collected(VName, VS).
 
-collect_vars(_, _, [], [], [], []).
-collect_vars(Lang, SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
+collect_vars(_, [], [], [], []).
+collect_vars(SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
     !,
-    collect_vars(Lang, SSLBody, InpReqs, Vars, OutReqs, OutVars).
-collect_vars(Lang, SSLBody, [R|InpReqs], Vars, [R|SubReqs], OutVars) :-
-    collect_vars(Lang, SSLBody, InpReqs, Vars, SubReqs, SubVars),
-    collect_vars_from_req(Lang, R, ReqVars),
+    collect_vars(SSLBody, InpReqs, Vars, OutReqs, OutVars).
+collect_vars(SSLBody, [R|InpReqs], Vars, [R|SubReqs], OutVars) :-
+    collect_vars(SSLBody, InpReqs, Vars, SubReqs, SubVars),
+    collect_vars_from_req(R, ReqVars),
     append([ReqVars, SubVars], OutVars).
 
-collect_vars_from_req(Lang, Req, Vars) :-
+collect_vars_from_req(Req, Vars) :-
     get_dict(lando_req, Req, LR),
     get_dict(fret_req, LR, FR),
     fretment_vars(scope, FR, SVars),
@@ -156,7 +154,8 @@ collect_vars_from_req(Lang, Req, Vars) :-
 component_var(SSLBody, Info) :-
     find_specElement(SSLBody, lando_fret:component_var_match,
                      found(ProjName, CompName, SpecElement)),
-    fret_usage_type(SpecElement, Usage, Type, ModeReqs),
+    fret_usage_type(SpecElement, Usage, Type, _ModeReqs),
+    % n.b. ModeReqs (Lando constraints) currently unsupported.
     get_dict(explanation, SpecElement, Expl),
     specElement_ref(SpecElement, VName),
     atom_string(AType, Type),
