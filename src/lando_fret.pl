@@ -227,7 +227,7 @@ events_var(SSLBody, Info) :-
     get_dict(text, Event, Desc),
     Info = var{varname: VName,
                usage: "Input",
-               type: bool,
+               type: boolean,
                desc: Desc,
                proj: ProjName,
                comp: CompName
@@ -317,15 +317,15 @@ add_rewrites(_, _, _, _, [], Env, RW, RW, Env).
 add_rewrites(Lang, CVar, OutCVar, CType, [(CName, _CVal, _CDesc)|CS], Env, RW,
              OutRW, OutEnv) :-
     assertz(exprlang:type_repair(Lang, XEnv,
-                                 term(ident(CName), CType), bool,
+                                 term(ident(CName), CType), boolean,
                                  op(eq(term(ident(OutCVar), CType),
-                                       term(ident(CName), CType)), bool),
+                                       term(ident(CName), CType)), boolean),
                                  XEnv) :- frettish:in_response,
             RW1),
     assertz(exprlang:type_repair(Lang, XEnv,
-                                 term(ident(CName), CType), bool,
+                                 term(ident(CName), CType), boolean,
                                  op(eq(term(ident(CVar), CType),
-                                       term(ident(CName), CType)), bool),
+                                       term(ident(CName), CType)), boolean),
                                  XEnv),
             RW2),
     add_rewrites(Lang, CVar, OutCVar, CType, CS, Env, [RW1,RW2|RW], OutRW, OutEnv).

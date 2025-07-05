@@ -38,16 +38,16 @@ test(state_change, [nondet]) :-
     get_dict(post_condition, Responses, PostCond),
     assertion(Rspns == "satisfaction"),
     assertion(PostCond ==
-              fretish(op(implies( op(and(term(ident("wet"), bool),
-                                         term(ident("awake"), bool)),
-                                     bool),
+              fretish(op(implies( op(and(term(ident("wet"), boolean),
+                                         term(ident("awake"), boolean)),
+                                     boolean),
                                   op(eq(term(ident("noise"), type_unassigned('⚲T2')),
                                         term(ident("croaking"), type_unassigned('⚲T2'))),
-                                     bool)),
-                         bool))),
+                                     boolean)),
+                         boolean))),
     fretment_vars(response, FretMent, RespVars),
-    assertion(RespVars == [ "wet" ⦂ bool,
-                            "awake" ⦂ bool,
+    assertion(RespVars == [ "wet" ⦂ boolean,
+                            "awake" ⦂ boolean,
                             "noise" ⦂ type_unassigned('⚲T2'),
                             "croaking" ⦂ type_unassigned('⚲T2') ]),
     emit_fretish(FretMent, Out),
@@ -91,16 +91,16 @@ test(state_change_noparen_expr, [nondet]) :-
     get_dict(post_condition, Responses, PostCond),
     assertion(Rspns == "satisfaction"),
     assertion(PostCond ==
-              fretish(op(implies( op(and(term(ident("wet"), bool),
-                                         term(ident("awake"), bool)),
-                                     bool),
+              fretish(op(implies( op(and(term(ident("wet"), boolean),
+                                         term(ident("awake"), boolean)),
+                                     boolean),
                                   op(eq(term(ident("noise"), type_unassigned('⚲T2')),
                                         term(ident("croaking"), type_unassigned('⚲T2'))),
-                                     bool)),
-                         bool))),
+                                     boolean)),
+                         boolean))),
     fretment_vars(response, FretMent, RespVars),
-    assertion(RespVars == [ "wet" ⦂ bool,
-                            "awake" ⦂ bool,
+    assertion(RespVars == [ "wet" ⦂ boolean,
+                            "awake" ⦂ boolean,
                             "noise" ⦂ type_unassigned('⚲T2'),
                             "croaking" ⦂ type_unassigned('⚲T2') ]),
     emit_fretish(FretMent, Out),
@@ -135,11 +135,11 @@ test(stage_change_natural, [nondet]) :-
     get_dict(regular_condition, CFret, RegCond),
     assertion(Condition == "regular"),
     assertion(Qualifier == "upon"),
-    assertion(RegCond == fretish(op(and(term(ident("wet"), bool),
-                                        term(ident("awake"), bool)),
-                                    bool))),
+    assertion(RegCond == fretish(op(and(term(ident("wet"), boolean),
+                                        term(ident("awake"), boolean)),
+                                    boolean))),
     fretment_vars(condition, FretMent, CVars),
-    assertion(CVars == ["wet" ⦂ bool, "awake" ⦂ bool]),
+    assertion(CVars == ["wet" ⦂ boolean, "awake" ⦂ boolean]),
     get_dict(component, Comp, CompName),
     assertion(CompName == "frog"),
     get_dict(timing, Timing, Tmng),
@@ -152,7 +152,7 @@ test(stage_change_natural, [nondet]) :-
     assertion(PostCond ==
               fretish(op(eq(term(ident("noise"), type_unassigned('⚲T2')),
                             term(ident("croaking"), type_unassigned('⚲T2'))),
-                         bool))),
+                         boolean))),
     fretment_vars(response, FretMent, RespVars),
     assertion(RespVars == [ "noise" ⦂ type_unassigned('⚲T2'),
                             "croaking" ⦂ type_unassigned('⚲T2') ]),
@@ -433,7 +433,7 @@ check_scs_scope(FretMent, ScopeType, ExpOut, Ranges, Exclusive, Required) :-
     assertion(Rqrd == Required).
 
 check_scs_scope(F, S, ExpOut, Ranges) :-
-    check_scs_scope(F, S, ["awake" ⦂ bool], ExpOut, Ranges).
+    check_scs_scope(F, S, ["awake" ⦂ boolean], ExpOut, Ranges).
 
 check_scs_scope(FretMent, ScopeType, ScopeVars, ExpOut, Ranges) :-
     FretMent = fretment(scope_info(SFret, _),
@@ -451,19 +451,19 @@ check_scs_scope(FretMent, ScopeType, ScopeVars, ExpOut, Ranges) :-
         (ScopeType == "before"
         -> assertion(member(SMode,
                             % with "mode" in FRETish, this gets parsed as a
-                            % mode(_), but without "mode" the boolexpr
+                            % mode(_), but without "mode" the booleanexpr
                             % alternative parses this as an term(ident(_)).  Both
                             % need to be recognized as valid.
                             [mode(SV1),
                              fretish(term(ident(SV1), SVTy))
-                            ])) % boolexpr on mode before mode parse
+                            ])) % booleanexpr on mode before mode parse
         ; assertion(SMode == mode(SV1))
         )
        )
     ; ScopeVars = [SV1⦂SVTy, SV2⦂SVTy],
       assertion(SMode == fretish(op(eq(term(ident(SV1), SVTy),
                                        term(ident(SV2), SVTy)),
-                                    bool)))
+                                    boolean)))
     ),
     fretment_vars(scope, FretMent, SVars),
     assertion(SVars == ScopeVars),
@@ -472,9 +472,9 @@ check_scs_scope(FretMent, ScopeType, ScopeVars, ExpOut, Ranges) :-
     get_dict(regular_condition, CFret, RegCond),
     assertion(Condition == "regular"),
     assertion(Qualifier == "upon"),
-    assertion(RegCond == fretish(term(ident("wet"), bool))),
+    assertion(RegCond == fretish(term(ident("wet"), boolean))),
     fretment_vars(condition, FretMent, CVars),
-    assertion(CVars == ["wet" ⦂ bool]),
+    assertion(CVars == ["wet" ⦂ boolean]),
     get_dict(component, Comp, CompName),
     assertion(CompName == "frog"),
     get_dict(timing, Timing, Tmng),
@@ -493,10 +493,10 @@ check_scs_scope(FretMent, ScopeType, ScopeVars, ExpOut, Ranges) :-
     assertion(member(PostCond,
                      [ op(eq(term(ident("noise"), type_unassigned(UTID)),
                              term(ident("croaking"), type_unassigned(UTID))),
-                          bool),
+                          boolean),
                        op(eq(term(ident("noise"), type_unassigned(UTID2)),
                              term(ident("croaking"), type_unassigned(UTID2))),
-                          bool)
+                          boolean)
                      ])),
     fretment_vars(response, FretMent, RespVars),
     assertion(member(RespVars, [ [ "noise" ⦂ type_unassigned(UTID),
@@ -646,16 +646,16 @@ check_scsi_with_timing_common(FretMent, Timing, TimingVars, ExpOut, Ranges) :-
     get_dict(scope_mode, SFret, SMode),
     assertion(SMode == mode("awake")),
     fretment_vars(scope, FretMent, SVars),
-    assertion(SVars == ["awake" ⦂ bool]),
+    assertion(SVars == ["awake" ⦂ boolean]),
 
     get_dict(condition, CFret, Condition),
     get_dict(qualifier_word, CFret, Qualifier),
     get_dict(regular_condition, CFret, RegCond),
     assertion(Condition == "holding"),
     assertion(Qualifier == "whenever"),
-    assertion(RegCond == fretish(term(ident("wet"), bool))),
+    assertion(RegCond == fretish(term(ident("wet"), boolean))),
     fretment_vars(condition, FretMent, CVars),
-    assertion(CVars == ["wet"⦂bool]),
+    assertion(CVars == ["wet"⦂boolean]),
 
     get_dict(component, Comp, CompName),
     assertion(CompName == "frog"),
@@ -669,7 +669,7 @@ check_scsi_with_timing_common(FretMent, Timing, TimingVars, ExpOut, Ranges) :-
     assertion(PostCond ==
               fretish(op(eq(term(ident("noise"), type_unassigned('⚲T1')),
                             term(ident("croaking"), type_unassigned('⚲T1'))),
-                         bool))),
+                         boolean))),
     fretment_vars(response, FretMent, RespVars),
     assertion(RespVars == [ "noise" ⦂ type_unassigned('⚲T1'),
                             "croaking" ⦂ type_unassigned('⚲T1')
@@ -682,7 +682,7 @@ check_scsi_with_timing_common(FretMent, Timing, TimingVars, ExpOut, Ranges) :-
 
 %% ---------------------------------------- EXPRESSION TESTS
 
-test(bool_exprs, [nondet]) :-
+test(boolean_exprs, [nondet]) :-
     Inp = "Before (awake | light) | !true upon wet | persisted(3, damp) the frog shall always satisfy ((noise = croaking) & (!asleep) | (noise != silent) & (noise > silent) & (noise = (307 - 5 + 6 / 1 * 2 ^ 32345)) & !false)",
     ExpOut = "before ((awake | light) | (! true)) upon (wet | persisted(3, damp)) the frog shall always satisfy ((noise = croaking) & ((! asleep) | ((noise != silent) & ((noise > silent) & ((noise = (307 - (5 + (6 / (1 * (2 ^ 32345)))))) & (! false)))))).",
     Ranges = ranges{ scopeTextRange:[0, 34],
@@ -695,7 +695,7 @@ test(bool_exprs, [nondet]) :-
     define_language(LangDef, _),
     initial_gamma(Env),
     parse_fret("test", Env, Inp, FretMent),
-    ScopeVars = ["awake"⦂bool, "light"⦂bool ],
+    ScopeVars = ["awake"⦂boolean, "light"⦂boolean ],
     FretMent = fretment(scope_info(SFret, _),
                         condition_info(CFret),
                         component_info(Comp),
@@ -705,11 +705,11 @@ test(bool_exprs, [nondet]) :-
     get_dict(type, Scope, SType),
     assertion(SType == "before"),
     get_dict(scope_mode, SFret, SMode),
-    assertion(SMode == fretish(op(or(op(or(term(ident("awake"), bool),
-                                           term(ident("light"), bool)),
-                                        bool),
-                                     op(not(term(lit(true), bool)), bool)),
-                                  bool))),
+    assertion(SMode == fretish(op(or(op(or(term(ident("awake"), boolean),
+                                           term(ident("light"), boolean)),
+                                        boolean),
+                                     op(not(term(lit(true), boolean)), boolean)),
+                                  boolean))),
     fretment_vars(scope, FretMent, SVars),
     assertion(SVars == ScopeVars),
     get_dict(condition, CFret, Condition),
@@ -718,13 +718,13 @@ test(bool_exprs, [nondet]) :-
     assertion(Condition == "regular"),
     assertion(Qualifier == "upon"),
     assertion(RegCond ==
-              fretish(op(or(term(ident("wet"), bool),
+              fretish(op(or(term(ident("wet"), boolean),
                             op(persisted(term(num(3), integer),
-                                         term(ident("damp"), bool)),
-                               bool)),
-                         bool))),
+                                         term(ident("damp"), boolean)),
+                               boolean)),
+                         boolean))),
     fretment_vars(condition, FretMent, CVars),
-    assertion(CVars == ["wet"⦂bool, "damp"⦂bool]),
+    assertion(CVars == ["wet"⦂boolean, "damp"⦂boolean]),
     get_dict(component, Comp, CompName),
     assertion(CompName == "frog"),
     get_dict(timing, Timing, Tmng),
@@ -736,15 +736,15 @@ test(bool_exprs, [nondet]) :-
     assertion(Rspns == "satisfaction"),
     assertion(PostCond ==
               fretish(op(and(op(eq(term(ident("noise"), integer),
-                                   term(ident("croaking"), integer)), bool),
-                             op(or(op(not(term(ident("asleep"), bool)),
-                                      bool),
+                                   term(ident("croaking"), integer)), boolean),
+                             op(or(op(not(term(ident("asleep"), boolean)),
+                                      boolean),
                                    op(and(op(neq(term(ident("noise"), integer),
                                                  term(ident("silent"), integer)),
-                                             bool),
+                                             boolean),
                                           op(and(op(gt(term(ident("noise"), integer),
                                                        term(ident("silent"), integer)),
-                                                    bool),
+                                                    boolean),
                                                  op(and(op(eq(term(ident("noise"), integer),
                                                               op(sub(term(num(307), integer),
                                                                      op(add(term(num(5), integer),
@@ -757,17 +757,17 @@ test(bool_exprs, [nondet]) :-
                                                                                integer)),
                                                                         integer)),
                                                                  integer)),
-                                                           bool),
-                                                        op(not(term(lit(false), bool)),
-                                                           bool)),
-                                                    bool)),
-                                             bool)),
-                                      bool)),
-                                bool)),
-                         bool))),
+                                                           boolean),
+                                                        op(not(term(lit(false), boolean)),
+                                                           boolean)),
+                                                    boolean)),
+                                             boolean)),
+                                      boolean)),
+                                boolean)),
+                         boolean))),
     fretment_vars(response, FretMent, RespVars),
     assertion(RespVars == [ "noise"⦂integer, "croaking"⦂integer,
-                            "asleep"⦂bool, "silent"⦂integer ]),
+                            "asleep"⦂boolean, "silent"⦂integer ]),
     emit_fretish(FretMent, Out),
     assertion(Out == ExpOut),
     emit_fretish(FretMent, Out2, OutRanges),
@@ -992,8 +992,8 @@ test(stage_change_scope_invert_until, [nondet]) :-
     initial_gamma(Env),
     parse_fret("test", Env, Inp, FretMent),
     check_scsi_with_timing(FretMent, "until",
-                           fretish(op(not(term(ident("wet"), bool)), bool)),
-                           ["wet"⦂bool],
+                           fretish(op(not(term(ident("wet"), boolean)), boolean)),
+                           ["wet"⦂boolean],
                            ExpOut,
                            ranges{ scopeTextRange:[0, 14],
                                    conditionTextRange:[16, 27],
@@ -1011,8 +1011,8 @@ test(stage_change_scope_invert_before, [nondet]) :-
     initial_gamma(Env),
     parse_fret("test", Env, Inp, FretMent),
     check_scsi_with_timing(FretMent, "before",
-                           fretish(op(not(term(ident("wet"), bool)), bool)),
-                           ["wet"⦂bool],
+                           fretish(op(not(term(ident("wet"), boolean)), boolean)),
+                           ["wet"⦂boolean],
                            ExpOut,
                            ranges{ scopeTextRange:[0, 14],
                                    conditionTextRange:[16, 27],
@@ -1046,12 +1046,12 @@ test(with_ltl_predicate, [nondet]) :-
     assertion(Qualifier == "whenever"),
     assertion(RegCond ==
               fretish(
-                  op(and(term(ident("awake"), bool),
+                  op(and(term(ident("awake"), boolean),
                          op(persisted(term(num(2), integer),
-                                      term(ident("wet"), bool)), bool)),
-                     bool))),
+                                      term(ident("wet"), boolean)), boolean)),
+                     boolean))),
     fretment_vars(condition, FretMent, CVars),
-    assertion(CVars == ["awake"⦂bool, "wet"⦂bool]),
+    assertion(CVars == ["awake"⦂boolean, "wet"⦂boolean]),
     get_dict(component, Comp, CompName),
     assertion(CompName == "frog"),
     get_dict(timing, Timing, Tmng),
@@ -1064,7 +1064,7 @@ test(with_ltl_predicate, [nondet]) :-
     assertion(PostCond ==
               fretish(op(eq(term(ident("noise"), type_unassigned('⚲T2')),
                             term(ident("croaking"), type_unassigned('⚲T2'))),
-                         bool))),
+                         boolean))),
     fretment_vars(response, FretMent, RespVars),
     assertion(RespVars == [ "noise"⦂type_unassigned('⚲T2'),
                             "croaking"⦂type_unassigned('⚲T2') ]),
@@ -1094,15 +1094,15 @@ test(in_upon_next_satisfy, [nondet]) :-
     get_dict(type, Scope, SType),
     assertion(SType == "in"), %%
     fretment_vars(scope, FretMent, SVars),
-    assertion(SVars == ["braking"⦂bool]),
+    assertion(SVars == ["braking"⦂boolean]),
     get_dict(condition, CFret, Condition),
     get_dict(qualifier_word, CFret, Qualifier),
     get_dict(regular_condition, CFret, RegCond),
     assertion(Condition == "regular"), %%
     assertion(Qualifier == "upon"),
-    assertion(RegCond == fretish(term(ident("start_button"), bool))),
+    assertion(RegCond == fretish(term(ident("start_button"), boolean))),
     fretment_vars(condition, FretMent, CVars),
-    assertion(CVars == ["start_button"⦂bool]),
+    assertion(CVars == ["start_button"⦂boolean]),
     get_dict(component, Comp, CompName),
     assertion(CompName == "Car"),
     get_dict(timing, Timing, Tmng),
@@ -1112,9 +1112,9 @@ test(in_upon_next_satisfy, [nondet]) :-
     get_dict(response, Responses, Rspns),
     get_dict(post_condition, Responses, PostCond),
     assertion(Rspns == "satisfaction"), %%
-    assertion(PostCond == fretish(term(ident("is_moving"), bool))),
+    assertion(PostCond == fretish(term(ident("is_moving"), boolean))),
     fretment_vars(response, FretMent, RespVars),
-    assertion(RespVars == [ "is_moving"⦂bool ]),
+    assertion(RespVars == [ "is_moving"⦂boolean ]),
     emit_fretish(FretMent, Out),
     ExpOut = "in braking upon start_button the Car shall at the next timepoint satisfy is_moving.",
     assertion(Out == ExpOut),
@@ -1133,7 +1133,7 @@ test(initial_env_type, [nondet]) :-
     define_language(LangDef, _),
     initial_gamma(Env0),
     fresh_var(Env0, "braking", mode, Env1),
-    fresh_var(Env1, "start_button", bool, Env2),
+    fresh_var(Env1, "start_button", boolean, Env2),
     fresh_var(Env2, "braking", mode, Env),  % redefine is fine
     parse_fret("test", Env, Inp, FretMent),
     FretMent = fretment(scope_info(SFret, _),
@@ -1145,15 +1145,15 @@ test(initial_env_type, [nondet]) :-
     get_dict(type, Scope, SType),
     assertion(SType == "in"), %%
     fretment_vars(scope, FretMent, SVars),
-    assertion(SVars == ["braking"⦂bool]),
+    assertion(SVars == ["braking"⦂boolean]),
     get_dict(condition, CFret, Condition),
     get_dict(qualifier_word, CFret, Qualifier),
     get_dict(regular_condition, CFret, RegCond),
     assertion(Condition == "regular"), %%
     assertion(Qualifier == "upon"),
-    assertion(RegCond == fretish(term(ident("start_button"), bool))),
+    assertion(RegCond == fretish(term(ident("start_button"), boolean))),
     fretment_vars(condition, FretMent, CVars),
-    assertion(CVars == ["start_button"⦂bool]),
+    assertion(CVars == ["start_button"⦂boolean]),
     get_dict(component, Comp, CompName),
     assertion(CompName == "Car"),
     get_dict(timing, Timing, Tmng),
@@ -1163,9 +1163,9 @@ test(initial_env_type, [nondet]) :-
     get_dict(response, Responses, Rspns),
     get_dict(post_condition, Responses, PostCond),
     assertion(Rspns == "satisfaction"), %%
-    assertion(PostCond == fretish(term(ident("is_moving"), bool))),
+    assertion(PostCond == fretish(term(ident("is_moving"), boolean))),
     fretment_vars(response, FretMent, RespVars),
-    assertion(RespVars == [ "is_moving"⦂bool ]),
+    assertion(RespVars == [ "is_moving"⦂boolean ]),
     emit_fretish(FretMent, Out),
     ExpOut = "in braking upon start_button the Car shall at the next timepoint satisfy is_moving.",
     assertion(Out == ExpOut),
@@ -1179,7 +1179,7 @@ test(initial_env_type, [nondet]) :-
                               }).
 
 test(initial_env_bad_type, [nondet,
-                            error(invalid_term_type(fretish_expr, bool,
+                            error(invalid_term_type(fretish_expr, boolean,
                                                     term(ident("start_button"), integer)))
                            ]) :-
     Inp = "in braking upon start_button the Car shall at the next timepoint satisfy is_moving.",
@@ -1195,7 +1195,7 @@ test(initial_env_bad_type, [nondet,
 test(initial_env_unknown_type, [nondet,
                                 error(unknown_expr_type(fretish_expr,
                                                         term(ident("start_button"), int),
-                                                        bool))
+                                                        boolean))
                                ]) :-
     Inp = "in braking upon start_button the Car shall at the next timepoint satisfy is_moving.",
     fretish_expr_langdef(LangDef),

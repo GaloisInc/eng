@@ -501,7 +501,7 @@ tmpl_final(Inp, SrcFld, ForTemplate, InpLTL, OutLTL) :-
     ltl_langdef(LTLLang),
     get_dict(language, LTLLang, Language),
     (get_dict(SrcFld, Inp, S)
-    ; (format(atom(B), '!No_~w!', [SrcFld]), S = term(ident(B), bool))
+    ; (format(atom(B), '!No_~w!', [SrcFld]), S = term(ident(B), boolean))
     ),
     !,  % subst failure should not have retries here
     subst_term(Language, ForTemplate, S, InpLTL, OutLTL).
@@ -511,7 +511,7 @@ tmpl_intermediate(SrcFld, IntermField, InpLTL, OutLTL) :-
     get_dict(language, LTLLang, Language),
     format(atom(T), '$~w$', [SrcFld]),
     !,  % subst failure should not have retries here
-    subst_term(Language, IntermField, term(ident(T), bool), InpLTL, OutLTL).
+    subst_term(Language, IntermField, term(ident(T), boolean), InpLTL, OutLTL).
 
 tmplsubs_ltl(Inp, SrcFld, TgtTmpl, InpILTL, InpFLTL, OutILTL, OutFLTL) :-
     tmpl_final(Inp, SrcFld, TgtTmpl, InpFLTL, OutFLTL),
@@ -608,7 +608,7 @@ fetched_ft_pt_update(Defs, Inp, Out) :-
 last_is_FALSE(I, O) :-
     ltl_langdef(LTLLang),
     get_dict(language, LTLLang, LTL),
-    subst_term(LTL, 'LAST', term(lit(false), bool), I, O).
+    subst_term(LTL, 'LAST', term(lit(false), boolean), I, O).
 
 
 xform_future_temporal_unbounded(AST, O) :-
@@ -624,67 +624,67 @@ xform_future_temporal(AST, O) :-
     !.
 
 % fret-electron/support/xform.js futureTemporalConditionsNoBounds
-xftu(op(persists(Dur, Cond), bool),
-     op(ltlG_bound(op(range_max_incl(Dur), range), Cond), bool)).
-xftu(op(persists(Start, Dur, Cond), bool),
-     op(ltlG_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
-xftu(op(occurs(Dur, Cond), bool),
-     op(ltlF_bound(op(range_max_incl(Dur), range), Cond), bool)).
-xftu(op(occurs(Start, Dur, Cond), bool),
-     op(ltlF_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
-xftu(op(nextOcc(P, Q), bool),
-     op(ltlU(op(ltlX(op(not(P), bool)), bool),
-             op(and(P, Q), bool)), bool)).
-xftu(op(persisted(_, _), bool), R) :- impossible_xform(R).
-xftu(op(persisted(_, _, _), bool), R) :- impossible_xform(R).
-xftu(op(occurred(_, _), bool), R) :- impossible_xform(R).
-xftu(op(occurred(_, _, _), bool), R) :- impossible_xform(R).
-xftu(op(prevOcc(_, _), bool), R) :- impossible_xform(R).
+xftu(op(persists(Dur, Cond), boolean),
+     op(ltlG_bound(op(range_max_incl(Dur), range), Cond), boolean)).
+xftu(op(persists(Start, Dur, Cond), boolean),
+     op(ltlG_bound(op(range_min_max(Start, Dur), range), Cond), boolean)).
+xftu(op(occurs(Dur, Cond), boolean),
+     op(ltlF_bound(op(range_max_incl(Dur), range), Cond), boolean)).
+xftu(op(occurs(Start, Dur, Cond), boolean),
+     op(ltlF_bound(op(range_min_max(Start, Dur), range), Cond), boolean)).
+xftu(op(nextOcc(P, Q), boolean),
+     op(ltlU(op(ltlX(op(not(P), boolean)), boolean),
+             op(and(P, Q), boolean)), boolean)).
+xftu(op(persisted(_, _), boolean), R) :- impossible_xform(R).
+xftu(op(persisted(_, _, _), boolean), R) :- impossible_xform(R).
+xftu(op(occurred(_, _), boolean), R) :- impossible_xform(R).
+xftu(op(occurred(_, _, _), boolean), R) :- impossible_xform(R).
+xftu(op(prevOcc(_, _), boolean), R) :- impossible_xform(R).
 xftu(I, I).
 
 % fret-electron/support/xform.js futureTemporalConditions
-xft(op(persists(N, P), bool),
-    op(and(op(ltlG_bound(op(range_max_incl(N), range), P), bool),
+xft(op(persists(N, P), boolean),
+    op(and(op(ltlG_bound(op(range_max_incl(N), range), P), boolean),
            op(ltlG_bound(op(range_max(N), range),
-                         op(not(term(ident('$Right$'), bool)), bool)), bool)), bool)).
-xft(op(persists(M, N, P), bool),
-    op(and(op(ltlG(op(range_min_max(M,N), range), P), bool),
+                         op(not(term(ident('$Right$'), boolean)), boolean)), boolean)), boolean)).
+xft(op(persists(M, N, P), boolean),
+    op(and(op(ltlG(op(range_min_max(M,N), range), P), boolean),
            op(ltlG_bound(op(range_max(N), range),
-                         op(not(term(ident('$Right$'), bool)), bool)), bool)), bool)).
-xft(op(occurs(N, P), bool),
-    op(and(op(ltlU(op(not(term(ident('$Right$'), bool)), bool), P), bool),
-           op(ltlF_bound(op(range_max_incl(N), range), P), bool)), bool)).
-xft(op(occurs(M, N, P), bool),
+                         op(not(term(ident('$Right$'), boolean)), boolean)), boolean)), boolean)).
+xft(op(occurs(N, P), boolean),
+    op(and(op(ltlU(op(not(term(ident('$Right$'), boolean)), boolean), P), boolean),
+           op(ltlF_bound(op(range_max_incl(N), range), P), boolean)), boolean)).
+xft(op(occurs(M, N, P), boolean),
     op(ltlU_bound(op(range_min_max(M, N), rnage),
-                  op(not(term(ident('$Right$'), bool)), bool),
-                  P), bool)).
-xft(op(nextOcc(P, Q), bool),
-    op(or(term(ident('$Right$'), bool),
-          op(ltlX(op(implies(op(ltlU(op(and(op(not(P), bool),
-                                            op(not(term(ident('$Right$'), bool)),
-                                               bool)),
-                                        bool)), bool),
-                             op(ltlU(op(and(op(not(P), bool),
-                                            op(not(term(ident('$Right$'), bool)), bool)),
-                                        bool),
-                                     op(and(P, Q), bool)),
-                                bool)),
-                     bool)),
-             bool)),
-       bool)).
-xft(op(persisted(_, _), bool), R) :- impossible_xform(R).
-xft(op(persisted(_, _, _), bool), R) :- impossible_xform(R).
-xft(op(occurred(_, _), bool), R) :- impossible_xform(R).
-xft(op(occurred(_, _, _), bool), R) :- impossible_xform(R).
-xft(op(prevOcc(_, _), bool), R) :- impossible_xform(R).
+                  op(not(term(ident('$Right$'), boolean)), boolean),
+                  P), boolean)).
+xft(op(nextOcc(P, Q), boolean),
+    op(or(term(ident('$Right$'), boolean),
+          op(ltlX(op(implies(op(ltlU(op(and(op(not(P), boolean),
+                                            op(not(term(ident('$Right$'), boolean)),
+                                               boolean)),
+                                        boolean)), boolean),
+                             op(ltlU(op(and(op(not(P), boolean),
+                                            op(not(term(ident('$Right$'), boolean)), boolean)),
+                                        boolean),
+                                     op(and(P, Q), boolean)),
+                                boolean)),
+                     boolean)),
+             boolean)),
+       boolean)).
+xft(op(persisted(_, _), boolean), R) :- impossible_xform(R).
+xft(op(persisted(_, _, _), boolean), R) :- impossible_xform(R).
+xft(op(occurred(_, _), boolean), R) :- impossible_xform(R).
+xft(op(occurred(_, _, _), boolean), R) :- impossible_xform(R).
+xft(op(prevOcc(_, _), boolean), R) :- impossible_xform(R).
 xft(I, I).
 
-impossible_xform(op(and(term(lit(false), bool),
-                        op(and(term(lit(false), bool),
-                               op(and(term(lit(false), bool),
-                                      term(lit(false), bool)),
-                                  bool)),
-                           bool)),
-                    bool)).
+impossible_xform(op(and(term(lit(false), boolean),
+                        op(and(term(lit(false), boolean),
+                               op(and(term(lit(false), boolean),
+                                      term(lit(false), boolean)),
+                                  boolean)),
+                           boolean)),
+                    boolean)).
 
 xform_future_optimize(I, I).  % TODO xform.transform(X, xform.optimizeFT)

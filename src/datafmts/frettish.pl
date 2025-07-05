@@ -469,12 +469,12 @@ scope_(Env, _{scope:_{type: "notin"}, scope_mode:Mode}, Vars, OutEnv) -->
     scope_mode(mode_only, Env, Mode, Vars, OutEnv).
 
 % scope_mode: mode WORD | WORD mode | WORD   % KWQ: make vars for word (state = val)?
-scope_mode(_, Env, mode(Mode), [Mode ⦂ bool], OutEnv) -->
+scope_mode(_, Env, mode(Mode), [Mode ⦂ boolean], OutEnv) -->
     lexeme(tok(mode)),
     lexeme(word, Mode),
     !,
     fresh_var(Env, Mode, mode, OutEnv, _V).
-scope_mode(_, Env, mode(Mode), [Mode ⦂ bool], OutEnv) -->
+scope_mode(_, Env, mode(Mode), [Mode ⦂ boolean], OutEnv) -->
     lexeme(word, Mode),
     lexeme(tok(mode)),
     !,
@@ -485,7 +485,7 @@ scope_mode(allow_expr, Env, fretish(E), Vars, OutEnv) -->
       get_dict(language, LangDef, Language),
       extract_vars(Language, E, Vars)
     }.
-scope_mode(_, Env, mode(Mode), [Mode ⦂ bool], OutEnv) -->
+scope_mode(_, Env, mode(Mode), [Mode ⦂ boolean], OutEnv) -->
     lexeme(word, Mode),
     fresh_var(Env, Mode, mode, OutEnv, _V).
 scope_mode(_, Env, bad, [], Env) -->
@@ -820,7 +820,7 @@ precedence.
 
 
 % These ops are exported from exprlang, but apparently their precedence is lost
-% (causing →(⦂(if, bool),a) instead of ⦂(if, →(bool,a)) as expected).  Redeclare
+% (causing →(⦂(if, boolean),a) instead of ⦂(if, →(boolean,a)) as expected).  Redeclare
 % their precedence here.
 :- op(760, yfx, ⦂).
 :- op(750, xfy, →).
@@ -828,45 +828,50 @@ precedence.
 fretish_expr_langdef(
     langdef{
         language: fretish_expr,
-        types: [ integer, bool ],
+        types: [ integer, boolean ],
         atoms: [ lit, num ],
         variable_ref: [ ident ],
         phrases:
         [ term(num ⦂ integer, num, [term(num(N), integer), T]>>fmt_str(T, '~w', [N])),
-          term(lit ⦂ bool, [true]>>word(true), emit_simple_term(lit)),
-          term(lit ⦂ bool, [false]>>word(false), emit_simple_term(lit)),
+          term(lit ⦂ boolean, [true]>>word(true), emit_simple_term(lit)),
+          term(lit ⦂ boolean, [false]>>word(false), emit_simple_term(lit)),
           term(ident ⦂ a, word, emit_simple_term(ident)),
-          expop(and ⦂ bool → bool → bool, infix(chrs('&')), emit_infix("&")),
-          expop(or ⦂ bool → bool → bool, infix(chrs('|')), emit_infix("|")),
-          expop(exor ⦂ bool → bool → bool, infix(word(xor)), emit_infix("xor")),
-          expop(neq ⦂ a → a → bool, infix(chrs('!=')), emit_infix("!=")),
+          expop(and ⦂ boolean → boolean → boolean, infix(chrs('&')), emit_infix("&")),
+          expop(or ⦂ boolean → boolean → boolean, infix(chrs('|')), emit_infix("|")),
+          expop(exor ⦂ boolean → boolean → boolean, infix(word(xor)), emit_infix("xor")),
+          expop(neq ⦂ a → a → boolean, infix(chrs('!=')), emit_infix("!=")),
           expop(neg ⦂ integer → integer, [[]>>lexeme(chrs('-')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(-~w)', [A])),
-          expop(not ⦂ bool → bool, [[]>>lexeme(chrs('!')), subexpr],
+          expop(not ⦂ boolean → boolean, [[]>>lexeme(chrs('!')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(! ~w)', [A])),
-          expop(eq ⦂ a → a → bool, infix(chrs('=')), emit_infix("=")),
-          expop(geq ⦂ a → a → bool, infix(chrs('>=')), emit_infix(">=")),
-          expop(leq ⦂ a → a → bool, infix(chrs('<=')), emit_infix("<=")),
-          expop(gt ⦂ a → a → bool, infix(chrs('>')), emit_infix(">")),
-          expop(lt ⦂ a → a → bool, infix(chrs('<')), emit_infix("<")),
+          expop(eq ⦂ a → a → boolean, infix(chrs('=')), emit_infix("=")),
+          % geq is more precisely number → number → boolean, but full precision
+          % would be to declare that ~a~ is a member of Eq and Ord... if we
+          % handled classes.  Or subtyping somehow.
+          expop(geq ⦂ a → a → boolean, infix(chrs('>=')), emit_infix(">=")),
+          expop(leq ⦂ a → a → boolean, infix(chrs('<=')), emit_infix("<=")),
+          expop(gt ⦂ a → a → boolean, infix(chrs('>')), emit_infix(">")),
+          expop(lt ⦂ a → a → boolean, infix(chrs('<')), emit_infix("<")),
           expop(add ⦂ integer → integer → integer, infix(chrs('+')), emit_infix("+")),
           expop(sub ⦂ integer → integer → integer, infix(chrs('-')), emit_infix("-")),
           expop(mul ⦂ integer → integer → integer, infix(chrs('*')), emit_infix("*")),
           expop(divide ⦂ integer → integer → integer, infix(chrs('/')), emit_infix("/")),
           expop(expo ⦂ integer → integer → integer, infix(chrs('^')), emit_infix("^")),
-          expop(implies ⦂ bool → a → bool, [[]>>lexeme(word(if)),
+          expop(implies ⦂ boolean → a → boolean, [[]>>lexeme(word(if)),
                                             subexpr,
                                             []>>word(then),
                                             subexpr
                                            ],
                 [_,[A,B],T]>>fmt_str(T, '~w => ~w', [A, B])),
-          expop(implies ⦂ bool → a → bool, infix(chrs('=>')),
+          expop(implies ⦂ boolean → a → boolean, infix(chrs('=>')),
                 [_,[A,B],T]>>fmt_str(T, '~w => ~w', [A, B])),
-          expop(occurred ⦂ integer → bool → bool,
+          expop(implies ⦂ boolean → a → boolean, infix(chrs('->')),  % parsed as
+                [_,[A,B],T]>>fmt_str(T, '~w => ~w', [A, B])),  % converted to
+          expop(occurred ⦂ integer → boolean → boolean,
                 [[]>>lexeme(word(occurred)), chrs('('), subexpr,
                  chrs(','),subexpr,chrs(')')],
                 [F,[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B])),
-          expop(persisted ⦂ integer → bool → bool,
+          expop(persisted ⦂ integer → boolean → boolean,
                 [[]>>lexeme(word(persisted)), chrs('('), subexpr,
                  chrs(','),subexpr,chrs(')')],
                 [F,[A,B],T]>>fmt_str(T, '~w(~w, ~w)', [F, A, B]))
@@ -884,7 +889,7 @@ bool_expr(Env, V, FinalEnv) -->
     { fretish_expr_langdef(LangDef),
       get_dict(language, LangDef, Language)
     },
-    expr(Language, Env, bool, V, FinalEnv).
+    expr(Language, Env, boolean, V, FinalEnv).
 
 
 % KWQ: ~ XOR -> => <-> <=> "IF be THEN be" "AT THE (PREVIOUS|NEXT) OCCURRENCE OF be, be"
@@ -1007,80 +1012,85 @@ xform_past_temporal(AST, O) :-
 
 
 % fret-electron/support/xform.js pastTemporalConditionsNoBounds
-xptu(op(persisted(Dur, Cond), bool),
-     op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool)).
-xptu(op(persisted(Start, Dur, Cond), bool),
-    op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
-xptu(op(occurred(Dur, Cond), bool),
-    op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)).
-xptu(op(occurred(Start, Dur, Cond), bool),
-    op(ltlO_bound(op(range_min_max(Start, Dur), range), Cond), bool)).
-xptu(op(prevOcc(P,Q), bool),
-     op(ltlS(op(ltlY(op(not(P), bool)), bool),
-             op(and(P, Q), bool)), bool)).
+xptu(op(persisted(Dur, Cond), boolean),
+     op(ltlH_bound(op(range_max_incl(Dur), range), Cond), boolean)).
+xptu(op(persisted(Start, Dur, Cond), boolean),
+    op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), boolean)).
+xptu(op(occurred(Dur, Cond), boolean),
+    op(ltlO_bound(op(range_max_incl(Dur), range), Cond), boolean)).
+xptu(op(occurred(Start, Dur, Cond), boolean),
+    op(ltlO_bound(op(range_min_max(Start, Dur), range), Cond), boolean)).
+xptu(op(prevOcc(P,Q), boolean),
+     op(ltlS(op(ltlY(op(not(P), boolean)), boolean),
+             op(and(P, Q), boolean)), boolean)).
 % user specification of future terms is invalid for a past-time formula
-xptu(op(persists(_, _), bool), R) :- impossible_xform(R).
-xptu(op(persists(_, _, _), bool), R) :- impossible_xform(R).
-xptu(op(occurs(_, _), bool), R) :- impossible_xform(R).
-xptu(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
-xptu(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
+xptu(op(persists(_, _), boolean), R) :- impossible_xform(R).
+xptu(op(persists(_, _, _), boolean), R) :- impossible_xform(R).
+xptu(op(occurs(_, _), boolean), R) :- impossible_xform(R).
+xptu(op(occurs(_, _, _), boolean), R) :- impossible_xform(R).
+xptu(op(nextOcc(_, _), boolean), R) :- impossible_xform(R).
 xptu(I, I).
 
 % fret-electron/support/xform.js pastTemporalConditions
-xpt(term(ident('FTP'), bool), op(ltlZ(term(lit(false), bool)), bool)).
-xpt(op(persisted(Dur, Cond), bool),
-    op(and(op(ltlH_bound(op(range_max_incl(Dur), range), Cond), bool),
+xpt(term(ident('FTP'), boolean), op(ltlZ(term(lit(false), boolean)), boolean)).
+xpt(op(persisted(Dur, Cond), boolean),
+    op(and(op(ltlH_bound(op(range_max_incl(Dur), range), Cond), boolean),
            op(ltlH_bound(op(range_max(Dur), range),
-                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
-       bool)).
-xpt(op(persisted(Start, Dur, Cond), bool),
-    op(and(op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), bool),
+                         op(not(term(ident('$Left$'), boolean)), boolean)), boolean)),
+       boolean)).
+xpt(op(persisted(Start, Dur, Cond), boolean),
+    op(and(op(ltlH_bound(op(range_min_max(Start, Dur), range), Cond), boolean),
            op(ltlH_bound(op(range_max(Dur), range),
-                         op(not(term(ident('$Left$'), bool)), bool)), bool)),
-       bool)).
-xpt(op(occurred(Dur, Cond), bool),
-    op(and(op(ltlS(op(not(term(ident('$Left$'), bool)), bool),
-                   Cond), bool),
-           op(ltlO_bound(op(range_max_incl(Dur), range), Cond), bool)),
-       bool)).
-xpt(op(occurred(Start, Dur, Cond), bool),
+                         op(not(term(ident('$Left$'), boolean)), boolean)), boolean)),
+       boolean)).
+xpt(op(occurred(Dur, Cond), boolean),
+    op(and(op(ltlS(op(not(term(ident('$Left$'), boolean)), boolean),
+                   Cond), boolean),
+           op(ltlO_bound(op(range_max_incl(Dur), range), Cond), boolean)),
+       boolean)).
+xpt(op(occurred(Start, Dur, Cond), boolean),
     op(ltlS_bound(op(range_min_max(Start, Dur), range),
-                  op(not(term(ident('$Left$'), bool)), bool),
+                  op(not(term(ident('$Left$'), boolean)), boolean),
                   Cond),
-       bool)).
-xpt(op(prevOcc(P,Q), bool),
-    op(or(term(ident('$Left$'), bool),
-          op(ltlY(op(implies(op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
-                                            op(not(P), bool)),
-                                        bool),
-                                     P),
-                                bool),
-                             op(ltlS(op(and(op(not(term(ident('$Left$'), bool)), bool),
-                                            op(not(P), bool)),
-                                        bool),
-                                     op(and(P, Q), bool)),
-                                bool)),
-                     bool)),
-             bool)),
-       bool)).
-xpt(op(preBool(Init,P), bool),
-    op(or(op(and(op(ltlZ(term(lit(false), bool)), bool),
-                 Init), bool),
-          op(and(op(ltlY(term(lit(true), bool)), bool),
-                 op(ltlY(P), bool)), bool)), bool)).
-xpt(op(persists(_, _), bool), R) :- impossible_xform(R).
-xpt(op(persists(_, _, _), bool), R) :- impossible_xform(R).
-xpt(op(occurs(_, _), bool), R) :- impossible_xform(R).
-xpt(op(occurs(_, _, _), bool), R) :- impossible_xform(R).
-xpt(op(nextOcc(_, _), bool), R) :- impossible_xform(R).
+       boolean)).
+xpt(op(prevOcc(P,Q), boolean),
+    op(or(term(ident('$Left$'), boolean),
+          op(ltlY(
+                 op(implies(
+                        op(ltlS(
+                               op(and(
+                                      op(not(term(ident('$Left$'), boolean)), boolean),
+                                      op(not(P), boolean)),
+                                   boolean),
+                                P),
+                           boolean),
+                        op(ltlS(
+                               op(and(op(not(term(ident('$Left$'), boolean)), boolean),
+                                      op(not(P), boolean)),
+                                  boolean),
+                               op(and(P, Q), boolean)),
+                           boolean)),
+                    boolean)),
+             boolean)),
+       boolean)).
+xpt(op(preBoolean(Init,P), boolean),
+    op(or(op(and(op(ltlZ(term(lit(false), boolean)), boolean),
+                 Init), boolean),
+          op(and(op(ltlY(term(lit(true), boolean)), boolean),
+                 op(ltlY(P), boolean)), boolean)), boolean)).
+xpt(op(persists(_, _), boolean), R) :- impossible_xform(R).
+xpt(op(persists(_, _, _), boolean), R) :- impossible_xform(R).
+xpt(op(occurs(_, _), boolean), R) :- impossible_xform(R).
+xpt(op(occurs(_, _, _), boolean), R) :- impossible_xform(R).
+xpt(op(nextOcc(_, _), boolean), R) :- impossible_xform(R).
 xpt(I, I).
 
-impossible_xform(op(and(term(lit(false), bool),
-                        op(and(term(lit(false), bool),
-                               op(and(term(lit(false), bool),
-                                      term(lit(false), bool)),
-                                  bool)),
-                           bool)),
-                    bool)).
+impossible_xform(op(and(term(lit(false), boolean),
+                        op(and(term(lit(false), boolean),
+                               op(and(term(lit(false), boolean),
+                                      term(lit(false), boolean)),
+                                  boolean)),
+                           boolean)),
+                    boolean)).
 
 xform_past_optimize(I, I). % provided/returns AST; already done by ltl_parse
