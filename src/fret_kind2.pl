@@ -281,6 +281,8 @@ add_if_not_present(Var, Decl, [_|VS], DS, Out) :- % No match, check next
 
 convert_type("integer", "int") :- !.
 convert_type("boolean", "bool") :- !.
+convert_type(integer, "int") :- !.
+convert_type(boolean, "bool") :- !.
 convert_type(Other, Other).
 
 req_internalvars([], [], []).
