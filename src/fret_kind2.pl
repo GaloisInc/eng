@@ -207,6 +207,13 @@ enum_mode(Var, [(N,_V)|VS], [Mode|Modes]) :-
 
 %% ----------------------------------------------------------------------
 
+arg_decl(V, Decl) :-
+    get_dict(varname, V, VarName),
+    get_dict(type, V, VarType),
+    convert_type(VarType, Type),
+    format(atom(Decl), "~w : ~w", [ VarName, Type ]).
+
+
 % All Internal and Mode variables should always be defined.  They may not be used
 % by the requirements in this CC, but they shouldn't hurt anything by being
 % defined.
@@ -221,35 +228,50 @@ implicit_vars(EnumVals, [V|VS], [D|DS]) :-
     get_dict(varname, V, VarName),
     \+ is_enum_val(EnumVals, VarName),
     !,
-    get_dict(type, V, VarType),
-    convert_type(VarType, KindType),
+    arg_decl(V, BaseDecl),
     get_dict(assignment, V, ValStr),
     string_trim(ValStr, Val),
-    format(atom(D), "var ~w : ~w = ~w;", [ VarName, KindType, Val ]),
+    format(atom(D), "var ~w = ~w;", [ BaseDecl, Val ]),
     implicit_vars(EnumVals, VS, DS).
+
 % TODO: similar to above, but for Mode idType, and Val is modeRequirement.
 % However, consider that Kind2 mode support is significantly more complex...
 implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
 
-input_vars(Reqs, Vars, Decls, Refs) :-
-    input_vars_(Reqs, Vars, Refs, Decls).
-input_vars_(_, [], _, []).
-input_vars_(Reqs, [constr(_, _, _, _)|VS], Seen, Out) :-
+input_vars(Reqs, CVars, Vars, Decls, Refs) :-
+    input_vars_(Reqs, CVars, Vars, RRefs, RDecls),
+    reverse(RRefs, Refs),
+    reverse(RDecls, Decls).
+
+input_vars_(_, _, [], _, []).
+input_vars_(Reqs, CVars, [constr(_, _, _, _)|VS], Seen, Out) :-
     !,
     % constructors cannot be vars, skip this
-    input_vars_(Reqs, VS, Seen, Out).
-input_vars_(Reqs, [V|VS], [Name|SeenNames], Out) :-
+    input_vars_(Reqs, CVars, VS, Seen, Out).
+input_vars_(Reqs, CVars, [V|VS], [Name|SeenNames], Out) :-
+    is_input_var(Reqs, CVars, V),
+    !,
+    arg_decl(V, Decl),
+    input_vars_(Reqs, CVars, VS, SeenNames, DS),
+    get_dict(varname, V, Name),
+    add_if_not_present(Name, Decl, SeenNames, DS, Out).
+input_vars_(Reqs, CVars, [_|VS], Seen, Out) :-
+    input_vars_(Reqs, CVars, VS, Seen, Out).
+
+is_input_var(Reqs, _, V) :-
     get_dict(usage, V, "Input"),  % filters out Internal, Mode, and Output vars
     get_dict(varname, V, Name),
-    is_req_var(Name, Reqs),
-    !,
-    get_dict(type, V, VarType),
-    convert_type(VarType, KindType),
-    format(atom(Decl), '~w:~w', [Name, KindType]),
-    input_vars_(Reqs, VS, SeenNames, DS),
-    add_if_not_present(Name, Decl, SeenNames, DS, Out).
-input_vars_(Reqs, [_|VS], Seen, Out) :-
-    input_vars_(Reqs, VS, Seen, Out).
+    is_req_var(Name, Reqs),  % var is used directly by contract
+    !.
+is_input_var(_, CVars, V) :-
+    % If a scenario output variable is present, the input variable should be made
+    % available; this may not be needed for the contract, but a model will surely
+    % need to base the output on the previous value (input) as well as any other
+    % affecting inputs.
+    get_dict(usage, V, "Input"),  % filters out Internal, Mode, and Output vars
+    get_dict(varname, V, Name),
+    scenarios_final_var_name(Name, OutName),
+    member(OutName, CVars). % output var is used by contract, pass input as well
 
 
 output_vars(Vars, OutNames, Decls, Names) :-
@@ -260,9 +282,7 @@ output_vars_(Vars, [VN|VNS], [Name|SeenNames], Out) :-
     get_dict(usage, V, "Output"),
     !,
     get_dict(varname, V, Name),
-    get_dict(type, V, VarType),
-    convert_type(VarType, KindType),
-    format(atom(Decl), '~w:~w', [Name, KindType]),
+    arg_decl(V, Decl),
     output_vars_(Vars, VNS, SeenNames, DS),
     add_if_not_present(Name, Decl, SeenNames, DS, Out).
 output_vars_(Vars, [_|VNS], Seen, Out) :-
@@ -623,15 +643,18 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 
     intercalate(Kind2Globals, "\n", GlobalDecls),
     implicit_vars(EnumVals, Vars, Kind2Decls),
+    !,
     intercalate(Kind2Decls, "\n  ", NodeDecls),
-    input_vars(Reqs, Vars, Kind2Input, Kind2Args),
-    reverse(Kind2Input, RKind2Input),
-    reverse(Kind2Args, RKind2Args),
-    intercalate(RKind2Input, "; ", NodeArgDecls),
-    intercalate(RKind2Args, ", ", ContractArgs),
+
+    input_vars(Reqs, CVars, Vars, Kind2Input, Kind2Args),
+    !,
+    intercalate(Kind2Input, "; ", NodeArgDecls),
+    intercalate(Kind2Args, ", ", ContractArgs),
+
     output_vars(Vars, CVars, Kind2OutputDecls, Kind2Outputs),
+    !,
     intercalate(Kind2OutputDecls, "; ", NodeRet),
-    intercalate(Kind2Outputs, ", ", NodeOutputs),
+    intercalate(Kind2Outputs, ", ", ContractOutputs),
     req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars, HelpersNeeded),
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
@@ -646,8 +669,8 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     intercalate(HelperImpls, "\n", Helpers),
 
     Kind2 = {|string(NodeName,
-                     NodeArgDecls, NodeArgs,
-                     NodeRet, NodeOutputs,
+                     NodeArgDecls, ContractArgs,
+                     NodeRet, ContractOutputs,
                      NodeDecls,
                      NodeReqDecls,
                      NodeGuarantees,
@@ -673,7 +696,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 |
 | node {NodeName} ( {NodeArgDecls} ) returns ( {NodeRet} );
 | (*@contract
-|    import {NodeName}Spec({NodeArgs}) returns ({NodeOutputs});
+|    import {NodeName}Spec({ContractArgs}) returns ({ContractOutputs});
 | *)
 | let
 |   --%MAIN;
