@@ -164,8 +164,7 @@ validate_spec(Context, Spec, "lando", SpecFile, R) :-
     validate_lando(SSL, Problems),
       length(Problems, NumProbs),
     ( Problems == []
-    -> format('Validated Lando specification ~w in ~w~n', [Spec, SpecFile]),
-       (validate_lando_fret(Context, Spec, SSL, R) ; R = 0)
+    -> validate_lando_fret(Context, Spec, SSL, R), !
     ; maplist(show_lando_validation_error(Spec, SpecFile), Problems),
       print_message(error, lando_validation_errors(Spec, SpecFile, NumProbs)),
       R = NumProbs
@@ -183,7 +182,162 @@ validate_lando_fret(Context, Spec, SSL, R) :-
     % if no FRET, the next should not succeed and this predicate is false
     write_lando_fret_kind2(Dir, SSL, OutFiles),
     maplist(validate_lando_fret_cc(Context), OutFiles, Results),
-    sum_list(Results, R).
+    process_kind2_results(Results, R).
+
+prolog:message(kind2_good(NPass)) -->
+    ["TOTAL: PASS  (~w checks)~n" - [ NPass ] ].
+prolog:message(kind2_good_with_exp_failures(NPass, NExpFailures)) -->
+    { NTot is NPass + NExpFailures },
+    ["TOTAL: PASS  (~w checks | ~w passed, ~w FAILED AS EXPECTED)~n"
+     - [ NTot, NPass, NExpFailures ]].
+prolog:message(kind2_good_with_unexp_good(NPass, NUnexpPass)) -->
+    { NTot is NPass + NUnexpPass },
+    ["TOTAL: PASS  (~w checks | ~w passed (~w of those UNEXPECTEDLY))~n"
+     - [ NTot, NTot, NUnexpPass ]].
+prolog:message(kind2_good_with_unexpected(NPass, NExpFail, NUnexpPass)) -->
+    { NTot is NPass + NExpFail + NUnexpPass,
+      NGood is NPass + NUnexpPass
+    },
+    ["TOTAL: PASS  (~w checks | ~w passed (~w of those UNEXPECTEDLY), ~w FAILED AS EXPECTED)~n"
+     - [ NTot, NGood, NUnexpPass, NExpFail ]].
+prolog:message(kind2_failures(0, NPass, NFail, 0, 0)) -->
+    { NTot is NPass + NFail }, !,
+    ["TOTAL: ~w FAILED  (~w checks | ~w passed)~n"
+     - [NFail, NTot, NPass] ].
+prolog:message(kind2_failures(NInv, NPass, NFail, 0, 0)) -->
+    { NTot is NInv + NPass + NFail },
+    ["TOTAL: ~w+~w FAILED  (~w checks | ~w passed)~n"
+     - [NFail, NInv, NTot, NPass] ].
+prolog:message(kind2_failures(0, NPass, NFail, 0, NUnexpPass)) -->
+    { NTot is NPass + NFail + NUnexpPass,
+      NGood is NPass + NUnexpPass
+    }, !,
+    ["TOTAL: ~w FAILED  (~w checks | ~w passed (~w of those UNEXPECTEDLY)~n"
+     - [NFail, NTot, NGood, NUnexpPass] ].
+prolog:message(kind2_failures(NInv, NPass, NFail, 0, NUnexpPass)) -->
+    { NTot is NInv + NPass + NFail + NUnexpPass,
+      NGood is NPass + NUnexpPass
+    },
+    ["TOTAL: ~w+~w FAILED  (~w checks | ~w passed (~w of those UNEXPECTEDLY)~n"
+     - [NFail, NInv, NTot, NGood, NUnexpPass] ].
+prolog:message(kind2_failures(0, NPass, NFail, NExpFail, 0)) -->
+    { NTot is NPass + NFail + NExpFail }, !,
+    ["TOTAL: ~w FAILED  (~w checks | ~w passed, ~w FAILED AS EXPECTED)~n"
+     - [NFail, NTot, NPass, NExpFail] ].
+prolog:message(kind2_failures(NInv, NPass, NFail, NExpFail, 0)) -->
+    { NTot is NInv + NPass + NFail + NExpFail },
+    ["TOTAL: ~w+~w FAILED  (~w checks | ~w passed, ~w FAILED AS EXPECTED)~n"
+     - [NFail, NInv, NTot, NPass, NExpFail] ].
+prolog:message(kind2_failures(0, NPass, NFail, NExpFail, NUnexpPass)) -->
+    { NTot is NPass + NFail + NExpFail + NUnexpPass,
+      NGood is NPass + NUnexpPass
+    }, !,
+    ["TOTAL: ~w FAILED  (~w checks | ~w passed (~w of those UNEXPECTEDLY), ~w FAILED AS EXPECTED)~n"
+     - [NFail, NTot, NGood, NUnexpPass, NExpFail] ].
+prolog:message(kind2_failures(NInv, NPass, NFail, NExpFail, NUnexpPass)) -->
+    { NTot is NInv + NPass + NFail + NExpFail + NUnexpPass,
+      NGood is NPass + NUnexpPass
+    },
+    ["TOTAL: ~w+~w FAILED  (~w checks | ~w passed (~w of those UNEXPECTEDLY), ~w FAILED AS EXPECTED)~n"
+     - [NFail, NInv, NTot, NGood, NUnexpPass, NExpFail] ].
+
+process_kind2_results(Results, R) :-
+    append(Results, All),
+    process_kind2_results(All, _{ninv:0,
+                                 npass:0,
+                                 nfail:0,
+                                 nfailAsExp:0,
+                                 nUnexpPass:0}, R).
+
+process_kind2_results([], Stats, 0) :-
+    get_dict(ninv, Stats, 0),
+    get_dict(nfail, Stats, 0),
+    get_dict(nfailAsExp, Stats, 0),
+    get_dict(nUnexpPass, Stats, 0),
+    !,
+    get_dict(npass, Stats, NPass),
+    print_message(success, kind2_good(NPass)).
+process_kind2_results([], Stats, 0) :-
+    get_dict(ninv, Stats, 0),
+    get_dict(nfail, Stats, 0),
+    get_dict(nUnexpPass, Stats, 0),
+    !,
+    get_dict(npass, Stats, NPass),
+    get_dict(nfailAsExp, Stats, NFailAsExp),
+    print_message(warning, kind2_good_with_exp_failures(NPass, NFailAsExp)).
+process_kind2_results([], Stats, 0) :-
+    get_dict(ninv, Stats, 0),
+    get_dict(nfail, Stats, 0),
+    get_dict(nfailAsExp, Stats, 0),
+    !,
+    get_dict(npass, Stats, NPass),
+    get_dict(nUnexpPass, Stats, NUnexpPass),
+    print_message(warning, kind2_good_with_unexp_good(NPass, NUnexpPass)).
+process_kind2_results([], Stats, 0) :-
+    get_dict(ninv, Stats, 0),
+    get_dict(nfail, Stats, 0),
+    !,
+    get_dict(npass, Stats, NPass),
+    get_dict(nfailAsExp, Stats, NFailAsExp),
+    get_dict(nUnexpPass, Stats, NUnexpPass),
+    print_message(warning, kind2_good_with_unexpected(NPass, NFailAsExp,
+                                                      NUnexpPass)).
+process_kind2_results([], Stats, 0) :-
+    !,
+    get_dict(nfail, Stats, NFail),
+    get_dict(ninv, Stats, NInv),
+    get_dict(npass, Stats, NPass),
+    get_dict(nfailAsExp, Stats, NFailAsExp),
+    get_dict(nUnexpPass, Stats, NUnexpPass),
+    print_message(error, kind2_failures(NInv, NPass, NFail, NFailAsExp,
+                                        NUnexpPass)).
+
+process_kind2_results([ignored|KS], Stats, R) :-
+    !,
+    process_kind2_results(KS, Stats, R).
+process_kind2_results([invalid|KS], Stats, R) :-
+    !,
+    get_dict(ninv, Stats, NInv),
+    succ(NInv, U),
+    put_dict(ninv, Stats, U, UpdStats),
+    process_kind2_results(KS, UpdStats, SR),
+    succ(SR, R).
+process_kind2_results([passed|KS], Stats, R) :-
+    !,
+    get_dict(npass, Stats, NPass),
+    succ(NPass, U),
+    put_dict(npass, Stats, U, UpdStats),
+    process_kind2_results(KS, UpdStats, R).
+process_kind2_results([failed|KS], Stats, R) :-
+    !,
+    get_dict(nfail, Stats, NFail),
+    succ(NFail, U),
+    put_dict(nfail, Stats, U, UpdStats),
+    process_kind2_results(KS, UpdStats, SR),
+    succ(SR, R).
+process_kind2_results([failed_as_expected|KS], Stats, R) :-
+    !,
+    get_dict(nfailAsExp, Stats, NFailAsExp),
+    succ(NFailAsExp, U),
+    put_dict(nfailAsExp, Stats, U, UpdStats),
+    process_kind2_results(KS, UpdStats, R).
+process_kind2_results([unexpectedly_passed|KS], Stats, R) :-
+    !,
+    get_dict(nUnexpPass, Stats, NUnexpPass),
+    succ(NUnexpPass, U),
+    put_dict(nUnexpPass, Stats, U, UpdStats),
+    process_kind2_results(KS, UpdStats, SR),
+    succ(SR, R).
+process_kind2_results([satisfiable|KS], Stats, R) :-
+    !,
+    get_dict(npass, Stats, NPass),
+    succ(NPass, U),
+    put_dict(npass, Stats, U, UpdStats),
+    process_kind2_results(KS, UpdStats, R).
+process_kind2_results(O,S,99) :-
+    format('ERR: unhandled kind2 results: ~w~n  stats = ~w~n~n', [O, S]),
+    fail.
+
 
 validate_lando_fret_cc(Context, contract(OutFile), Status) :-
     validate_lando_fret_cc(Context, contract, OutFile, Status).

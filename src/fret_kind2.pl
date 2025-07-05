@@ -316,6 +316,14 @@ normalize_kind2_var(Inp, Out) :-
 
 %% ----------------------------------------------------------------------
 
+%% Perform kind2 validation of the specified file.
+%
+% Sts is: ignored, invalid, passed, failed, failed_as_expected,
+%         unexpectedly_passed
+%
+%     * invalid = kind2 run failed (input syntax) or output processing failed
+%                 (e.g. output file not generated)
+%
 kind2_validate(Context, Kind2File, OutDirectory, contract, ResultFile, Status) :-
     validate(Context, Kind2File, OutDirectory, "--enable CONTRACTCK", ResultFile, Status).
 kind2_validate(Context, Kind2File, OutDirectory, model, ResultFile, Status) :-
@@ -328,67 +336,66 @@ validate(Context, Kind2File, OutDirectory, Args, ResultFile, Status) :-
               'JSONFile' = ResultFile ],
             [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
               % --lus_strict
-            ], [], ".", Sts),
-    ( process_kind2_results(ResultFile, Sts, Status)
-    ; Status = Sts
+            ], [], ".", _Sts),
+    ( process_kind2_results(ResultFile, Status), !
+    ; Status = [invalid]
     ).
 
-process_kind2_results(ResultFile, Sts, Status) :-
+process_kind2_results(ResultFile, Status) :-
     open(ResultFile, read, ResultStrm),
     json_read_dict(ResultStrm, Results),
-    show_kind2_results(Results, Sts, Status).
+    !,  % no backtracking
+    show_kind2_results(Results, Status).
 
-show_kind2_results([], Status, Status).
-show_kind2_results([O|OS], Sts, Status) :-
+show_kind2_results([], []).
+show_kind2_results([O|OS], [Sts|Status]) :-
     get_dict(objectType, O, OType),
-    show_kind2_results(O, OType, Sts, Sts2),
-    show_kind2_results(OS, Sts2, Status).
+    show_kind2_results(O, OType, Sts),
+    show_kind2_results(OS, Status).
 
-show_kind2_results(_, "kind2Options", Sts, Sts) :- !. % ignored
-show_kind2_results(_, "analysisStart", Sts, Sts) :- !. % ignored
-show_kind2_results(_, "analysisStop", Sts, Sts) :- !. % ignored
-show_kind2_results(O, "log", Sts, Status) :-
+show_kind2_results(_, "kind2Options", ignored) :- !. % ignored
+show_kind2_results(_, "analysisStart", ignored) :- !. % ignored
+show_kind2_results(_, "analysisStop", ignored) :- !. % ignored
+show_kind2_results(O, "log", Status) :-
     !,
     get_dict(level, O, Level),
-    show_kind2_log(O, Level, Sts, Status).
-show_kind2_results(O, "realizabilityCheck", Sts, Status) :-
+    show_kind2_log(O, Level, Status).
+show_kind2_results(O, "realizabilityCheck", Status) :-
     !,
     get_dict(result, O, Result),
-    show_kind2_result(O, Result, Sts, Status).
-show_kind2_results(O, "satisfiabilityCheck", Sts, Status) :-
+    show_kind2_result(O, Result, Status).
+show_kind2_results(O, "satisfiabilityCheck", Status) :-
     !,
     get_dict(result, O, Result),
-    show_kind2_satresult(O, Result, Sts, Status).
-show_kind2_results(O, "property", Sts, Status) :-
+    show_kind2_satresult(O, Result, Status).
+show_kind2_results(O, "property", Status) :-
     !,
     get_dict(answer, O, Answer),
     get_dict(value, Answer, PropSts),
-    show_kind2_result(O, PropSts, Sts, Status).
+    show_kind2_result(O, PropSts, Status).
 
-show_kind2_results(_, OType, Sts, BadSts) :-
-    print_message(warning, unrecognized_kind2_result_type(OType)),
-    succ(Sts, BadSts).
+show_kind2_results(_, OType, failed) :-
+    print_message(warning, unrecognized_kind2_result_type(OType)).
 
 
-show_kind2_log(O, "error", Sts, BadSts) :-
+show_kind2_log(O, "error", failed) :-
     !,
-    succ(Sts, BadSts),
     get_dict(source, O, Source),
     get_dict(file, O, File),
     get_dict(line, O, Line),
     get_dict(column, O, Col),
     get_dict(value, O, Msg),
     print_message(error, kind2_log_error(Source, File, Line, Col, Msg)).
-show_kind2_log(_, _, Sts, Sts).  % All other log levels ignored
+show_kind2_log(_, _, ignored).  % All other log levels ignored
 
 
-show_kind2_result(O, "realizable", Sts, Sts) :-
+show_kind2_result(O, "realizable", passed) :-
     !,
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
     print_message(success, kind2_realizable(Time, Unit)). % which CC?
-show_kind2_result(O, "unrealizable", Sts, Sts) :-
+show_kind2_result(O, "unrealizable", failed) :-
     !,
     get_dict(conflictingSet, O, Conflicts),
     get_dict(size, Conflicts, CSize),
@@ -415,41 +422,71 @@ show_kind2_result(O, "unrealizable", Sts, Sts) :-
     !,
     show_stream_steps(InterestingVars, Streams),
     print_message(error, kind2_unrealizable(CSize, Names)).
-show_kind2_result(O, "falsifiable", Sts, Sts) :-
-    !,
-    get_dict(counterExample, O, [CounterEx|OtherCounterEx]),
+show_kind2_result(O, "falsifiable", fail_as_expected) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
-    get_dict(streams, CounterEx, Streams),
-    findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
-    findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
-    append(Inputs, Outputs, InterestingVars),
-    !,
-    show_stream_steps(InterestingVars, Streams),
-    print_message(error, kind2_falsifiable(Name)).
-show_kind2_result(O, "reachable", Sts, Sts) :-
-    !,
-    get_dict(runtime, O, RT),
-    get_dict(value, RT, Time),
-    get_dict(unit, RT, Unit),
+    allowed_kind2_failure(Name),
+    falsifiable_result(O, warning, kind2_falsifiable_expected(Name)).
+show_kind2_result(O, "falsifiable", failed) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
-    print_message(success, kind2_reachable(Time, Unit, Name)). % which CC?
-show_kind2_result(O, "unreachable", Sts, Sts) :-
+    falsifiable_result(O, warning, kind2_falsifiable(Name)).
+show_kind2_result(O, "reachable", R) :-
+    !,
+    timed_result(O, reachable, R).
+show_kind2_result(O, "unreachable", failed_as_expected) :-
+    !,
+    get_dict(name, O, FullName),
+    simple_varname(FullName, Name),
+    allowed_kind2_failure(Name),
+    !,
+    print_message(warning, kind2_unreachable_expected(Name)). % which CC?
+show_kind2_result(O, "unreachable", failed) :-
     !,
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     print_message(error, kind2_unreachable(Name)). % which CC?
-show_kind2_result(O, "valid", Sts, Sts) :-
+show_kind2_result(O, "valid", passed) :-
     !,
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
     get_dict(name, O, Name),
     print_message(success, kind2_valid(Time, Unit, Name)). % which CC?
-show_kind2_result(_, R, Sts, Sts) :-
+show_kind2_result(_, R, failed) :-
     print_message(error, unknown_kind2_result(R)).
 
+timed_result(O, reachable, unexpectedly_passed) :-
+    get_dict(name, O, FullName),
+    simple_varname(FullName, Name),
+    allowed_kind2_failure(Name),
+    !,
+    get_dict(runtime, O, RT),
+    get_dict(value, RT, Time),
+    get_dict(unit, RT, Unit),
+    print_message(success, kind2_reachable_unexpectedly(Time, Unit, Name)). % which CC?
+timed_result(O, reachable, passed) :-
+    get_dict(name, O, FullName),
+    simple_varname(FullName, Name),
+    get_dict(runtime, O, RT),
+    get_dict(value, RT, Time),
+    get_dict(unit, RT, Unit),
+    print_message(success, kind2_reachable(Time, Unit, Name)). % which CC?
+
+falsifiable_result(O, MsgMode, ErrMsg) :-
+    get_dict(counterExample, O, [CounterEx|OtherCounterEx]),
+    get_dict(streams, CounterEx, Streams),
+    findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
+    findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
+    append(Inputs, Outputs, InterestingVars),
+    !,
+    show_stream_steps(InterestingVars, Streams),
+    print_message(MsgMode, ErrMsg).
+
+allowed_kind2_failure(Name) :-
+    eng:eng(system, model, kind2, allowed_failure, AF),
+    split_string(AF, ",", " ", AFNames),
+    member(Name, AFNames).
 
 simple_varname(ContractRef, ContractVar) :-
     string_concat(_, Right, ContractRef),
@@ -464,13 +501,13 @@ trim_trailing_index(V, Simple) :-
     !.
 trim_trailing_index(V, V).
 
-show_kind2_satresult(O, "satisfiable", Sts, Sts) :-
+show_kind2_satresult(O, "satisfiable", satisfiable) :-
     !,
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
     print_message(success, kind2_satisfiable(Time, Unit)). % which CC?
-show_kind2_satresult(_, R, Sts, Sts) :-
+show_kind2_satresult(_, R, unsure) :-
     print_message(error, unknown_kind2_satresult(R)).
 
 
@@ -531,6 +568,9 @@ prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_reachable(Time, Unit, Name)) -->
     [ 'Reachable (~w ~w): ~w' - [ Time, Unit, Name ] ].
+prolog:message(kind2_reachable_unexpectedly(Time, Unit, Name)) -->
+    [ 'Reachable (~w ~w): ~w  ... EXPECTED THIS TO FAIL!'
+      - [ Time, Unit, Name ] ].
 prolog:message(kind2_valid(Time, Unit, Name)) -->
     [ 'Valid (~w ~w): ~w' - [ Time, Unit, Name ] ].
 prolog:message(kind2_satisfiable(Time, Unit)) -->
@@ -539,8 +579,12 @@ prolog:message(kind2_unrealizable(Num, Names)) -->
     [ 'UNREALIZABLE, ~w conflicts: ~w' - [ Num, Names ] ].
 prolog:message(kind2_unreachable(Name)) -->
     [ 'UNREACHABLE: ~w' - [ Name ] ].
+prolog:message(kind2_unreachable_expected(Name)) -->
+    [ 'UNREACHABLE: ~w  (expected this failure)' - [ Name ] ].
 prolog:message(kind2_falsifiable(Name)) -->
     [ 'FALSIFIABLE: ~w' - [ Name ] ].
+prolog:message(kind2_falsifiable_expected(Name)) -->
+    [ 'FALSIFIABLE: ~w  (expected this failure)' - [ Name ] ].
 prolog:message(other_unrealizable_nodes(Nodes)) -->
     [ 'additional nodes not handled: ~w' - [ Nodes ] ].
 prolog:message(other_unrealizable_traces(Traces)) -->
