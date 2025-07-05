@@ -4,9 +4,15 @@ main :- load_eng, run_eng_cmd
         ; show_help, halt(0).
 
 run_eng_cmd :-
+    setup_env,
     ingest_user_engfiles(_),
     (current_prolog_flag(argv, [Cmd|CmdArgs]) ; Cmd = "", CmdArgs = []),
     run_each_eng_cmd(Cmd, CmdArgs).
+
+setup_env :-
+    current_prolog_flag(tty_control, true), !,
+    set_prolog_flag(color_term, true).
+setup_env.
 
 % Several cases handled here:
 %
