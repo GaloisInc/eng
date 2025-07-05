@@ -293,7 +293,6 @@ find_named_var(Name, VS, V) :-
     \+ V = constr(_, _, _, _),  % constructors cannot be vars
     get_dict(varname, V, Name).
 
-
 add_if_not_present(_, Decl, [], DS, [Decl|DS]).   % end-of list: add Decl
 add_if_not_present(Var, _, [Var|_], DS, DS) :- !. % Var is in list, no add
 add_if_not_present(Var, Decl, [_|VS], DS, Out) :- % No match, check next
@@ -319,7 +318,7 @@ req_internalvars([R|RS], [G|GS], [D|DS], Helpers) :-
     collect_kind2_helpers(E, MyHelpers),
     emit_CoCoSpec(E, CoCo),
 
-    format(atom(D), '(* Req: ~w *)~n  var ~w : bool = ~w;~n', [ FT, V, CoCo ]),
+    format(atom(D), '(* Req: ~w *)~n~n  var ~w : bool = ~w;~n~n', [ FT, V, CoCo ]),
     format(atom(G), 'guarantee "~w" ~w;', [RID, V]),
     req_internalvars(RS, GS, DS, MoreHelpers),
     append(MyHelpers, MoreHelpers, Helpers).
@@ -648,12 +647,12 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 
     input_vars(Reqs, CVars, Vars, Kind2Input, Kind2Args),
     !,
-    intercalate(Kind2Input, "; ", NodeArgDecls),
+    intercalate(Kind2Input, ";\n                    ", NodeArgDecls),
     intercalate(Kind2Args, ", ", ContractArgs),
 
     output_vars(Vars, CVars, Kind2OutputDecls, Kind2Outputs),
     !,
-    intercalate(Kind2OutputDecls, "; ", NodeRet),
+    intercalate(Kind2OutputDecls, ";\n                    ", NodeRet),
     intercalate(Kind2Outputs, ", ", ContractOutputs),
     req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars, HelpersNeeded),
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
@@ -682,22 +681,23 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 |
 | {GlobalDecls}
 |
-| contract {NodeName}Spec( {NodeArgDecls} ) returns ( {NodeRet} );
+| ----------------------------------------------------------------------
+| contract {NodeName}Spec( {NodeArgDecls} )
+| returns ( {NodeRet} );
 | let
 |   {Modes}
-|
 |   {NodeDecls}
-|
 |   {NodeReqDecls}
-|
 |   {NodeGuarantees}
-|
 | tel
 |
-| node {NodeName} ( {NodeArgDecls} ) returns ( {NodeRet} );
-| (*@contract
-|    import {NodeName}Spec({ContractArgs}) returns ({ContractOutputs});
-| *)
+| ----------------------------------------------------------------------
+| node {NodeName} ( {NodeArgDecls} )
+| returns ( {NodeRet} );
+|   (*@contract
+|      import {NodeName}Spec({ContractArgs})
+|             returns ({ContractOutputs});
+|   *)
 | let
 |   --%MAIN;
 |   {NodeCalls}
