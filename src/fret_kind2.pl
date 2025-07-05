@@ -161,17 +161,17 @@ out_varname(VS, VName) :-
 %% ----------------------------------------------------------------------
 
 % Generate a kind2/lustre enumerated type for each enumerated variable.
-enum_types(EnumsVals, Kind2Globals, VarTypes) :-
-    enum_types_(EnumsVals, Kind2Globals, VarTypes).
+enum_types(EnumsVals, Kind2Globals) :-
+    enum_types_(EnumsVals, Kind2Globals).
 
-enum_types_([], [], []).
-enum_types_([(VN, EV)|EVS], [TypeDef|TypeDefs], [(VN, TypeName)|VNS]) :-
+enum_types_([], []).
+enum_types_([(VN, EV)|EVS], [TypeDef|TypeDefs]) :-
     enum_names(EV, EVNames),
     intercalate(EVNames, ", ", EVNMS),
     scenarios_type_name(VN, TypeName),
     format(atom(X), 'type ~w = enum { ~w };', [ TypeName, EVNMS ]),
     atom_string(X, TypeDef),
-    enum_types_(EVS, TypeDefs, VNS).
+    enum_types_(EVS, TypeDefs).
 
 
 enum_names([], []).
@@ -231,14 +231,14 @@ implicit_vars(EnumVals, [V|VS], [D|DS]) :-
 % However, consider that Kind2 mode support is significantly more complex...
 implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
 
-input_vars(VTypes, Reqs, Vars, Decls, Refs) :-
-    input_vars_(VTypes, Reqs, Vars, Refs, Decls).
-input_vars_(_, _, [], _, []).
-input_vars_(VTypes, Reqs, [constr(_, _, _, _)|VS], Seen, Out) :-
+input_vars(Reqs, Vars, Decls, Refs) :-
+    input_vars_(Reqs, Vars, Refs, Decls).
+input_vars_(_, [], _, []).
+input_vars_(Reqs, [constr(_, _, _, _)|VS], Seen, Out) :-
     !,
     % constructors cannot be vars, skip this
-    input_vars_(VTypes, Reqs, VS, Seen, Out).
-input_vars_(VTypes, Reqs, [V|VS], [Name|SeenNames], Out) :-
+    input_vars_(Reqs, VS, Seen, Out).
+input_vars_(Reqs, [V|VS], [Name|SeenNames], Out) :-
     get_dict(usage, V, "Input"),  % filters out Internal, Mode, and Output vars
     get_dict(varname, V, Name),
     is_req_var(Name, Reqs),
@@ -246,16 +246,16 @@ input_vars_(VTypes, Reqs, [V|VS], [Name|SeenNames], Out) :-
     get_dict(type, V, VarType),
     convert_type(VarType, KindType),
     format(atom(Decl), '~w:~w', [Name, KindType]),
-    input_vars_(VTypes, Reqs, VS, SeenNames, DS),
+    input_vars_(Reqs, VS, SeenNames, DS),
     add_if_not_present(Name, Decl, SeenNames, DS, Out).
-input_vars_(VTypes, Reqs, [_|VS], Seen, Out) :-
-    input_vars_(VTypes, Reqs, VS, Seen, Out).
+input_vars_(Reqs, [_|VS], Seen, Out) :-
+    input_vars_(Reqs, VS, Seen, Out).
 
 
-output_vars(VTypes, Vars, OutNames, Decls, Names) :-
-    output_vars_(VTypes, Vars, OutNames, Names, Decls).
-output_vars_(_, _, [], _, []).
-output_vars_(VTypes, Vars, [VN|VNS], [Name|SeenNames], Out) :-
+output_vars(Vars, OutNames, Decls, Names) :-
+    output_vars_(Vars, OutNames, Names, Decls).
+output_vars_(_, [], _, []).
+output_vars_(Vars, [VN|VNS], [Name|SeenNames], Out) :-
     find_named_var(VN, Vars, V),
     get_dict(usage, V, "Output"),
     !,
@@ -263,10 +263,10 @@ output_vars_(VTypes, Vars, [VN|VNS], [Name|SeenNames], Out) :-
     get_dict(type, V, VarType),
     convert_type(VarType, KindType),
     format(atom(Decl), '~w:~w', [Name, KindType]),
-    output_vars_(VTypes, Vars, VNS, SeenNames, DS),
+    output_vars_(Vars, VNS, SeenNames, DS),
     add_if_not_present(Name, Decl, SeenNames, DS, Out).
-output_vars_(VTypes, Vars, [_|VNS], Seen, Out) :-
-    output_vars_(VTypes, Vars, VNS, Seen, Out).
+output_vars_(Vars, [_|VNS], Seen, Out) :-
+    output_vars_(Vars, VNS, Seen, Out).
 
 find_named_var(Name, VS, V) :-
     member(V, VS),
@@ -614,7 +614,7 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 % Kind2: returns the Kind2 specification
 
 reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
-    enum_types(EnumVals, Kind2Globals, VarTypes),
+    enum_types(EnumVals, Kind2Globals),
     !,
 
     enum_modes(CVars, EnumVals, ModeSpecs),
@@ -624,12 +624,12 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     intercalate(Kind2Globals, "\n", GlobalDecls),
     implicit_vars(EnumVals, Vars, Kind2Decls),
     intercalate(Kind2Decls, "\n  ", NodeDecls),
-    input_vars(VarTypes, Reqs, Vars, Kind2Input, Kind2Args),
+    input_vars(Reqs, Vars, Kind2Input, Kind2Args),
     reverse(Kind2Input, RKind2Input),
     reverse(Kind2Args, RKind2Args),
     intercalate(RKind2Input, "; ", NodeArgDecls),
-    intercalate(RKind2Args, ", ", NodeArgs),
-    output_vars(VarTypes, Vars, CVars, Kind2OutputDecls, Kind2Outputs),
+    intercalate(RKind2Args, ", ", ContractArgs),
+    output_vars(Vars, CVars, Kind2OutputDecls, Kind2Outputs),
     intercalate(Kind2OutputDecls, "; ", NodeRet),
     intercalate(Kind2Outputs, ", ", NodeOutputs),
     req_internalvars(Reqs, Kind2Guarantees, Kind2ReqVars, HelpersNeeded),
