@@ -382,23 +382,32 @@ prepend_valid_reqs([R|RS], Reqs, [R|OutRS]) :-
 
 fret_usage_type(Element, Usage, Type, ModeReqs) :-
     get_dict(features, Element, Features),
-    fret_var_usage_feature(Features, Usage, ModeReqs),
+    fret_var_usage_feature(Element, Features, Usage, ModeReqs),
     fret_var_type_feature(Features, Type).
 
-fret_var_usage_feature(Features, Usage, ModeReqs) :-
+fret_var_usage_feature(Element, Features, Usage, ModeReqs) :-
     member(Feature, Features),
-    fret_var_usage_(Features, Feature, Usage, ModeReqs).
-fret_var_usage_(Features, Feature, Usage, ModeReqs) :-
+    fret_var_usage_(Element, Features, Feature, Usage, ModeReqs).
+fret_var_usage_(Element, Features, Feature, Usage, ModeReqs) :-
     get_dict(text, Feature, T),
     string_concat(Before, " var.", T),
     string_concat("FRET ", Usage, Before),
-    var_modereqs(Features, Usage, ModeReqs).
+    var_modereqs(Element, Features, Usage, ModeReqs).
 
-var_modereqs(Features, "Mode", ModeReqs) :-
+var_modereqs(_, Features, "Mode", ModeReqs) :-
     !,
     findall(T, regular_constraints(Features, T), TS),
     conjunction(TS, ModeReqs).
-var_modereqs(_, _, "").
+var_modereqs(_, _, "Input", "") :- !.
+var_modereqs(_, _, "Output", "") :- !.
+var_modereqs(Element, _, Other, "") :-
+    !,
+    print_message(warning, unknown_mode(Element, Other)),
+    fail.
+
+prolog:message(unknown_mode(Element, Mode)) -->
+    { specElement_ref(Element, Name) },
+    [ 'Ignoring ~w: unknown mode ~w' - [ Name, Mode ] ].
 
 regular_constraints(Features, Constraint) :-
     member(Feature, Features),
