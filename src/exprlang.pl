@@ -1,4 +1,5 @@
-:- module(exprlang, [ define_language/2, show_language/1,
+:- module(exprlang, [ define_language/2, ensure_language_defined/1,
+                      show_language/1,
                       initial_gamma/1, fresh_var/4, fresh_var/7,
                       parse_expr/3, parse_expr/4, expr/6, expr/7,
                       op(750, xfy, →),
@@ -15,6 +16,12 @@
 :- use_module(library(yall)).
 
 :- dynamic language_name/2, type/2, atom/2, lang/2, variable_ref/2.
+
+ensure_language_defined(LangDef) :-
+    get_dict(language, LangDef, LangName),
+    language_name(LangName),
+    !.
+ensure_language_defined(LangDef) :- define_language(LangDef, _).
 
 define_language(LangDef, Defs) :-
     get_dict(language, LangDef, LangName),

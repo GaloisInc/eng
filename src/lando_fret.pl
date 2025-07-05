@@ -48,6 +48,8 @@ lando_to_fret(LandoSSL, FretRequirements, FretVariables, SrcRefs) :-
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(_),  %% asserts fret_semantics/5 facts used below
     fretish_expr_langdef(LangDef),
+    % n.b. re-define language because there are user var-define type extensions
+    % asserted below (assertz(exprlang:type(...))).
     define_language(LangDef, _),
     (extract_fret(Body, Reqs, Refs, Status)
     -> ( fret_results(Body, Status, Reqs, FretRequirements, FretVariables),

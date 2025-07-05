@@ -11,7 +11,7 @@
 
 define_ltl_language() :-
     ltl_langdef(LangDef),
-    define_language(LangDef, _).
+    ensure_language_defined(LangDef).
 
 parse_ltl(Inp, AST) :-
     ltl_langdef(LangDef),

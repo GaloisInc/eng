@@ -9,7 +9,7 @@
 
 define_lustre_language :-
     lustre_langdef(LangDef),
-    define_language(LangDef, _).
+    ensure_language_defined(LangDef).
 
 parse_lustre(Inp, AST) :-
     lustre_langdef(LangDef),
