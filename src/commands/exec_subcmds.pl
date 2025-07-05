@@ -144,7 +144,7 @@ exec_with_shell_wrapper(Context, RootPath, ExecCmds, UpdExecCmds) :-
     ).
 
 in_nix_shell_with(Context, Pkgs, ExecCmds, UpdExecCmds) :-
-    catch(absolute_file_name(path(nix), Path, [access(execute)]), _, fail),
+    exe_lookup(nix, Path),
     dir_runproc(Context, "nix tool check", Path, ["--version"], curdir, _Out),
     !,
     intercalate(Pkgs, " ", PkgArgs),
@@ -152,6 +152,20 @@ in_nix_shell_with(Context, Pkgs, ExecCmds, UpdExecCmds) :-
                           [ Path, PkgArgs, E ]), ExecCmds, UpdExecCmds).
 in_nix_shell_with(_, _, ExecCmds, ExecCmds). % no nix tool available
 
+
+exe_lookup(ExeName, ExePath) :-
+    absolute_file_name(ExeName, Path, [access(execute), file_errors(fail)]),
+    !,
+    (read_link(Path, _, ExePath) ; ExePath = Path).
+exe_lookup(ExeName, ExePath) :-
+    absolute_file_name(path(ExeName), Path, [access(execute), file_errors(fail)]),
+    !,
+    (read_link(Path, _, ExePath) ; ExePath = Path).
+exe_lookup(ExeName, _) :-
+    print_message(error, exe_not_found(ExeName)), fail.
+
+prolog:message(exe_not_found(ExeName)) -->
+    [ 'Executable not found on PATH: ~w' - [ExeName] ].
 
 %% ----------------------------------------------------------------------
 
@@ -195,7 +209,8 @@ do_exec_single(Context, Ref, ArgMap, [Cmd|Args], EnvVars, InDir, Sts) :-
     (InDir == curdir -> PCtl = []; PCtl = [cwd(InDir)]),
     intercalate([Cmd|Args], " ", FullExec),
     print_message(informational, running_exec(FullExec)),
-    catch((process_create(path(E), EArgs, PCtl), Sts = 0),
+    exe_lookup(E, ExePath),
+    catch((process_create(ExePath, EArgs, PCtl), Sts = 0),
           _,
           (print_message(error, exec_failure(Ref, FullExec, 1)), Sts = 1)
          ).
@@ -283,18 +298,20 @@ dir_shell(context(EngDir, TopDir), Ref, FullExec, InDir, ExecSts) :-
 %% ----------------------------------------------------------------------
 
 dir_runproc(_, _, Exe, Args, curdir, StdOut) :-
-    %% format('Run ~w with ~w~n', [Exe, Args]),
     !,
+    exe_lookup(Exe, ExePath),
+    %% format('Run ~w as ~w with ~w~n', [Exe, ExePath, Args]),
     setup_call_cleanup(
-        process_create(path(Exe), Args, [stdout(pipe(Out))]),
+        process_create(ExePath, Args, [stdout(pipe(Out))]),
         read_lines(Out, StdOut),
         close(Out)).
 dir_runproc(context(EngDir, TopDir), _Ref, Exe, Args, InDir, StdOut) :-
     prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], InDir, SubstDir),
     string_trim(SubstDir, TgtDir),
-    %% format('Run ~w (~w) with ~w in ~w~n', [Exe, path(Exe), Args, TgtDir]),
+    exe_lookup(Exe, ExePath),
+    %% format('Run ~w (~w) with ~w in ~w~n', [Exe, ExePath, Args, TgtDir]),
     setup_call_cleanup(
-        process_create(path(Exe), Args, [stdout(pipe(Out)), cwd(TgtDir)]),
+        process_create(ExePath, Args, [stdout(pipe(Out)), cwd(TgtDir)]),
         read_lines(Out, StdOut),
         close(Out)).
 
