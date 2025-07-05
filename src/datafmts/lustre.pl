@@ -1,6 +1,7 @@
 % Parses and emits Lustre expressions via an AST.  Note that this expects to
 % process the same terms and AST emitted by the ltl parser.
 
+:- encoding(utf8).
 :- module(lustre, [ define_lustre_language/0,
                     parse_lustre/2, emit_lustre/2, emit_CoCoSpec/2 ]).
 

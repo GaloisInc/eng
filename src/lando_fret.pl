@@ -1,3 +1,4 @@
+:- encoding(utf8).
 :- module(lando_fret, [ lando_to_fret/4,
                         scenarios_final_var_name/2
                       ]).

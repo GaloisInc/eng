@@ -1,3 +1,4 @@
+:- encoding(utf8).
 % Parses the LTL input text into an AST.
 
 :- module(ltl, [ define_ltl_language/0,

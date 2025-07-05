@@ -1,3 +1,4 @@
+:- encoding(utf8).
 :- begin_tests(ltl).
 :- use_module(ltl).
 :- use_module(lustre).

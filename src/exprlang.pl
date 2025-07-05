@@ -1,3 +1,4 @@
+:- encoding(utf8).
 :- module(exprlang, [ define_language/2, ensure_language_defined/1,
                       show_language/1,
                       initial_gamma/1, fresh_var/4, fresh_var/7,
