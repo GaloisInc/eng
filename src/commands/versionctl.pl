@@ -9,6 +9,7 @@
 :- use_module(library(strings)).
 :- use_module(library(http/http_client)).
 :- use_module(library(http/http_json)).
+:- use_module(library(ssl)).
 :- use_module(library(url)).
 :- use_module(library(yall)).
 :- use_module('../englib').
