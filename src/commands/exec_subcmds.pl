@@ -6,7 +6,9 @@
                           prep_args/3
                         ]).
 
+:- use_module(library(lists)).
 :- use_module(library(strings)).
+:- use_module(library(yall)).
 :- use_module('../englib').
 
 % This module does not define a command directly, but provides definitions to
@@ -147,7 +149,10 @@ in_nix_shell_with(Context, Pkgs, ExecCmds, UpdExecCmds) :-
     exe_lookup(nix, Path),
     dir_runproc(Context, "nix tool check", Path, ["--version"], curdir, _Out),
     !,
-    intercalate(Pkgs, " ", PkgArgs),
+    maplist([I,O]>>split_string(I, "\n \t", "", O), Pkgs, PkgSplit),
+    append(PkgSplit, AllPkgs),
+    maplist(string_trim, AllPkgs, JustPkgs),
+    intercalate(JustPkgs, " ", PkgArgs),
     maplist([E,O]>>format(atom(O), "~w shell ~w --command bash -c '~w'",
                           [ Path, PkgArgs, E ]), ExecCmds, UpdExecCmds).
 in_nix_shell_with(_, _, ExecCmds, ExecCmds). % no nix tool available
