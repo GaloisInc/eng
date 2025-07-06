@@ -600,7 +600,9 @@ explanation(P) --> paragraph(P).
 paragraph(P) --> sentence(S0), sequence(sentence, SS), parend(_),
                  !,
                  { intercalate([S0|SS], " ", P) }.
-sentence(S) --> sentBody(A), optional(sentTerm(B), {B=""}), wordSep(_),
+sentence(S) --> sentBody(A),
+                optional(sentTerm(B), {B=""}),
+                wordSep(_),
                 { string_concat(A,B,S) }.
 sentBody(B) --> sseq, sentWord(W0, _), sequence(nextSentWord, WS),
                 optional(wordSep(X), {X=[]}),
@@ -612,10 +614,13 @@ sentBody(Excl, B, P) --> sentWord(W0, P),
                          { intercalate([W0|WS], " ", B) }.
 sentWord(W, P) --> fullWord([], ['.', '!', '?'], W, P).
 nextSentWord(W) --> wordSep(_), sentWord(W, _).
+nextSentWord("...") --> wordSep(_), ellipses.
+nextSentWord("...") --> ellipses.
 wordSep([]) --> sseqPlus.
 wordSep([]) --> sseq, clmatch(_).
 wordSep([]) --> sseq, lmatch(_).
 
+ellipses --> [c('.',_,_)], [c('.',_,_)], [c('.',_,_)].
 sentTerm(".") --> [c('.',_,_)].
 sentTerm("!") --> [c('!',_,_)].
 sentTerm("?") --> [c('?',_,_)].
