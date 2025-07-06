@@ -190,8 +190,6 @@ run_test_type(_Context, TestName, "KAT", _Args, 1) :-
     fail.
 run_test_type(_Context, _TestName, "KAT", _Args, 1) :- !.
 
-run_test_type(_Context, TestName, _TestType, _Args, 1) :-
-    \+ get_test_runner_exec(TestName, _, _, _), !.  % error already generated
 run_test_type(_Context, TestName, TestType, _Args, 1) :-
     print_message(error, unknown_test_type(TestName, TestType)).
 
