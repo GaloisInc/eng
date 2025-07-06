@@ -402,6 +402,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
 spec_output_type("json", "JSON", write_lando_json).
 spec_output_type("markdown", "Markdown", write_lando_markdown).
 spec_output_type("fret", "FRET", write_lando_fret).
+spec_output_type("fret-summary", "FRET Summary", write_lando_fret_summary).
 spec_output_type("RACK", "FRET RACK", write_lando_rack).
 
 wrote_file_messages(_, _, []).

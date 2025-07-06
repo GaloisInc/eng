@@ -1,5 +1,6 @@
 :- module(lando_tool, [ lando/3,
                         write_lando_fret/2,
+                        write_lando_fret_summary/2,
                         write_lando_fret_kind2/3,
                         write_lando_json/2,
                         write_lando_markdown/2,
@@ -9,6 +10,7 @@
 :- use_module(library(apply)).
 :- use_module(library(lists)).
 :- use_module(library(http/json)).
+:- use_module(library(yall)).
 :- use_module(src/datafmts/lando).
 :- use_module(src/datafmts/frettish).
 :- use_module(src/datafmts/fret_json).
@@ -53,6 +55,14 @@ lando(LandoSource, ['to-fret', OutFile], 0) :-
     write_lando_fret(OutStrm, SSL),
     print_message(informational, wrote_lando_as("FRET", LandoSource, OutFile)).
 
+lando(LandoSource, ['to-fret-summary', OutFile], 0) :-
+    parse_lando_file(LandoSource, SSL),
+    !,
+    ensure_file_loc(OutFile),
+    open(OutFile, write, OutStrm),
+    write_lando_fret_summary(OutStrm, SSL),
+    print_message(informational, wrote_lando_as("FRET summary", LandoSource, OutFile)).
+
 lando(LandoSource, ['to-fret-kind2', OutDir], 0) :-
     parse_lando_file(LandoSource, SSL),
     !,
@@ -81,6 +91,68 @@ write_lando_fret(OutStrm, SSL) :-
     lando_reqs_to_fret_json(LandoReqs, FretVars, FretJSON),
     json_write_dict(OutStrm, FretJSON, []),
     format(OutStrm, '~n', []).
+
+write_lando_fret_summary(OutStrm, SSL) :-
+    lando_to_fret(SSL, LandoReqs, FretVars, _),
+    maplist(fret_req_summary, LandoReqs, ReqSummaries),
+    intercalate(ReqSummaries, "\n", RS),
+    length(ReqSummaries, NR),
+    length(VarSummaries, NV),
+    %
+    exclude(is_constructor_p, FretVars, Vars),  % constructors are ignored
+    maplist(fret_var_summary, Vars, VarSummaries),
+    intercalate(VarSummaries, "\n", VS),
+    %
+    include(is_constructor_p, FretVars, Constrs),
+    maplist(constructors, Constrs, CUsed),
+    foldl(constr_info, Vars, [], CInfo0),
+    list_to_set(CInfo0, CInfo),
+    foldl(constructor_types, CInfo, [], CTypes0),
+    list_to_set(CTypes0, CTypes1),
+    sort(CTypes1, CTypes),
+    maplist(constructor_summary(CUsed, CInfo), CTypes, TypeInfos),
+    intercalate(TypeInfos, "\n", TypeInfo),
+    %
+    format(OutStrm,
+           'FRET Requirements (~w):~n~w~n~nFRET Variables (~w):~n~w~n~nTypes:~n~w~n',
+           [NR, RS, NV, VS, TypeInfo]).
+fret_req_summary(Req, Out) :-
+    get_dict(lando_req, Req, LR),
+    get_dict(req_name, LR, Name),
+    get_dict(req_project, LR, Proj),
+    get_dict(fret_req, LR, FRETment),
+    emit_fretish(FRETment, FT),
+    format_str(Out, '~w ~w: ~w', [Proj, Name, FT]).
+is_constructor_p(constr(_,_,_,_)).
+fret_var_summary(Var, Out) :-
+    get_dict(varname, Var, Name),
+    get_dict(type, Var, Type),
+    get_dict(usage, Var, Usage),
+    format_str(Out, '  ~w~t~10| ~w : ~w', [Usage, Name, Type]).
+constructors(constr(C,V,_,I), (T,V,C)) :- get_dict(type, I, T).
+constr_info(V, I, O) :-
+    get_dict(constructors, V, Constrs),
+    get_dict(type, V, Type),
+    !,
+    maplist(mkconstr(Type), Constrs, L),
+    append(L, I, O).
+constr_info(_, I, I).
+mkconstr(Type, (N, V, _), (Type, V, N)).
+constructor_types((T,_,_), TS, TS) :- member(T, TS), !.
+constructor_types((T,_,_), TS, [T|TS]).
+constructor_summary(CUsed, CInfo, CType, Summary) :-
+    foldl(constrsumm(CUsed, CType), CInfo, [], CS),
+    reverse(CS, RCS),
+    intercalate(RCS, "\n", Constrs),
+    format_str(Summary, ' - ~w type:~n~w', [CType, Constrs]).
+constrsumm(CUsed, CType, (CType, N, E), O, [T|O]) :-
+    member((CType, N, E), CUsed),
+    !,
+    format_str(T, '    ~w = ~w *', [N, E]).
+constrsumm(_, CType, (CType, N, E), O, [T|O]) :-
+    !,
+    format_str(T, '    ~w = ~w', [N, E]).
+constrsumm(_, _, _, O, O).
 
 write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
     lando_to_fret(SSL, Reqs, FretVars, _),
