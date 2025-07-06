@@ -186,7 +186,8 @@ ltl_langdef(
           expop(sub ⦂ integer → integer → integer, infix(chrs('-')), emit_infix("-")),
           expop(mul ⦂ integer → integer → integer, infix(chrs('*')), emit_infix("*")),
           expop(divd ⦂ integer → integer → integer, infix(chrs('/')), emit_infix("/")),
-          expop(expo ⦂ integer → integer → integer, infix(chrs('^')), emit_infix("^"))
+          expop(expo ⦂ integer → integer → integer, infix(chrs('^')), emit_infix("^")),
+          expop(fby ⦂ a → a → a, infix(chrs('->')), emit_infix("->"))
           %% TODO: at the next occurrence of BOOL
           %% TODO: at the previous occurrence of BOOL
         ]}).
@@ -371,6 +372,9 @@ optimize(op(or(op(ltlY(P), boolean),
 % These are verified by tests/S_SI_xform.lus.
 optimize(op(ltlS(L,op(and(L,R), boolean)), boolean), op(ltlSI(L,R), boolean)) :- !.
 optimize(op(ltlS(L,op(and(R,L), boolean)), boolean), op(ltlSI(L,R), boolean)) :- !.
+
+optimize(term("LTL", bool), op(fby(term(lit(true), boolean),
+                                   term(lit(false), boolean)), boolean)) :- !.
 
 optimize(X, X).
 
