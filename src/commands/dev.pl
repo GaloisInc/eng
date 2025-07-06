@@ -77,17 +77,21 @@ dev_cmd(Context, [Cmd|Args], Sts) :-
     ( member('--help', Args), dev_subcmd_help(Cmd), Sts = 0
     ; dev_subcmd_do(Context, Cmd, Args, Sts)
     ), !.
+dev_cmd(Context, [testlist|Args], Sts) :-
+    dev_subcmd_do(Context, testlist, Args, Sts).
 dev_cmd(Context, [Cmd|_], invalid_subcmd(dev, Context, Cmd)).
 
 
 subcmd_help(Cmd, CmdHelp) :-
     eng:key(dev, subcmd, Cmd, H),
-    Cmd \= test,
+    \+ member(Cmd, [ test, testlist ]),
     (is_list(H), H = [CmdHelp|_]
     ; \+ is_list(H), split_string(H, "\n", "", [CmdHelp|_])
     ).
 subcmd_help(test, "Runs tests for this project") :-
-    eng:key(dev, subcmd, test, testcase, _), !.
+    eng:key(dev, subcmd, test, testcase, _).
+subcmd_help(testlist, "Lists tests for this project") :-
+    eng:key(dev, subcmd, test, testcase, _).
 
 
 dev_subcmd_help(Cmd) :-
@@ -103,12 +107,29 @@ dev_subcmd_do(Context, test, Args, Sts) :-
     (Sts = 0, !, print_message(info, tests_passed(Cnt))
     ; print_message(error, test_failures(Cnt, Sts))
     ).
+dev_subcmd_do(Context, testlist, _Args, 0) :-
+    !,
+    list_tests(Context, Cnt),
+    print_message(info, test_count(Cnt)).
 dev_subcmd_do(Context, Cmd, Args, Sts) :-
     exec_subcmd_do(Context, dev, Cmd, Args, Sts), !.
 dev_subcmd_do(_, Cmd, _Args, unknown_dev_subcmd_do(Cmd)).
 
 
 %% ----------------------------------------------------------------------
+
+list_tests(_Context, Cnt) :-
+    findall(T, list_test(T), TS),
+    length(TS, Cnt).
+
+prolog:message(test_count(N)) --> [ '~w defined primary tests' - [N]].
+
+list_test(T) :-
+    eng:key(dev, subcmd, test, testcase, T),
+    eng:eng(dev, subcmd, test, testcase, T, type, TestType),
+    eng:eng(dev, subcmd, test, testcase, T, runner, TestRunner),
+    format('___ ~w __ ~w ~`_t ~w ___~77|~n', [TestType, T, TestRunner]).
+
 
 run_tests(Context, Args, Cnt, NumFailures) :-
     findall(S, (eng:key(dev, subcmd, test, testcase, T),
