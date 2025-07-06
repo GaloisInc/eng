@@ -20,8 +20,10 @@ system_focus("Systems Engineering").
 
 system_help(Info) :-
     engfile_dir(EngDirV),
-    [EngDir] = [ EngDirV ],
-    Info = {|string(EngDir)||
+    setof(F, X^Y^spec_output_type(F, X, Y), FS),
+    intercalate(["ALL"|FS], " | ", Formats),
+    [EngDir, OutFormats] = [ EngDirV, Formats ],
+    Info = {|string(EngDir, OutFormats)||
 | Perform a SYSTEMS engineering task.
 |
 | Systems engineering involves the specification of the components and
@@ -41,7 +43,7 @@ system_help(Info) :-
 |         format = { lando | other }
 |         generate =
 |           OUTPUT_FILENAME
-|             format = { ALL | fret | json | markdown | fret_kind2 }
+|             format = {OutFormats}
 |
 |     model =
 |       kind2 =
@@ -376,40 +378,20 @@ generate_spec(Spec, "lando", SpecFile, Result) :-
 generate_spec(_, _, _, 1).
 
 generate_spec_outputs(Spec, "lando", SSL, Result) :-
+    spec_output_type(OutType, OutName, OutFunc),
     eng:key(system, spec, Spec, generate, OutFile),
-    eng:eng(system, spec, Spec, generate, OutFile, format, "json"),
+    eng:eng(system, spec, Spec, generate, OutFile, format, OutType),
     ensure_file_loc(OutFile),
     open(OutFile, write, OutStrm),
-    ( write_lando_json(OutStrm, SSL)
+    (call(OutFunc, OutStrm, SSL)
     -> Result = 0,
-       print_message(information, wrote_lando_as("JSON", Spec, OutFile))
+       print_message(information, wrote_lando_as(OutName, Spec, OutFile))
     ; Result = 1,
-      print_message(error, did_not_write(Spec, OutFile, "json"))
-    ).
-generate_spec_outputs(Spec, "lando", SSL, Result) :-
-    eng:key(system, spec, Spec, generate, OutFile),
-    eng:eng(system, spec, Spec, generate, OutFile, format, "markdown"),
-    ensure_file_loc(OutFile),
-    open(OutFile, write, OutStrm),
-    (write_lando_markdown(OutStrm, SSL)
-    -> Result = 0,
-       print_message(information, wrote_lando_as("Markdown", Spec, OutFile))
-    ; Result = 1,
-      print_message(error, did_not_write(Spec, OutFile, "markdown"))
-    ).
-generate_spec_outputs(Spec, "lando", SSL, Result) :-
-    eng:key(system, spec, Spec, generate, OutFile),
-    eng:eng(system, spec, Spec, generate, OutFile, format, "fret"),
-    ensure_file_loc(OutFile),
-    open(OutFile, write, OutStrm),
-    (write_lando_fret(OutStrm, SSL)
-    -> Result = 0,
-       print_message(information, wrote_lando_as("FRET", Spec, OutFile))
-    ; Result = 1,
-      print_message(error, did_not_write(Spec, OutFile, "fret"))
+      print_message(error, did_not_write(Spec, OutFile, OutName))
     ).
 generate_spec_outputs(Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutDir),
+    % This is an output directory, not an output file
     eng:eng(system, spec, Spec, generate, OutDir, format, "fret_kind2"),
     (write_lando_fret_kind2(OutDir, SSL, OutFiles)
     -> Result = 0,
@@ -417,17 +399,10 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
-generate_spec_outputs(Spec, "lando", SSL, Result) :-
-    eng:key(system, spec, Spec, generate, OutFile),
-    eng:eng(system, spec, Spec, generate, OutFile, format, "RACK"),
-    ensure_file_loc(OutFile),
-    open(OutFile, write, OutStrm),
-    (write_lando_rack(OutStrm, SSL)
-    -> Result = 0,
-       print_message(information, wrote_lando_as("FRET RACK", Spec, OutFile))
-    ; Result = 1,
-      print_message(error, did_not_write(Spec, OutFile, "FRET RACK"))
-    ).
+spec_output_type("json", "JSON", write_lando_json).
+spec_output_type("markdown", "Markdown", write_lando_markdown).
+spec_output_type("fret", "FRET", write_lando_fret).
+spec_output_type("RACK", "FRET RACK", write_lando_rack).
 
 wrote_file_messages(_, _, []).
 wrote_file_messages(Spec, Kind, [contract(OutFile)|FS]) :-
