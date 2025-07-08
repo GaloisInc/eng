@@ -812,6 +812,7 @@ kind2_helper(ltlZ, ["ZtoPre"]).
 kind2_helper(_, []).
 
 kind2_helper_def("H", Helper) :-
+    !,
     Helper = {|string||
 | --Historically: X has always been true
 | -- As soon as X is false once, Y will be false forever
@@ -823,6 +824,7 @@ kind2_helper_def("H", Helper) :-
 |
 |}.
 kind2_helper_def("HT", Helper) :-
+    !,
     Helper = {|string||
 | -- Timed Historically: general case
 | -- True if X has been true, and for R ticks afterwards, false thereafter
@@ -835,6 +837,7 @@ kind2_helper_def("HT", Helper) :-
 |
 |}.
 kind2_helper_def("O", Helper) :-
+    !,
     Helper = {|string||
 | --Once
 | --  the first time X is true, Y is true forever
@@ -846,6 +849,7 @@ kind2_helper_def("O", Helper) :-
 |
 |}.
 kind2_helper_def("OT", Helper) :-
+    !,
     Helper = {|string||
 | --Timed Once: general case
 | -- True R ticks after each X first true until L ticks after X is last true
@@ -858,6 +862,7 @@ kind2_helper_def("OT", Helper) :-
 |
 |}.
 kind2_helper_def("OTlore", Helper) :-
+    !,
     Helper = {|string||
 | --Timed Once: less than or equal to N
 | --  True every X and for N ticks afterward
@@ -872,6 +877,7 @@ kind2_helper_def("OTlore", Helper) :-
 |
 |}.
 kind2_helper_def("S", Helper) :-
+    !,
     Helper = {|string||
 | --Y since X
 | -- X is true, then Y until false
@@ -882,6 +888,7 @@ kind2_helper_def("S", Helper) :-
 |
 |}.
 kind2_helper_def("SI", Helper) :-
+    !,
     Helper = {|string||
 | --Y since inclusive X
 | --  Y is enabler/reset: while Y, from X true onwards
@@ -894,6 +901,7 @@ kind2_helper_def("SI", Helper) :-
 |
 |}.
 kind2_helper_def("ST", Helper) :-
+    !,
     Helper = {|string||
 | -- Timed Since: general case
 | -- R ticks after X is true, for L ticks if/while Y remains true
@@ -904,6 +912,7 @@ kind2_helper_def("ST", Helper) :-
 |
 |}.
 kind2_helper_def("SIT", Helper) :-
+    !,
     Helper = {|string||
 | -- Timed Since Inclusive: general case
 | -- R ticks after X is true, for L ticks if X or while Y remains true
@@ -914,6 +923,7 @@ kind2_helper_def("SIT", Helper) :-
 |
 |}.
 kind2_helper_def("YtoPre", Helper) :-
+    !,
     Helper = {|string||
 | -- The equivalent of LTL Y in Lustre.
 | --   Initially false, then the previous value of X (false, delay X by one)
@@ -924,6 +934,7 @@ kind2_helper_def("YtoPre", Helper) :-
 |
 |}.
 kind2_helper_def("ZtoPre", Helper) :-
+    !,
     Helper = {|string||
 | -- The equivalent of LTL Z in Lustre.
 | --   Initially true, then the previous value of X (true, delay X by one)
@@ -934,6 +945,7 @@ kind2_helper_def("ZtoPre", Helper) :-
 |
 |}.
 kind2_helper_def("delay", Helper) :-
+    !,
     Helper = {|string||
 | node delay(X:bool;  R:int) returns(Y:bool);
 | var X1, X2, X3, X4, X5, X6, X7, X8, X9, X10 : bool;
@@ -965,6 +977,7 @@ kind2_helper_def("delay", Helper) :-
 |
 |}.
 kind2_helper_def("preInt", Helper) :-
+    !,
     Helper = {|string||
 | -- Pre for integers, with an initial value at FTP
 | node preInt(InitialValue, X: int) returns (Y:int);
@@ -974,6 +987,7 @@ kind2_helper_def("preInt", Helper) :-
 |
 |}.
 kind2_helper_def("preReal", Helper) :-
+    !,
     Helper = {|string||
 | -- Pre for reals, with an initial value at FTP
 | node preReal(InitialValue, X: real) returns (Y:real);
@@ -983,6 +997,7 @@ kind2_helper_def("preReal", Helper) :-
 |
 |}.
 kind2_helper_def("preBool", Helper) :-
+    !,
     Helper = {|string||
 | -- Pre for booleans, with an initial value at FTP
 | node preBool(InitialValue, X: bool) returns (Y:bool);
@@ -992,6 +1007,7 @@ kind2_helper_def("preBool", Helper) :-
 |
 |}.
 kind2_helper_def("absInt", Helper) :-
+    !,
     Helper = {|string||
 | -- Absolute value for integers
 | function absInt(x:int) returns(y: int);
@@ -1001,6 +1017,7 @@ kind2_helper_def("absInt", Helper) :-
 |
 |}.
 kind2_helper_def("absReal", Helper) :-
+    !,
     Helper = {|string||
 | -- Absolute value for reals
 | function absReal(x:real) returns(y: real);
@@ -1010,6 +1027,7 @@ kind2_helper_def("absReal", Helper) :-
 |
 |}.
 kind2_helper_def("maxInt", Helper) :-
+    !,
     Helper = {|string||
 | -- Maximum value between two integers
 | function maxInt (a : int; b : int)
@@ -1020,6 +1038,7 @@ kind2_helper_def("maxInt", Helper) :-
 |
 |}.
 kind2_helper_def("maxReal", Helper) :-
+    !,
     Helper = {|string||
 | -- Maximum value between two reals
 | function maxReal (a : real; b : real)
@@ -1030,6 +1049,7 @@ kind2_helper_def("maxReal", Helper) :-
 |
 |}.
 kind2_helper_def("minInt", Helper) :-
+    !,
     Helper = {|string||
 | -- Minimum value between two integers
 | function minInt (a : int; b : int)
@@ -1040,6 +1060,7 @@ kind2_helper_def("minInt", Helper) :-
 |
 |}.
 kind2_helper_def("minReal", Helper) :-
+    !,
     Helper = {|string||
 | -- Minimum value between two reals
 | function minReal (a : real; b : real)
