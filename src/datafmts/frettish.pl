@@ -937,7 +937,9 @@ fretish_ptltl(Fretish, cocospec(PAST)) :-
     atom_string(CTA, CT),
     atom_string(TTA, TT),
     atom_string(RTA, RT),
-    lando_fret:fret_semantics(STA, CTA, TTA, RTA, Semantics),
+    (lando_fret:fret_semantics(STA, CTA, TTA, RTA, Semantics), !
+    ; print_message(no_fret_semantics(STA, CTA, TTA, RTA)), fail
+    ),
     get_dict(ptExpanded, Semantics, PTE),
     parse_ltl(PTE, PTELTL),
     transformed_scope_mode_pt(Scope, SMPT),
@@ -951,6 +953,10 @@ fretish_ptltl(Fretish, cocospec(PAST)) :-
                      ],
                      PTELTL, PASTRaw),
     xform_past_optimize(PASTRaw, PAST).
+
+prolog:message(no_fret_semantics(STA, CA, TA, RA)) -->
+    [ 'No semantics.json entry for: ~w,~w,~w,~w'-[STA, CA, TA, RA]].
+
 
 transformed_scope_mode_pt(Scope, SMPT) :-
     get_dict(scope, Scope, S),

@@ -123,7 +123,9 @@ req_semantics_defs(Inp, Semantics) :-
     atom_string(CA, C),
     atom_string(TA, T),
     atom_string(RA, Rsp),
-    lando_fret:fret_semantics(STA, CA, TA, RA, Semantics).
+    (lando_fret:fret_semantics(STA, CA, TA, RA, Semantics), !
+    ; print_message(error, no_fret_semantics(STA, CA, TA, RA)), fail
+    ).
     %% format(atom(DefKeyA), '~w,~w,~w,~w', [ST, C, T, Rsp]),
     %% get_dict(DefKeyA, Defs, Semantics).
 
