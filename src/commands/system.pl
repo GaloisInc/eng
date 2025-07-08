@@ -3,6 +3,7 @@
 % n.b. the module name cannot be "system" because that is reserved in SWI Prolog.
 
 :- use_module(library(apply)).
+:- use_module(library(filesex)).
 :- use_module(library(lists)).
 :- use_module(library(strings)).
 :- use_module('../englib').
@@ -368,16 +369,16 @@ prolog :message(number_lando_validation_errors(Spec, SpecFile, Count)) -->
 
 % ----------------------------------------------------------------------
 
-generate_system_spec(_, InputSpec, R) :-
-    with_spec_format_and_file(InputSpec, generate_spec, R).
+generate_system_spec(Context, InputSpec, R) :-
+    with_spec_format_and_file(InputSpec, generate_spec(Context), R).
 
-generate_spec(Spec, "lando", SpecFile, Result) :-
+generate_spec(Context, Spec, "lando", SpecFile, Result) :-
     parse_lando_file(SpecFile, SSL), !,
-    findall(R, generate_spec_outputs(Spec, "lando", SSL, R), Results),
+    findall(R, generate_spec_outputs(Context, Spec, "lando", SSL, R), Results),
     sum_list(Results, Result).
-generate_spec(_, _, _, 1).
+generate_spec(_, _, _, _, 1).
 
-generate_spec_outputs(Spec, "lando", SSL, Result) :-
+generate_spec_outputs(_, Spec, "lando", SSL, Result) :-
     spec_output_type(OutType, OutName, OutFunc),
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, OutType),
@@ -389,7 +390,7 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutFile, OutName))
     ).
-generate_spec_outputs(Spec, "lando", SSL, Result) :-
+generate_spec_outputs(_, Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutDir),
     % This is an output directory, not an output file
     eng:eng(system, spec, Spec, generate, OutDir, format, "fret_kind2"),
@@ -400,19 +401,38 @@ generate_spec_outputs(Spec, "lando", SSL, Result) :-
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
-generate_spec_outputs(Spec, "lando", SSL, Result) :-
+generate_spec_outputs(Context, Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutDir),
     % This is an output directory, not an output file
     eng:eng(system, spec, Spec, generate, OutDir, format, "test_traces"),
     asserta(fret_kind2:kind2_disallow_enums),
+    delete_directory_contents(OutDir),
     (write_lando_fret_kind2(OutDir, SSL, OutFiles)
-    -> Result = 0,
-       wrote_file_messages(Spec, "fret_kind2", OutFiles),
-    %% kind2_gen_traces(OutFiles),
-       true
+    -> wrote_file_messages(Spec, "fret_kind2", OutFiles),
+       kind2_gen_traces(Context, OutDir, OutFiles, Result)
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
+kind2_gen_traces(_, _, [], 0).
+kind2_gen_traces(Context, OutDir, [contract(IFile)|IFiles], Result) :-
+    kind2_gen_traces(Context, OutDir, IFile, IFiles, Result).
+kind2_gen_traces(Context, OutDir, [model(IFile)|IFiles], Result) :-
+    kind2_gen_traces(Context, OutDir, IFile, IFiles, Result).
+kind2_gen_traces(Context, OutDir, IFile, IFiles, Result) :-
+    do_exec(Context, "kind2 test generation",
+            [ 'OutDir' = OutDir,
+              'InpFile' = IFile
+            ],
+            [ "kind2 --testgen true --output_dir {OutDir} {InpFile}" ],
+            [], ".", Sts),
+    % Sts will be non-zero if guarantees fail, although test traces and an oracle
+    % will still be generated.  Technically, the traces/oracle are invalid
+    % because there are realizability errors (guarantee failures). Since we are
+    % generating them anyhow, generate all of them rather than stopping on the
+    % first failure.
+    kind2_gen_traces(Context, OutDir, IFiles, SubResult),
+    Result is Sts + SubResult.
+
 spec_output_type("json", "JSON", write_lando_json).
 spec_output_type("markdown", "Markdown", write_lando_markdown).
 spec_output_type("fret", "FRET", write_lando_fret).

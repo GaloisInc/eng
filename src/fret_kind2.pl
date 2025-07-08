@@ -160,18 +160,29 @@ out_varname(VS, VName) :-
 
 %% ----------------------------------------------------------------------
 
+:- dynamic kind2_disallow_enums/0.
+
+globals(EnumVals, Vars, Kind2Globals) :-
+    enum_types(EnumVals, EGlobals),
+    globalvals(EnumVals, Vars, VGlobals),
+    append([EGlobals, VGlobals], Kind2Globals).
+
+
 % Generate a kind2/lustre enumerated type for each enumerated variable.
-enum_types(_, []) :- kind2_disallow_enums, !.
 enum_types(EnumsVals, Kind2Globals) :-
     enum_types_(EnumsVals, Kind2Globals).
 
 enum_types_([], []).
+enum_types_([(VN, _EV)|EVS], [TypeDef|TypeDefs]) :-
+    kind2_disallow_enums, !,
+    scenarios_type_name(VN, TypeName),
+    format_str(TypeDef, 'type ~w = int;', [ TypeName ]),
+    enum_types_(EVS, TypeDefs).
 enum_types_([(VN, EV)|EVS], [TypeDef|TypeDefs]) :-
     enum_names(EV, EVNames),
     intercalate(EVNames, ", ", EVNMS),
     scenarios_type_name(VN, TypeName),
-    format(atom(X), 'type ~w = enum { ~w };', [ TypeName, EVNMS ]),
-    atom_string(X, TypeDef),
+    format_str(TypeDef, 'type ~w = enum { ~w };', [ TypeName, EVNMS ]),
     enum_types_(EVS, TypeDefs).
 
 
@@ -182,6 +193,17 @@ is_enum_val([(_,EN)|_], VName) :- enum_names(EN, ENames),
                                   member(VName, ENames),
                                   !.
 is_enum_val([_|ENS], VName) :- is_enum_val(ENS, VName), !.
+
+%% --------------------
+
+globalvals(EnumVals, VS, DS) :-
+    kind2_disallow_enums,  % Only active when this is set
+    implicit_vars_val(EnumVals, VS, VDS),
+    list_to_set(VDS, ADS),
+    maplist([(N,V),O]>>format_str(O, 'const ~w : int = ~w;', [N,V]), ADS, DS).
+
+globalvals(_, [], []).
+globalvals(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
 
 %% ----------------------------------------------------------------------
 
@@ -205,8 +227,11 @@ enum_modes(Vars, [_|EnumsVals], ModeSpecs) :-
 enum_mode(Var, [], Max, Min, [Mode]) :-
     kind2_disallow_enums,
     !,
-    format(atom(Mode), '  assert "Valid_~w" (~w < ~w and ~w < ~w);~n',
-           [Var, Min, Var, Var, Max]).
+    scenarios_final_var_name(InVar, Var),
+    format(atom(InpRange), '~w <= ~w and ~w <= ~w', [Min, InVar, InVar, Max]),
+    format(atom(OutRange), '~w <= ~w and ~w <= ~w', [Min, Var,   Var,   Max]),
+    format(atom(Mode), '  assume "~w" ~w;~n  guarantee "~w" ~w;~n',
+           ["input state range", InpRange, "output state range", OutRange]).
 enum_mode(_, [], _, _, []).
 enum_mode(Var, [(N,V)|VS], Max, Min, [Mode|Modes]) :-
     format(atom(Mode), '  mode ~w_~w ( require ~w = ~w; );', [Var, N, Var, N]),
@@ -231,16 +256,8 @@ arg_decl(V, Decl) :-
 % by the requirements in this CC, but they shouldn't hurt anything by being
 % defined.
 
-implicit_vars(EnumVals, VS, DS) :-
-    kind2_disallow_enums,  % Only active when this is set
-    implicit_vars_val(EnumVals, VS, VDS),
-    list_to_set(VDS, ADS),
-    maplist([(N,V),O]>>format_str(O, 'var ~w : int = ~w;', [N,V]), ADS, DS).
-
 implicit_vars(_, [], []).
 implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
-
-:- dynamic kind2_disallow_enums/0.
 
 implicit_vars_val(_, [], []).
 %% implicit_vars_val(EnumVals, [constr(N,V,_,_)|VS], [(N,V)|DS]) :-
@@ -663,7 +680,7 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 % Kind2: returns the Kind2 specification
 
 reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
-    enum_types(EnumVals, Kind2Globals),
+    globals(EnumVals, Vars, Kind2Globals),
     !,
 
     enum_modes(CVars, EnumVals, ModeSpecs),
