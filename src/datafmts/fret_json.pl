@@ -28,6 +28,7 @@ lando_req_to_fret_json(Lando_Req, JSONDict) :-
     get_dict(req_project, R, RP),
     get_dict(fret_req, R, RF),
     emit_fretish(RF, FT, Ranges),
+    !,
     fretment_to_fretsemantics(RF, Ranges, FJ),
     JSONDict = _{ '_id': RI, reqid: RN, parent_reqid: PI, project: RP,
                   fulltext: FT,
