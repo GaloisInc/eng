@@ -161,6 +161,7 @@ out_varname(VS, VName) :-
 %% ----------------------------------------------------------------------
 
 % Generate a kind2/lustre enumerated type for each enumerated variable.
+enum_types(_, []) :- kind2_disallow_enums, !.
 enum_types(EnumsVals, Kind2Globals) :-
     enum_types_(EnumsVals, Kind2Globals).
 
@@ -190,20 +191,32 @@ enum_modes(_, [], []).
 enum_modes(Vars, [(N,VS)|EnumsVals], [[""|Modes]|ModeSpecs]) :-
     member(N, Vars),
     !,
-    enum_mode(N, VS, Modes),
+    enum_mode(N, VS, 0, 99, Modes),
     enum_modes(Vars, EnumsVals, ModeSpecs).
 enum_modes(Vars, [(IN,VS)|EnumsVals], [[""|Modes]|ModeSpecs]) :-
     scenarios_final_var_name(IN, N),
     member(N, Vars),
     !,
-    enum_mode(N, VS, Modes),
+    enum_mode(N, VS, 0, 99, Modes),
     enum_modes(Vars, EnumsVals, ModeSpecs).
 enum_modes(Vars, [_|EnumsVals], ModeSpecs) :-
     enum_modes(Vars, EnumsVals, ModeSpecs).
-enum_mode(_, [], []).
-enum_mode(Var, [(N,_V)|VS], [Mode|Modes]) :-
+
+enum_mode(Var, [], Max, Min, [Mode]) :-
+    kind2_disallow_enums,
+    !,
+    format(atom(Mode), '  assert "Valid_~w" (~w < ~w and ~w < ~w);~n',
+           [Var, Min, Var, Var, Max]).
+enum_mode(_, [], _, _, []).
+enum_mode(Var, [(N,V)|VS], Max, Min, [Mode|Modes]) :-
     format(atom(Mode), '  mode ~w_~w ( require ~w = ~w; );', [Var, N, Var, N]),
-    enum_mode(Var, VS, Modes).
+    (V > Max
+    -> enum_mode(Var, VS, V, Min, Modes)
+    ; (V < Min
+      -> enum_mode(Var, VS, Max, V, Modes)
+      ; enum_mode(Var, VS, Max, Min, Modes)
+      )
+    ).
 
 %% ----------------------------------------------------------------------
 
@@ -218,25 +231,41 @@ arg_decl(V, Decl) :-
 % by the requirements in this CC, but they shouldn't hurt anything by being
 % defined.
 
-implicit_vars(_, [], []).
-implicit_vars(EnumVals, [constr(_, _, _, _)|VS], DS) :-
-    !,
-    % format('TODO TODO: handle implicit_vars for ~w~n', [VName]),
-    implicit_vars(EnumVals, VS, DS).
-implicit_vars(EnumVals, [V|VS], [D|DS]) :-
-    get_dict(usage, V, "Internal"),
-    get_dict(varname, V, VarName),
-    \+ is_enum_val(EnumVals, VarName),
-    !,
-    arg_decl(V, BaseDecl),
-    get_dict(assignment, V, ValStr),
-    string_trim(ValStr, Val),
-    format(atom(D), "var ~w = ~w;", [ BaseDecl, Val ]),
-    implicit_vars(EnumVals, VS, DS).
+implicit_vars(EnumVals, VS, DS) :-
+    kind2_disallow_enums,  % Only active when this is set
+    implicit_vars_val(EnumVals, VS, VDS),
+    list_to_set(VDS, ADS),
+    maplist([(N,V),O]>>format_str(O, 'var ~w : int = ~w;', [N,V]), ADS, DS).
 
-% TODO: similar to above, but for Mode idType, and Val is modeRequirement.
-% However, consider that Kind2 mode support is significantly more complex...
+implicit_vars(_, [], []).
 implicit_vars(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
+
+:- dynamic kind2_disallow_enums/0.
+
+implicit_vars_val(_, [], []).
+%% implicit_vars_val(EnumVals, [constr(N,V,_,_)|VS], [(N,V)|DS]) :-
+%%
+%%   n.b. this is an alternative to the implicit_vars_val based in interating
+%%   through the non-constrs below.  The reason this is not used is that the list
+%%   only has constr entries for *used* values, but the mode specifications
+%%   need *all* possible values.
+%%
+%%     !,
+%%     implicit_vars_val(EnumVals, VS, DS).
+implicit_vars_val(EnumVals, [constr(_,_,_,_)|VS], DS) :-
+    !,
+    % constr are skipped
+    implicit_vars_val(EnumVals, VS, DS).
+implicit_vars_val(EnumVals, [V|VS], DS) :-
+    kind2_disallow_enums,  % Only active when this is set
+    get_dict(type, V, TypeName),
+    scenarios_type_name(VN, TypeName),
+    atom_string(VN, VName),
+    member((VName, VDecls), EnumVals),
+    !,
+    implicit_vars_val(EnumVals, VS, SubDS),
+    append([VDecls, SubDS], DS).
+implicit_vars_val(EnumVals, [_|VS], DS) :- implicit_vars_val(EnumVals, VS, DS).
 
 input_vars(Reqs, CVars, Vars, Decls, Refs) :-
     input_vars_(Reqs, CVars, Vars, RRefs, RDecls),
@@ -302,6 +331,7 @@ convert_type("integer", "int") :- !.
 convert_type("boolean", "bool") :- !.
 convert_type(integer, "int") :- !.
 convert_type(boolean, "bool") :- !.
+convert_type(_, "int") :- kind2_disallow_enums, !.
 convert_type(Other, Other).
 
 req_internalvars([], [], [], []).
@@ -685,8 +715,8 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 | contract {NodeName}Spec( {NodeArgDecls} )
 | returns ( {NodeRet} );
 | let
-|   {Modes}
 |   {NodeDecls}
+|   {Modes}
 |   {NodeReqDecls}
 |   {NodeGuarantees}
 | tel
