@@ -95,13 +95,14 @@ write_lando_fret(OutStrm, SSL) :-
 write_lando_fret_summary(OutStrm, SSL) :-
     lando_to_fret(SSL, LandoReqs, FretVars, _),
     maplist(fret_req_summary, LandoReqs, ReqSummaries),
-    intercalate(ReqSummaries, "\n", RS),
+    intercalate(ReqSummaries, "\n\n", RS),
     length(ReqSummaries, NR),
     length(VarSummaries, NV),
     %
     exclude(is_constructor_p, FretVars, Vars),  % constructors are ignored
     maplist(fret_var_summary, Vars, VarSummaries),
-    intercalate(VarSummaries, "\n", VS),
+    sort(VarSummaries, VS0),
+    intercalate(VS0, "\n", VS),
     %
     include(is_constructor_p, FretVars, Constrs),
     maplist(constructors, Constrs, CUsed),
