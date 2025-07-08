@@ -1,3 +1,4 @@
+:- encoding(utf8).
 :- begin_tests(frettish).
 :- use_module(frettish).
 :- use_module('../englib').

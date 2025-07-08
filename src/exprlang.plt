@@ -1,3 +1,4 @@
+:- encoding(utf8).
 :- begin_tests(exprlang).
 :- use_module(exprlang).
 :- use_module(library(strings)).

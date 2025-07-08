@@ -1,3 +1,4 @@
+:- encoding(utf8).
 % Parses the FRETish statements supported by the NASA Fret tool
 % (https://github.com/NASA-SW-VnV/fret).
 
