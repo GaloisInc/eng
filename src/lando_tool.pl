@@ -214,9 +214,9 @@ enum_vals([Elem|Elems], Enums) :-
 % states represented by the latter, so there's no "enumeration" of events values.
 enum_vals([Elem|Elems], [(Name, EnumVals)|Enums]) :-
     get_dict(scenarios, Elem, Events),
-    !,
     get_dict(name, Elem, ScenarioName),
     string_concat(Name, " Values", ScenarioName),
+    !,
     get_enumerated(Events, 0, EnumVals),
     enum_vals(Elems, Enums).
 enum_vals([_|Elems], Enums) :-
