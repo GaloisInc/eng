@@ -16,7 +16,7 @@
 
 :- use_module(library(yall)).
 
-:- dynamic language_name/2, type/2, atom/2, lang/2, variable_ref/2.
+:- dynamic language_name/1, type/2, atom/2, lang/2, variable_ref/2.
 
 ensure_language_defined(LangDef) :-
     get_dict(language, LangDef, LangName),
