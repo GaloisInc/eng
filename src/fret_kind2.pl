@@ -219,29 +219,61 @@ enum_modes(Vars, [(IN,VS)|EnumsVals], [[""|Modes]|ModeSpecs]) :-
     scenarios_final_var_name(IN, N),
     member(N, Vars),
     !,
-    enum_mode(N, VS, 0, 99, Modes),
+    enum_mode(N, VS, Modes),
     enum_modes(Vars, EnumsVals, ModeSpecs).
 enum_modes(Vars, [_|EnumsVals], ModeSpecs) :-
     enum_modes(Vars, EnumsVals, ModeSpecs).
 
-enum_mode(Var, [], Max, Min, [Mode]) :-
-    kind2_disallow_enums,
-    !,
-    scenarios_final_var_name(InVar, Var),
-    format(atom(InpRange), '~w <= ~w and ~w <= ~w', [Min, InVar, InVar, Max]),
-    format(atom(OutRange), '~w <= ~w and ~w <= ~w', [Min, Var,   Var,   Max]),
-    format(atom(Mode), '  assume "~w" ~w;~n  guarantee "~w" ~w;~n',
-           ["input state range", InpRange, "output state range", OutRange]).
-enum_mode(_, [], _, _, []).
-enum_mode(Var, [(N,V)|VS], Max, Min, [Mode|Modes]) :-
+enum_mode(_, [], []).
+enum_mode(Var, [(N,_)|VS], [Mode|Modes]) :-
     format(atom(Mode), '  mode ~w_~w ( require ~w = ~w; );', [Var, N, Var, N]),
-    (V > Max
-    -> enum_mode(Var, VS, V, Min, Modes)
-    ; (V < Min
-      -> enum_mode(Var, VS, Max, V, Modes)
-      ; enum_mode(Var, VS, Max, Min, Modes)
-      )
-    ).
+    enum_mode(Var, VS, Modes).
+
+
+%% ----------------------------------------------------------------------
+% Generate various constraints on values
+
+var_constraints(InpVars, OutVars, Enums, Constraints) :-
+    kind2_disallow_enums, !,
+    var_constrnts(InpVars, OutVars, Enums, Constraints).
+var_constraints(_, _, _, []).
+
+var_constrnts(_, _, [], []).
+var_constrnts(InpVars, OutVars, [(IN,VS)|EnumsVals], [ICns,OCns|Other]) :-
+    scenarios_final_var_name(IN, N),
+    member(N, OutVars),
+    !,
+    get_min_max(VS, VSMin, VSMax),
+    inp_constraints(VSMin, VSMax, IN, ICns),
+    out_constraints(VSMin, VSMax,  N, OCns),
+    var_constrnts(InpVars, OutVars, EnumsVals, Other).
+var_constrnts(InpVars, OutVars, [(N,VS)|EnumsVals], [Constraint|Other]) :-
+    member(N, InpVars),
+    !,
+    get_min_max(VS, VSMin, VSMax),
+    inp_constraints(VSMin, VSMax, N, Constraint),
+    var_constrnts(InpVars, OutVars, EnumsVals, Other).
+var_constrnts(InpVars, OutVars, [_|EnumsVals], Constraints) :-
+    var_constrnts(InpVars, OutVars, EnumsVals, Constraints).
+var_constrnts(InpVars, OutVars, [_|EnumsVals], Constraints) :-
+    var_constrnts(InpVars, OutVars, EnumsVals, Constraints).
+
+get_min_max([], 0, 0).
+get_min_max([(_,V)|VS], MinV, MaxV) :- get_min_max(VS, A, B),
+                                       get_min_max(A, B, V, MinV, MaxV).
+get_min_max(A, B, V, V, B) :- V < A, !.
+get_min_max(A, B, V, A, V) :- B < V, !.
+get_min_max(A, B, _, A, B).
+
+out_constraints(Min, Max, Var, M) :-
+    format(atom(M),
+           'guarantee "~w output values" ~w <= ~w and ~w <= ~w;',
+           [Var, Min, Var, Var, Max]).
+inp_constraints(Min, Max, Var, M) :-
+    format(atom(M),
+           'assume "~w input values" ~w <= ~w and ~w <= ~w;',
+           [Var, Min, Var, Var, Max]).
+
 
 %% ----------------------------------------------------------------------
 
@@ -707,6 +739,11 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     intercalate(Kind2ReqVars, "\n  ", NodeReqDecls),
     intercalate(Kind2Guarantees, "\n  ", NodeGuarantees),
 
+    !,
+    var_constraints(Kind2Args, CVars, EnumVals, ConstraintSpecs),
+    intercalate(ConstraintSpecs, "\n  ", Constraints),
+
+    !,
     cc_model_impls(CVars, Calls, FileNames),
     intercalate(Calls, "\n", NodeCalls),
 
@@ -724,6 +761,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
                      NodeGuarantees,
                      GlobalDecls,
                      NodeCalls,
+                     Constraints,
                      Modes,
                      Helpers)||
 | {Helpers}
@@ -735,6 +773,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 | returns ( {NodeRet} );
 | let
 |   {NodeDecls}
+|   {Constraints}
 |   {Modes}
 |   {NodeReqDecls}
 |   {NodeGuarantees}
