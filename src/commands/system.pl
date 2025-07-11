@@ -53,13 +53,13 @@ system_help(Info) :-
 |           inputs = INPUT_VARS
 |           file = KIND2_NODE_FILENAME
 |
-|  There may be multiple model files.  The file specifies a Lustre file containing
-|  a node with KIND2_NODE_NAME that takes the specified comma-separated list of
-|  inputs and generates the named output (no types).  When the output and inputs
-|  provided are a subset of the contract node's inputs and outputs, then a call
-|  to the KIND2_NODE_NAME will be generated in the output top-level contract
-|  file, and the contents of the KIND2_NODE_FILENAME will be appended to that
-|  top-level contract file.
+|  There may be multiple model files.  The file specifies a Lustre file
+|  containing a node with KIND2_NODE_NAME that takes the specified comma-
+|  separated list of inputs and generates the named output (no types).
+|  When the output and inputs provided are a subset of the inputs and
+|  outputs of the contract node, then a call to the KIND2_NODE_NAME will
+|  be generated in the output top-level contract file, and the contents
+|  of the KIND2_NODE_FILENAME will be appended to that top-level file.
 |}.
 
 system_help(list, "List project's system specifications").
