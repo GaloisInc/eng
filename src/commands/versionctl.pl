@@ -249,9 +249,13 @@ git_repo_PAT_hdr(URL, [authorization(bearer(PAT))]) :-
 git_repo_PAT_hdr(_, []).
 
 git_repo_cert(URL, [cert_verify_hook(ssl:cert_accept_any)]) :-
-    eng:eng(vctl, git, URL, remote_CA, any_cert), !.
+    member(host(H), URL),
+    atom_string(HA, H),
+    eng:eng(vctl, git, HA, remote_CA, "any_cert"), !.
 git_repo_cert(URL, [ca_certs([CA])]) :-
-    eng:eng(vctl, git, URL, remote_CA, CA), !.
+    member(host(H), URL),
+    atom_string(HA, H),
+    eng:eng(vctl, git, HA, remote_CA, CA), !.
 git_repo_cert(_, []).
 
 git_repo_path(URL, PathParts) :-
