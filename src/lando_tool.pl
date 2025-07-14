@@ -2,9 +2,9 @@
                         write_lando_fret/2,
                         write_lando_fret_summary/2,
                         write_lando_fret_kind2/3,
+                        write_fret_kind2/5,
                         write_lando_json/2,
-                        write_lando_markdown/2,
-                        write_lando_rack/2
+                        write_lando_markdown/2
                       ]).
 
 :- use_module(library(apply)).
@@ -157,6 +157,9 @@ constrsumm(_, _, _, O, O).
 
 write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
     lando_to_fret(SSL, Reqs, FretVars, _),
+    write_fret_kind2(OutDir, SSL, Reqs, FretVars, OutFiles).
+
+write_fret_kind2(OutDir, SSL, Reqs, FretVars, OutFiles) :-
     enumerated_values(SSL, EnumVals),
     fret_kind2(EnumVals, Reqs, FretVars, Kind2ConnComps),
     !,
@@ -231,38 +234,6 @@ get_enumerated([Val|Vals], N, [(Name, N)|MoreEnumVals]) :-
 
 %% ----------------------------------------------------------------------
 
-write_lando_rack(OutStrm, SSL) :-
-    lando_to_fret(SSL, Reqs, _, SrcRefs),
-    !,
-    write_rack_csv(OutStrm, SrcRefs, Reqs).
-
-write_rack_csv(OutStrm, _, []) :-
-    format(OutStrm, '~w,~w,~w,~w,~w,~w,~w~n',
-           [ "Project", "Component", "Requirement", "Source", "FretID",
-             "Status", "Frettish" ]).
-write_rack_csv(OutStrm, SrcRefs, [R|Reqs]) :-
-    write_rack_csv(OutStrm, SrcRefs, Reqs),
-    get_srcrefs_for_req(SrcRefs, R, SR),
-    (SR == [] -> SRS = [srcref("", "")] ; SRS = SR),
-    maplist(ww_csv(OutStrm, R), SRS, _).
-ww_csv(OutStrm, R, srcref(ReqTag, ReqSrc), ReqTag) :-
-    get_dict(lando_req, R, LR),
-    get_dict(req_project, LR, P),
-    get_dict(req_name, LR, I),
-    get_dict(fret_req, LR, Fretment),
-    Fretment = fretment(_, _, component_info(Comp), _, _),
-    get_dict(component, Comp, C),
-    emit_fretish(Fretment, T),
-    format(OutStrm, '~w,~w,~w,~w,~w,~w,"~w"~n',
-           [P, C, ReqTag, ReqSrc, I, "UNCHECKED", T]).
-
-get_srcrefs_for_req(SrcRefs, R, SR) :-
-    get_dict(lando_req, R, X),
-    get_dict(req_id, X, RID),
-    findall(Y, member(reqsrc(RID, Y), SrcRefs), SR).
-
-
-%% ----------------------------------------------------------------------
 
 write_lando_markdown(Strm, SSL) :-
     get_dict(body, SSL, Body),

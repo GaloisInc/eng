@@ -1,6 +1,7 @@
 :- module(fret_kind2, [ fret_kind2/4,
                         normalize_kind2_var/2,
                         kind2_validate/6,
+                        output_kind2_result/3,
                         %% -- for testing only
                         connected_components/4
                       ]).
@@ -532,12 +533,12 @@ show_kind2_result(O, "falsifiable", failed_as_expected) :-
     simple_varname(FullName, Name),
     allowed_kind2_failure(Name),
     !,
-    falsifiable_result(O, warning, kind2_falsifiable_expected(Name)).
+    falsifiable_result(O, warning, Name, kind2_falsifiable_expected(Name)).
 show_kind2_result(O, "falsifiable", failed) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     !,
-    falsifiable_result(O, warning, kind2_falsifiable(Name)).
+    falsifiable_result(O, warning, Name, kind2_falsifiable(Name)).
 show_kind2_result(O, "reachable", R) :-
     !,
     timed_result(O, reachable, R).
@@ -546,12 +547,12 @@ show_kind2_result(O, "unreachable", failed_as_expected) :-
     simple_varname(FullName, Name),
     allowed_kind2_failure(Name),
     !,
-    print_message(warning, kind2_unreachable_expected(Name)). % which CC?
+    call(output_kind2_result, Name, warning, kind2_unreachable_expected(Name)).
 show_kind2_result(O, "unreachable", failed) :-
     !,
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
-    print_message(error, kind2_unreachable(Name)). % which CC?
+    call(output_kind2_result, Name, error, kind2_unreachable(Name)).
 show_kind2_result(O, "valid", passed) :-
     !,
     get_dict(runtime, O, RT),
@@ -559,7 +560,7 @@ show_kind2_result(O, "valid", passed) :-
     get_dict(unit, RT, Unit),
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
-    print_message(success, kind2_valid(Time, Unit, Name)). % which CC?
+    call(output_kind2_result, Name, success, kind2_valid(Time, Unit, Name)).
 show_kind2_result(_, R, failed) :-
     print_message(error, unknown_kind2_result(R)).
 
@@ -571,24 +572,29 @@ timed_result(O, reachable, unexpectedly_passed) :-
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
-    print_message(success, kind2_reachable_unexpectedly(Time, Unit, Name)). % which CC?
+    call(output_kind2_result, Name, success, kind2_reachable_unexpectedly(Time, Unit, Name)).
 timed_result(O, reachable, passed) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
-    print_message(success, kind2_reachable(Time, Unit, Name)). % which CC?
+    call(output_kind2_result, Name, success, kind2_reachable(Time, Unit, Name)).
 
-falsifiable_result(O, MsgMode, ErrMsg) :-
-    get_dict(counterExample, O, [CounterEx|_OtherCounterEx]),
+falsifiable_result(O, MsgMode, Name, ErrMsg) :-
+    get_dict(counterExample, O, [CounterEx|OtherCounterEx]),
     get_dict(streams, CounterEx, Streams),
     findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
     findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
     append(Inputs, Outputs, InterestingVars),
     !,
     show_stream_steps(InterestingVars, Streams),
-    print_message(MsgMode, ErrMsg).
+    call(output_kind2_result, Name, MsgMode, ErrMsg).
+
+:- dynamic output_kind2_result/3.
+
+output_kind2_result(_ReqName, Level, Msg) :- print_message(Level, Msg).
+
 
 allowed_kind2_failure(Name) :-
     eng:eng(system, model, kind2, allowed_failure, AF),

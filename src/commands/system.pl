@@ -9,9 +9,11 @@
 :- use_module('../englib').
 :- use_module(exec_subcmds).
 :- use_module('../load').
+:- use_module('../datafmts/frettish').
 :- use_module('../datafmts/lando').
 :- use_module('../lando_tool').
 :- use_module('../lando_validate').
+:- use_module('../lando_fret').
 :- use_module('../fret_kind2').
 
 :- dynamic system_spec/1.
@@ -173,7 +175,7 @@ validate_system_spec(Context, InputSpec, R) :-
 validate_spec(Context, Spec, "lando", SpecFile, R) :-
     parse_lando_file(SpecFile, SSL), !,
     validate_lando(SSL, Problems),
-      length(Problems, NumProbs),
+    length(Problems, NumProbs),
     ( Problems == []
     -> validate_lando_fret(Context, Spec, SSL, R), !
     ; maplist(show_lando_validation_error(Spec, SpecFile), Problems),
@@ -191,9 +193,84 @@ validate_lando_fret(Context, Spec, SSL, R) :-
     ensure_dir(Dir),
     !,
     % if no FRET, the next should not succeed and this predicate is false
-    write_lando_fret_kind2(Dir, SSL, OutFiles),
-    maplist(validate_lando_fret_cc(Context), OutFiles, Results),
+    lando_to_fret(SSL, Reqs, FretVars, SrcRefs),
+    write_fret_kind2(Dir, SSL, Reqs, FretVars, OutFiles),
+
+    assertz(generated(gid(1), thing(SSL, form(mem, lando_SSL)))),
+    assertz(generated(gid(2), thing(Reqs, form(mem, fretments)), gid(1))),
+    assertz(generated(gid(3), thing(FretVars, form(mem, fret_variables)), gid(1))),
+    assertz(generated(gid(4), thing(SrcRefs, form(mem, fret_srcrefs)), gid(1))),
+
+    validate_fret_results(Context, Spec, OutFiles, Results),
     process_kind2_results(Results, R).
+
+validate_fret_results(Context, Spec, OutFiles, Results) :- % KWQ: version for which there is no RACK generate!  And rename generate to something else since this no longer comes from "eng system gen".
+    eng:key(system, spec, Spec, generate, OutFile),
+    eng:eng(system, spec, Spec, generate, OutFile, format, "RACK"),
+    !,
+    ensure_file_loc(OutFile),
+    open(OutFile, write, OutStrm),
+    format(OutStrm, '~w,~w,~w,~w,~w,~w,~w~n',
+           [ "Project", "Component", "Requirement", "Source", "FretID",
+             "Status", "Frettish" ]),
+    asserta((output_kind2_result(ReqName, Level, Msg) :-
+                 output_kind2_rack_csv(OutStrm, ReqName, Level, Msg),
+                 fail),  % fail to next output_kind2_result (print_message below)
+            RACK_out),
+    maplist(validate_lando_fret_cc(Context), OutFiles, Results),
+    erase(RACK_out).
+validate_fret_results(Context, Spec, OutFiles, Results) :-
+    maplist(validate_lando_fret_cc(Context), OutFiles, Results).
+
+output_kind2_rack_csv(OutStrm, ReqName, _Level, Msg) :-
+    generated(gid(G1), thing(Reqs, form(mem, fretments)), gid(1)),
+    find_req(ReqName, Reqs, R),
+    %% If not found, probably a mode req or the _one_mode_active synthetic
+    %% target.  For now, these are ignored, but enable this instead to get more
+    %% details.
+    %%
+    %% (find_req(ReqName, Reqs, R), !
+    %% ; format('no req for ~w~n~n~n', [ReqName]),
+    %%   fail),
+    generated(gid(G2), thing(SrcRefs, form(mem, fret_srcrefs)), gid(1)),
+    get_srcrefs_for_req(SrcRefs, R, SR),
+    (SR == [] -> SRS = [srcref("", "")] ; SRS = SR),
+    maplist(ww_csv(OutStrm, R, Msg), SRS, _).
+
+find_req(RName, [R|_], R) :- get_dict(lando_req, R, LR),
+                             get_dict(req_name, LR, RName).
+find_req(RName, [R|_], R) :- get_dict(lando_req, R, LR),
+                             atom_string(RName, RNS),
+                             get_dict(req_name, LR, RNS).
+find_req(RName, [R|_], R) :- get_dict(lando_req, R, LR),
+                             atom_string(RNA, RName),
+                             get_dict(req_name, LR, RNA).
+find_req(RName, [_|RS], R) :- find_req(RName, RS, R).
+
+get_srcrefs_for_req(SrcRefs, R, SR) :-
+    get_dict(lando_req, R, X),
+    get_dict(req_id, X, RID),
+    findall(Y, member(reqsrc(RID, Y), SrcRefs), SR).
+
+ww_csv(OutStrm, R, Msg, srcref(ReqTag, ReqSrc), ReqTag) :-
+    get_dict(lando_req, R, LR),
+    get_dict(req_project, LR, P),
+    get_dict(req_name, LR, I),
+    get_dict(fret_req, LR, Fretment),
+    Fretment = fretment(_, _, component_info(Comp), _, _),
+    get_dict(component, Comp, C),
+    emit_fretish(Fretment, T),
+    kind2_result_for_RACK(Msg, CVal),
+    format(OutStrm, '~w,~w,~w,~w,~w,~w,"~w"~n',
+           [P, C, ReqTag, ReqSrc, I, CVal, T]).
+
+kind2_result_for_RACK(kind2_valid(_, _, _), "VALID") :- !.
+kind2_result_for_RACK(kind2_reachable(_), "REACHABLE") :- !.
+kind2_result_for_RACK(kind2_reachable_unexpectedly(_), "REACHABLE") :- !.
+kind2_result_for_RACK(kind2_unreachable(_), "UNREACHABLE") :- !.
+kind2_result_for_RACK(kind2_unreachable_expected(_), "UNREACHABLE") :- !.
+kind2_result_for_RACK(Msg, "UNKNOWN") :-
+    format('Unknown kind2 result for RACK: ~w~n', [Msg]).
 
 prolog:message(kind2_good(NPass)) -->
     ["TOTAL: PASS  (~w checks)~n" - [ NPass ] ].
@@ -431,7 +508,7 @@ spec_output_type("json", "JSON", write_lando_json).
 spec_output_type("markdown", "Markdown", write_lando_markdown).
 spec_output_type("fret", "FRET", write_lando_fret).
 spec_output_type("fret-summary", "FRET Summary", write_lando_fret_summary).
-spec_output_type("RACK", "FRET RACK", write_lando_rack).
+
 
 wrote_file_messages(_, _, []).
 wrote_file_messages(Spec, Kind, [contract(OutFile)|FS]) :-
