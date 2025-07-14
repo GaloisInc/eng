@@ -25,6 +25,7 @@ parse_lando_file(File, SSL) :-
     import_lando_from_string(File, Contents, SSL).
 parse_lando_file(Files, SSL) :-
     split_string(Files, " \n\t", "", FileList),
+    \+ [Files] == FileList,
     maplist(parse_lando_file, FileList, SSLs),
     !,
     merge_ssls(SSLs, SSL).
