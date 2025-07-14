@@ -189,7 +189,7 @@ test(boolean_expr_with_ltl_func, [nondet]) :-
 
 test(boolean3_expr_unary_timed_bound, [nondet]) :-
     check_parsing("((H ((O[<=2 ] ((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm))))) -> ((H (! (alarm_enabled & disable_alarm))) | (! (alarm_disabled))))) & (H ((O[=2 +1] (((alarm_enabled & disable_alarm) & (Z (! (alarm_enabled & disable_alarm)))) & (! (alarm_disabled)))) -> (O[<2 +1] ((Z FALSE) | (alarm_disabled))))))",
-                  "(H((OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm))))) => (H((not (alarm_enabled and disable_alarm))) or (not alarm_disabled)))) and H((OT(3, 3, (((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm)))) and (not alarm_disabled))) => OT((3 - 1), 0, (ZtoPre(false) or alarm_disabled)))))").
+                  "(H((OT(2, 0, ((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm))))) => (H((not (alarm_enabled and disable_alarm))) or (not alarm_disabled)))) and H((OT(3, 3, (((alarm_enabled and disable_alarm) and ZtoPre((not (alarm_enabled and disable_alarm)))) and (not alarm_disabled))) => OT(2, 0, (ZtoPre(false) or alarm_disabled)))))").
 
 
 test(boolean_expr_mid_term, [nondet]) :-

@@ -379,8 +379,44 @@ optimize(op(ltlS(L,op(and(L,R), boolean)), boolean), op(ltlSI(L,R), boolean)).
 optimize(op(ltlS(L,op(and(R,L), boolean)), boolean), op(ltlSI(L,R), boolean)).
 
 optimize(term("LTL", bool), op(fby(term(lit(true), boolean),
-                                   term(lit(false), boolean)), boolean)) :- !.
+                                   term(lit(false), boolean)), boolean)).
 
+% More optimizations (not present in original FRET)
+optimize(op(xor(term(lit(true), boolean),
+                term(lit(true), boolean)), boolean),
+         term(lit(false), boolean)).
+optimize(op(xor(term(lit(false), boolean),
+                term(lit(false), boolean)), boolean),
+         term(lit(false), boolean)).
+optimize(op(xor(term(lit(A), boolean),
+                term(lit(B), boolean)), boolean),
+         term(lit(false), boolean)) :-
+    \+ A = B.
+optimize(op(eq(term(A, T), term(A, T)), boolean),
+         term(lit(true), boolean)).
+optimize(op(eq(term(A, T), term(A, T)), boolean),
+         term(lit(false), boolean)).
+optimize(op(add(term(num(N), integer),
+                term(num(M), integer)), integer),
+         op(term(num(O), integer))) :-
+    O is N + M.
+optimize(op(sub(term(num(N), integer),
+                term(num(M), integer)), integer),
+         op(term(num(O), integer))) :-
+    O is N - M.
+optimize(op(mul(term(num(N), integer),
+                term(num(M), integer)), integer),
+         op(term(num(O), integer))) :-
+    O is N * M.
+%% TODO: divd, expo
+optimize(op(fby(term(A, T), term(A, T)), T),
+         op(term(A, T), T)).
+optimize(op(range_max(term(num(N), integer)), range),
+         op(range_max_incl(term(num(M), integer)), range)) :-
+    succ(M, N).
+
+
+% Fall through: no optimization for this element.
 optimize(X, X).
 
 
