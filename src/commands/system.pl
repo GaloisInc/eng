@@ -306,51 +306,37 @@ process_kind2_results([], Stats, 0) :-
 process_kind2_results([ignored|KS], Stats, R) :-
     !,
     process_kind2_results(KS, Stats, R).
-process_kind2_results([invalid|KS], Stats, R) :-
-    !,
-    get_dict(ninv, Stats, NInv),
-    succ(NInv, U),
-    put_dict(ninv, Stats, U, UpdStats),
+process_kind2_results([K|KS], Stats, R) :-
+    stats_field(K, F),
+    get_dict(F, Stats, V),
+    succ(V, U),
+    put_dict(F, Stats, U, UpdStats),
     process_kind2_results(KS, UpdStats, SR),
-    succ(SR, R).
-process_kind2_results([passed|KS], Stats, R) :-
-    !,
-    get_dict(npass, Stats, NPass),
-    succ(NPass, U),
-    put_dict(npass, Stats, U, UpdStats),
-    process_kind2_results(KS, UpdStats, R).
-process_kind2_results([failed|KS], Stats, R) :-
-    !,
-    get_dict(nfail, Stats, NFail),
-    succ(NFail, U),
-    put_dict(nfail, Stats, U, UpdStats),
-    process_kind2_results(KS, UpdStats, SR),
-    succ(SR, R).
-process_kind2_results([failed_as_expected|KS], Stats, R) :-
-    !,
-    get_dict(nfailAsExp, Stats, NFailAsExp),
-    succ(NFailAsExp, U),
-    put_dict(nfailAsExp, Stats, U, UpdStats),
-    process_kind2_results(KS, UpdStats, R).
-process_kind2_results([unexpectedly_passed|KS], Stats, R) :-
-    !,
-    get_dict(nUnexpPass, Stats, NUnexpPass),
-    succ(NUnexpPass, U),
-    put_dict(nUnexpPass, Stats, U, UpdStats),
-    process_kind2_results(KS, UpdStats, SR),
-    succ(SR, R).
-process_kind2_results([satisfiable|KS], Stats, R) :-
-    !,
-    get_dict(npass, Stats, NPass),
-    succ(NPass, U),
-    put_dict(npass, Stats, U, UpdStats),
-    process_kind2_results(KS, UpdStats, R).
-process_kind2_results(O,S,99) :-
-    format('ERR: unhandled kind2 results: ~w~n  stats = ~w~n~n', [O, S]),
+    update_validate_error(SR, R).
+process_kind2_results([K|_],S,99) :-
+    \+ stats_field(K, _),
+    format('ERR: unhandled kind2 result: ~w~n  stats = ~w~n~n', [K, S]),
     fail.
 
 
-validate_lando_fret_cc(Context, contract(OutFile), Status) :-
+update_validate_error(Res, PrevCnt, Cnt) :-
+    is_validate_error(Res),
+    succ(PrevCnt, Cnt).
+update_validate_error(Res, Cnt, Cnt) :-
+    \+ is_validate_error(Res).
+
+is_validate_error(invalid).
+is_validate_error(failed).
+% is_validate_error(unexpectedly_passed).
+
+stats_field(invalid, ninv).
+stats_field(passed, npass).
+stats_field(failed, nfail).
+stats_field(failed_as_expected, nfailAsExp).
+stats_field(unexpectedly_passed, nUnexpPass).
+stats_field(satisfiable, npass).
+
+validate_lando_fret_cc(Context, contract(OutFile), Status)  :-
     validate_lando_fret_cc(Context, contract, OutFile, Status).
 validate_lando_fret_cc(Context, model(OutFile), Status) :-
     validate_lando_fret_cc(Context, model, OutFile, Status).
