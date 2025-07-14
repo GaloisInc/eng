@@ -117,10 +117,9 @@ ltl_langdef(
           % Z - PrevTrue
           expop(ltlZ ⦂ boolean → boolean, [[]>>lexeme(word('Z')), subexpr],
                 [_,[A],T]>>fmt_str(T, '(Z ~w)', [A])),
-          % TODO: allowing this creates a parse ambiguity: is FALSE the term(lit(false), boolean), or is is an ltlF_bound(term(ident("ALSE"), boolean), _) ??
-          %% expop(ltlF_bound ⦂ range → boolean → boolean,
-          %%       [[]>>lexeme(chrs('F')), subexpr, subexpr],
-          %%       [_,[R,A],T]>>fmt_str(T, '(F~w ~w)', [R,A])),
+          expop(ltlF_bound ⦂ range → boolean → boolean,
+                [[]>>lexeme(chrs('F')), subexpr, subexpr],
+                [_,[R,A],T]>>fmt_str(T, '(F~w ~w)', [R,A])),
           expop(ltlG_bound ⦂ range → boolean → boolean,
                 [[]>>lexeme(chrs('G')), subexpr, subexpr],
                 [_,[R,A],T]>>fmt_str(T, '(G~w ~w)', [R,A])),
