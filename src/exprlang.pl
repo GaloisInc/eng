@@ -14,6 +14,12 @@
                       fmt_str/3, fmap_abt/4
                     ]).
 
+% Unicode symbols used in this file:
+%   0x2192  →  right arrow
+%   0x2982  ⦂  Z notation type colon
+%   0x26b2  ⚲  Neuter  (not 0x1d209)
+
+
 :- use_module(library(yall)).
 
 :- dynamic language_name/1, type/2, atom/2, lang/2, variable_ref/2.
@@ -89,8 +95,8 @@ parse_expr_(Language, Expr, ABT, FinalEnv, TopType) :-
     string_chars(Expr, ECodes),
     enumerate(ECodes, Input),
     initial_gamma(Env),
-    ( TopType == anytype, !,
-      phrase(expr(Language, Env, ABT, FinalEnv), Input, Rem)
+    ( TopType == anytype
+    -> phrase(expr(Language, Env, ABT, FinalEnv), Input, Rem)
     ; phrase(expr(Language, Env, TopType, ABT, FinalEnv), Input, Rem)
     ),
     (Rem == [], !
@@ -105,39 +111,25 @@ prolog:message(unparsed(Remainder)) -->
 
 expr(Language, Env, ExprType, OutExprABT, OutEnv) -->
     expr(Language, Env, ExprABT, Env1),
-    !,
     { verify_expr_type(Language, Env1, ExprABT, ExprType, OutExprABT, OutEnv) }.
 
 :- dynamic type_repair/6.
 
-verify_expr_type(_, Env, Expr, ExprType, Expr, Env) :-
-    type_of(Expr, ExprType), !.
-verify_expr_type(Language, Env, Expr, ExprType, OutExpr, OutEnv) :-
-    type_of(Expr, OtherType),
-    type(Language, OtherType),
-    type_repair(Language, Env, Expr, ExprType, OutExpr, OutEnv),
-    % Note: type_repair could enable an ill-typed ABT result!
-    !.
-verify_expr_type(Language, Env, Expr, ExprType, Expr, Env) :-
-    type_of(Expr, OtherType),
-    type(Language, OtherType),
-    % no type_repair possible
-    !,
-    Err = invalid_term_type(Language, ExprType, Expr),
-    message_to_string(Err, EText),
-    throw(error(Err, context(_, EText))).
 verify_expr_type(_, Env, Expr, ExprType, OutExpr, Env) :-
     type_of(Expr, type_unassigned(U)),
     set_type(type_unassigned(U), ExprType, Expr, OutExpr).
+verify_expr_type(_, Env, Expr, ExprType, Expr, Env) :-
+    type_of(Expr, ExprType).
 verify_expr_type(Language, Env, Expr, ExprType, OutExpr, OutEnv) :-
-    type_repair(Language, Env, Expr, ExprType, OutExpr, OutEnv),
+    type_of(Expr, OtherType),
+    \+ member(OtherType, [type_unassigned(_), ExprType]),
     % Note: type_repair could enable an ill-typed ABT result!
-    !.
-verify_expr_type(Language, Env, Expr, ExprType, Expr, Env) :-
-    !,
-    Err = unknown_expr_type(Language, Expr, ExprType),
-    message_to_string(Err, EText),
-    throw(error(Err, context(_, EText))).
+    ( type_repair(Language, Env, Expr, ExprType, OutExpr, OutEnv)
+    ; % no type_repair possible
+      Err = unknown_expr_type(Language, Expr, ExprType),
+      message_to_string(Err, EText),
+      throw(error(Err, context(_, EText)))
+    ).
 
 
 expr(Language, Env, OutExpr, OutEnv) -->
@@ -145,7 +137,6 @@ expr(Language, Env, OutExpr, OutEnv) -->
       is_list(OpParser)
     },
     exprParts(Language, Env, OpType, OpParser, [], Terms, Env1),
-    !,
     { typecheck_expr(Language, Env1, OpType, Terms, Env2, OutTerms, OpOutType),
       Expr =.. [Op|OutTerms]
     },
@@ -155,13 +146,11 @@ expr(Language, Env, Expr, Env2) -->
     lexeme(call(TermParser, P)),
     typecheck(Language, Env, TermID, P, TermType, Env1, CheckedTermType),
     { Term =.. [TermID, P] },
-    !,
     exprMore(Language, Env1, term(Term, CheckedTermType), Env2, Expr).
 expr(Language, Env, Expr, OutEnv) -->
     lexeme(chrs('(')),
     expr(Language, Env, SubExpr, Env1),
     lexeme(chrs(')')),
-    !,
     exprMore(Language, Env1, SubExpr, OutEnv, Expr).
 expr(Language, Env, Expr, OutEnv) --> ws(_), expr(Language, Env, Expr, OutEnv).
 expr(_, Env, end, Env) --> [].
@@ -170,7 +159,6 @@ exprMore(Language, Env, LeftTerm, OutEnv, op(Expr, OT)) -->
     { lang(Language, expop(Op ⦂ OpType, infix(OpParser), _)) },
     lexeme(call(OpParser)),
     lexeme(expr(Language, Env, RTP, Env1)),
-    !,
     { typecheck_expr(Language, Env1, OpType, [LeftTerm, RTP],
                      OutEnv, [LT, RT], OT),
       Expr =.. [Op, LT, RT]
@@ -180,14 +168,10 @@ exprMore(Language, Env, Expr, OutEnv, OutExpr) -->
     ws(_),
     exprMore(Language, Env, Expr, OutEnv, OutExpr).
 exprMore(_, Env, E, Env, E) --> [].
-exprMore(_, Env, E, Env, _) -->
-    any(20, V, P),
-    { print_message(error, invalid_expr(E, V, P)), !, fail }.
 
 
 exprParts(Language, Env, _ → TPS, [subexpr|Parsers], OpArgs,
           Terms, OutEnv) -->
-    !,
     lexeme(expr(Language, Env, Arg, Env1)),
     typecheck(Language, Env1, Arg, Env2, TypedArg),
     % n.b. TParam will be checked against TypedArg after the entire expression is
@@ -195,20 +179,26 @@ exprParts(Language, Env, _ → TPS, [subexpr|Parsers], OpArgs,
     exprParts(Language, Env2, TPS, Parsers, [TypedArg|OpArgs], Terms, OutEnv).
 exprParts(Language, Env, TPS, [swapargs|Parsers], [OA1,OA2|OpArgs],
           Terms, OutEnv) -->
-    !,
     exprParts(Language, Env, TPS, Parsers, [OA2,OA1|OpArgs], Terms, OutEnv).
 exprParts(Language, Env, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
+    { \+ member(Parser, [subexpr, swapargs])},
     call(Parser),
-    !,
     exprParts(Language, Env, TPS, Parsers, OpArgs, Terms, OutEnv).
 exprParts(_, Env, _OpType, [], OpArgs, Terms, Env) -->
     [], { reverse(OpArgs, Terms) }.
 
-prolog:message(invalid_expr(E, V, P)) -->
-    { bool_exprHelp(H), ! },
-    [ 'Expected more of expression "~w" @ offset ~w: ~w~n~n~w' - [E, P, V, H]].
-prolog:message(invalid_expr(E, V, P)) -->
-    [ 'Expected more of expression "~w" @ offset ~w: ~w' - [E, P, V]].
+%% N.B.: this is intended to report an error, but enabling it cuts off a
+%% backtracking somehow so the parse fails very early (for
+%% complex_nesting_indeterminate_types test).  If this is re-enabled, Op should
+%% be passed to exprParts to be available here.
+%%
+%% exprParts(_, Env, Op, NxtType → RemType, [_|_], Args, _, Env) -->
+%%     { print_message(error, incomplete_op_args(Op, Args, NxtType → RemType)),
+%%       !,
+%%       fail
+%%     }.
+%% prolog:message(incomplete_op_args(O, A, T)) -->
+%%     [ 'Incomplete ~w operation; parsed ~w but failed with remaining type ~w' - [O,A,T] ].
 
 %% ----------------------------------------
 
@@ -232,14 +222,14 @@ type_of(op(_, T), T).
 
 % set the matched old type of a term/op (recursively) to the new type; no change
 % if old type not matched.
-set_type(M, T, term(A, M), term(A, T)) :- !.
-set_type(_, _, term(A, O), term(A, O)).
+set_type(M, T, term(A, M), term(A, T)).
+set_type(M, _, term(A, O), term(A, O)) :- \+ M = O.
 set_type(M, T, op(A, M), op(ANew, T)) :-
-    !,
     A =.. [Op|Args],
     maplist(set_type(M, T), Args, UpdArgs),
     ANew =.. [Op|UpdArgs].
 set_type(M, T, op(A, O), op(ANew, O)) :-
+    \+ M = O,
     A =.. [Op|Args],
     maplist(set_type(M, T), Args, UpdArgs),
     ANew =.. [Op|UpdArgs].
@@ -258,19 +248,21 @@ typecheck(_Language, Env, op(Op, OpType), Env, op(Op, OpType)) --> [].
 
 
 typecheck(Language, Env, TermID, _Val, TermType, Env, TermType) -->
-    { atom(Language, TermID),
+    { atom(Language, TermID)
       % Atom term, always valid (TermID and TermType came from Language)
-      !
     }.
-typecheck(Language, Env, _TermID, Val, TermType, OutEnv, TermType) -->
-    { type(Language, TermType),
+typecheck(Language, Env, TermID, Val, TermType, OutEnv, TermType) -->
+    { \+ atom(Language, TermID),
+      type(Language, TermType),
       % term has static type
-      !,
       % ensure that if this static type either matches the var or assign this
       % static type to the vari if it has no assigned type.
       fresh_var(Env, Val, TermType, OutEnv)
     }.
-typecheck(_Language, Env, _TermID, Val, _TermType, OutEnv, ValType) -->
+typecheck(Language, Env, TermID, Val, TermType, OutEnv, ValType) -->
+    { \+ atom(Language, TermID),
+      \+ type(Language, TermType)
+    },
     % At this point missing the above indicates that TermType is a type variable.
     % The particular type variable can be discarded and instead this Val
     % (assumed--but not restricted--to be some sort of ident) should be
@@ -279,8 +271,6 @@ typecheck(_Language, Env, _TermID, Val, _TermType, OutEnv, ValType) -->
     %% TODO: restrict this to 'ident' or equiv?.. could be a subexpr
     %% TODO: combine TermID and Val for more precise fresh_var matching?
     fresh_var(Env, Val, typevar, OutEnv, ValType).
-typecheck(_Language, Env, TermID, Val, TermType, Env, TermType) -->
-    { print_message(error, invalid_type(TermID, Val, TermType)), !, fail }.
 
 typecheck_expr(Language, Env, ExprType, Terms, OutEnv, OTerms, OType) :-
     % Run twice: the first time should find all variables and assign them either
@@ -620,7 +610,8 @@ fresh_var(Env, VName, typevar, Env, Type) -->
 fresh_var(Env, VName, Type, Env, Type) -->
     { known_var(Env, VName, Type),
       % already saw this one, same type
-      ! }.
+      !
+    }.
 fresh_var(Env, VName, Type, Env, badtype) -->
     { known_var(Env, VName, VType),
       !,
@@ -718,7 +709,6 @@ subst_term(Language, Mark, Repl, InABT, OutABT) :-
     fmap_abt(Language, [Term, TermOut]>>subst_term_(Mark, Repl, Term, TermOut),
              InABT, OutABT).
 subst_term(Language, _, Repl, InABT, _) :-
-    !,
     print_message(error, invalid_ABT_subst(Language, InABT, Repl)),
     fail.
 
@@ -757,6 +747,9 @@ extract_vars(Language, term(T, Ty), [V⦂Ty]) :-
     T =.. [ VRef, V ],
     !.
 extract_vars(_, term(_, _), []).
+%% extract_vars(Language, ABT, _UnknownVars) :-
+%%     % this should never occur, but prints useful debug info
+%%     format('extract_vars from ~w in ~w ???? ~n', [ABT, Language]), !, fail.
 
 var_name(N⦂_, N).
 

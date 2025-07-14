@@ -8,6 +8,7 @@ check_parsing(Inp, ExpAST, ExpCoCoSpec) :-
     define_ltl_language,
     define_lustre_language,
     writeln(parsing_ltl),
+    writeln(Inp),
     parse_ltl(Inp, AST),
     !,
     writeln(AST),
@@ -170,6 +171,16 @@ test(boolean_opt_9, [nondet]) :-
                          op(ltlZ(term(lit(false), boolean)), boolean)),
                      boolean),
                   "((alarm_enabled and disable_alarm) and ZtoPre(false))").
+
+test(boolean_false, [nondet]) :-
+    check_parsing("FALSE",
+                  term(lit(false), boolean),
+                  "false").
+
+test(boolean_FTP_var, [nondet]) :-
+    check_parsing("FTP",
+                  term(ident("FTP"), type_unassigned('⚲T0')),
+                  "FTP").
 
 test(boolean_expr_with_ltl_func, [nondet]) :-
     check_parsing("(H ((Y (awake & ((H[0,2] wet) & (H[0,1] (Y TRUE))))) -> ((noise = croaking) | (! (Y TRUE)))))",

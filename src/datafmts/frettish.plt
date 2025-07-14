@@ -1180,8 +1180,9 @@ test(initial_env_type, [nondet]) :-
                               }).
 
 test(initial_env_bad_type, [nondet,
-                            error(invalid_term_type(fretish_expr, boolean,
-                                                    term(ident("start_button"), integer)))
+                            error(unknown_expr_type(fretish_expr,
+                                                    term(ident("start_button"), integer),
+                                                    boolean))
                            ]) :-
     Inp = "in braking upon start_button the Car shall at the next timepoint satisfy is_moving.",
     fretish_expr_langdef(LangDef),
