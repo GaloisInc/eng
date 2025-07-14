@@ -312,7 +312,7 @@ process_kind2_results([K|KS], Stats, R) :-
     succ(V, U),
     put_dict(F, Stats, U, UpdStats),
     process_kind2_results(KS, UpdStats, SR),
-    update_validate_error(SR, R).
+    update_validate_error(K, SR, R).
 process_kind2_results([K|_],S,99) :-
     \+ stats_field(K, _),
     format('ERR: unhandled kind2 result: ~w~n  stats = ~w~n~n', [K, S]),
