@@ -261,7 +261,12 @@ git_repo_cert(_, []).
 git_repo_path(URL, PathParts) :-
     member(path(P), URL),
     (string_concat(PS, ".git", P), !; PS = P),
-    split_string(PS, "/", "", [_|PathParts]).
+    split_string(PS, "/", "", [_|PPS]),
+    remove_blanks(PPS, PathParts).
+
+remove_blanks([""|E], R) :- remove_blanks(E, R), !.
+remove_blanks([], []).
+remove_blanks([E|ES], [E|R]) :- remove_blanks(ES, R).
 
 replace_url_path([], P, [path(P)]).
 replace_url_path([path(_)|XS], P, URL) :- !, replace_url_path(XS, P, URL).
