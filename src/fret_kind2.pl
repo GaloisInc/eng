@@ -537,7 +537,6 @@ show_kind2_result(O, "reachable", R) :-
     !,
     timed_result(O, reachable, R).
 show_kind2_result(O, "unreachable", failed_as_expected) :-
-    !,
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     allowed_kind2_failure(Name),
