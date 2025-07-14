@@ -557,7 +557,8 @@ show_kind2_result(O, "valid", passed) :-
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
-    get_dict(name, O, Name),
+    get_dict(name, O, FullName),
+    simple_varname(FullName, Name),
     print_message(success, kind2_valid(Time, Unit, Name)). % which CC?
 show_kind2_result(_, R, failed) :-
     print_message(error, unknown_kind2_result(R)).
