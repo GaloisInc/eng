@@ -759,16 +759,20 @@ var_name(N⦂_, N).
 emit_expr(Language, term(P, type_unassigned(_U)), Expr) :-
     P =.. [C|_],
     lang(Language, term(C ⦂ TermType, _, TermEmitter)),
+    !,
     call(TermEmitter, term(P, TermType), Expr).
 emit_expr(Language, term(P, TermType), Expr) :-
+    \+ TermType = type_unassigned(_),
     P =.. [Constructor|_],
     lang(Language, term(Constructor ⦂ _, _, TermEmitter)),
-    call(TermEmitter, term(P, TermType), Expr).
+    call(TermEmitter, term(P, TermType), Expr),
+    !.
 emit_expr(Language, op(Op, _TermType), Expr) :-
     Op =.. [ Operator|Args ],
     (lang(Language, expop(Operator ⦂ _Types, _, TermEmitter)), !
     ; print_message(error, unknown_operator(Language, Operator)), !, fail
     ),
+    !,
     maplist(emit_expr(Language), Args, EArgs),
     (call(TermEmitter, Operator, EArgs, Expr), !;
      print_message(error, term_emitter_failed(Language, Operator, EArgs)),
