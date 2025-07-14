@@ -522,7 +522,7 @@ show_kind2_result(O, "unrealizable", failed) :-
     !,
     show_stream_steps(InterestingVars, Streams),
     print_message(error, kind2_unrealizable(CSize, Names)).
-show_kind2_result(O, "falsifiable", fail_as_expected) :-
+show_kind2_result(O, "falsifiable", failed_as_expected) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     allowed_kind2_failure(Name),
