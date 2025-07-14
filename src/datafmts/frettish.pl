@@ -1100,4 +1100,8 @@ impossible_xform(op(and(term(lit(false), boolean),
                            boolean)),
                     boolean)).
 
-xform_past_optimize(I, I). % provided/returns AST; already done by ltl_parse
+xform_past_optimize(I, O) :-
+    % Input LTL was optimized when parsed, but it contained references to FRETish
+    % statement elements pending substitution.  Now that these have been
+    % substituted, optimize again.
+    optimize_ltl(I, O).
