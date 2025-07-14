@@ -3,6 +3,7 @@
 
 :- module(ltl, [ define_ltl_language/0,
                  parse_ltl/2,
+                 optimize_ltl/2,
                  emit_ltl/2,
                  ltl_langdef/1
                ]).
@@ -18,7 +19,12 @@ parse_ltl(Inp, AST) :-
     ltl_langdef(LangDef),
     get_dict(language, LangDef, Language),
     parse_expr(Language, Inp, RawAST),
-    (fmap_abt(Language, ltl:optimize, RawAST, AST) ; AST = RawAST).
+    optimize_ltl(RawAST, AST).
+
+optimize_ltl(Inp, Opt) :-
+    ltl_langdef(LangDef),
+    get_dict(language, LangDef, Language),
+    (fmap_abt(Language, ltl:optimize, Inp, Opt) ; Opt = Inp).
 
 emit_ltl(AST, Text) :-
     ltl_langdef(LangDef),
