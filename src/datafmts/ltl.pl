@@ -202,114 +202,114 @@ optimize(op(sub(term(num(X), integer), term(num(Y), integer)), integer), term(nu
 
 % These optimizations parallel those in fret-electron/;support/xform.js
 % booleanSimplifications
-optimize(op(not(op(not(E), boolean)), boolean), E) :- !.
-optimize(op(or(E, E), boolean), E) :- !.
-optimize(op(and(E, E), boolean), E) :- !.
+optimize(op(not(op(not(E), boolean)), boolean), E).
+optimize(op(or(E, E), boolean), E).
+optimize(op(and(E, E), boolean), E).
 % !(!p & !q) --> p | q
 optimize(op(not(op(and(op(not(P), boolean),
                        op(not(Q), boolean)), boolean), boolean)),
-         op(or(P, Q), boolean)) :- !.
+         op(or(P, Q), boolean)).
 % (p & q) | (p & r) --> p & (q | r)  [and variations]
 optimize(op(or(op(and(P, Q), boolean), op(and(P, R), boolean)), boolean),
-         op(and(P, op(or(Q, R), boolean)), boolean)) :- !.
+         op(and(P, op(or(Q, R), boolean)), boolean)).
 optimize(op(or(op(and(Q, P), boolean), op(and(P, R), boolean)), boolean),
-         op(and(P, op(or(Q, R), boolean)), boolean)) :- !.
+         op(and(P, op(or(Q, R), boolean)), boolean)).
 optimize(op(or(op(and(P, Q), boolean), op(and(R, P), boolean)), boolean),
-         op(and(P, op(or(Q, R), boolean)), boolean)) :- !.
+         op(and(P, op(or(Q, R), boolean)), boolean)).
 optimize(op(or(op(and(Q, P), boolean), op(and(R, P), boolean)), boolean),
-         op(and(P, op(or(Q, R), boolean)), boolean)) :- !.
+         op(and(P, op(or(Q, R), boolean)), boolean)).
 % !p | (p & q) --> !p | q  [and variations]
 optimize(op(or(op(not(P), boolean), op(and(P, Q), boolean)), boolean),
-         op(or(op(not(P), boolean), Q), boolean)) :- !.
+         op(or(op(not(P), boolean), Q), boolean)).
 optimize(op(or(op(not(P), boolean), op(and(Q, P), boolean)), boolean),
-         op(or(op(not(P), boolean), Q), boolean)) :- !.
+         op(or(op(not(P), boolean), Q), boolean)).
 % !p & !(q | p) --> !p & !q [and variations]
 optimize(op(and(op(not(P), boolean),
                 op(not(op(or(Q, P), boolean)), boolean)), boolean),
-         op(and(op(not(P), boolean), op(not(Q), boolean)), boolean)) :- !.
+         op(and(op(not(P), boolean), op(not(Q), boolean)), boolean)).
 optimize(op(and(op(not(P), boolean),
                 op(not(op(or(P, Q), boolean)), boolean)), boolean),
-         op(and(op(not(P), boolean), op(not(Q), boolean)), boolean)) :- !.
+         op(and(op(not(P), boolean), op(not(Q), boolean)), boolean)).
 % !p & !(q & p) --> !p [and variations]
 optimize(op(and(op(not(P), boolean),
                 op(not(op(and(_, P), boolean)), boolean)), boolean),
-         op(not(P), boolean)) :- !.
+         op(not(P), boolean)).
 optimize(op(and(op(not(P), boolean),
                 op(not(op(and(P, _), boolean)), boolean)), boolean),
-         op(not(P), boolean)) :- !.
+         op(not(P), boolean)).
 % p & !(!p & q) --> p  [and variations]
 optimize(op(and(P,
                 op(not(op(and(op(not(P), boolean), _), boolean)), boolean)), boolean),
-         P) :- !.
+         P).
 optimize(op(and(P,
                 op(not(op(and(_, op(not(P), boolean)), boolean)), boolean)), boolean),
-         P) :- !.
+         P).
 % !(p & q) & !(r | q) --> !q & !r [ and variations ]
 optimize(op(and(op(not(op(and(_, Q), boolean)), boolean),
                 op(not(op(or(R, Q), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 optimize(op(and(op(not(op(and(Q, _), boolean)), boolean),
                 op(not(op(or(R, Q), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 optimize(op(and(op(not(op(and(_, Q), boolean)), boolean),
                 op(not(op(or(Q, R), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 optimize(op(and(op(not(op(and(Q, _), boolean)), boolean),
                 op(not(op(or(Q, R), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 optimize(op(and(op(not(op(or(R, Q), boolean)), boolean),
                 op(not(op(and(_, Q), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 optimize(op(and(op(not(op(or(Q, R), boolean)), boolean),
                 op(not(op(and(_, Q), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 optimize(op(and(op(not(op(or(R, Q), boolean)), boolean),
                 op(not(op(and(Q, _), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 optimize(op(and(op(not(op(or(Q, R), boolean)), boolean),
                 op(not(op(and(Q, _), boolean)), boolean)), boolean),
-         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)) :- !.
+         op(and(op(not(Q), boolean), op(not(R), boolean)), boolean)).
 
-optimize(op(not(term(lit(false), boolean)), boolean), term(lit(true), boolean)) :- !.
-optimize(op(not(term(lit(true), boolean)), boolean), term(lit(false), boolean)) :- !.
+optimize(op(not(term(lit(false), boolean)), boolean), term(lit(true), boolean)).
+optimize(op(not(term(lit(true), boolean)), boolean), term(lit(false), boolean)).
 
-optimize(op(or(term(lit(false), boolean), E), boolean), E) :- !.
-optimize(op(or(E, term(lit(false), boolean)), boolean), E) :- !.
-optimize(op(or(term(lit(true), boolean), _), boolean), term(lit(true), boolean)) :- !.
-optimize(op(or(_, term(lit(true), boolean)), boolean), term(lit(true), boolean)) :- !.
-optimize(op(and(term(lit(true), boolean), E), boolean), E) :- !.
-optimize(op(and(E, term(lit(true), boolean)), boolean), E) :- !.
+optimize(op(or(term(lit(false), boolean), E), boolean), E).
+optimize(op(or(E, term(lit(false), boolean)), boolean), E).
+optimize(op(or(term(lit(true), boolean), _), boolean), term(lit(true), boolean)).
+optimize(op(or(_, term(lit(true), boolean)), boolean), term(lit(true), boolean)).
+optimize(op(and(term(lit(true), boolean), E), boolean), E).
+optimize(op(and(E, term(lit(true), boolean)), boolean), E).
 optimize(op(and(term(lit(false), boolean), _), boolean),
-         term(lit(false), boolean)) :- !.
+         term(lit(false), boolean)).
 optimize(op(and(_, term(lit(false), boolean)), boolean),
-         term(lit(false), boolean)) :- !.
+         term(lit(false), boolean)).
 
-optimize(op(implies(term(lit(true), boolean), E), boolean), E) :- !.
+optimize(op(implies(term(lit(true), boolean), E), boolean), E).
 optimize(op(implies(term(lit(false), boolean), _), boolean),
-         term(lit(true), boolean)) :- !.
+         term(lit(true), boolean)).
 
 % These optimizations parallel those in fret-electron/support/xform.js
 % pastTimeSimplications
 optimize(op(not(op(ltlY(term(lit(true), boolean)), boolean)), boolean),
-         op(ltlZ(term(lit(false), boolean)), boolean)) :- !.
+         op(ltlZ(term(lit(false), boolean)), boolean)).
 optimize(op(not(op(ltlZ(term(lit(false), boolean)), boolean)), boolean),
-         op(ltlY(term(lit(true), boolean)), boolean)) :- !.
-optimize(op(ltlO(term(lit(false), boolean)), boolean), term(lit(false), boolean)) :- !.
-optimize(op(ltlO(term(lit(true), boolean)), boolean), term(lit(true), boolean)) :- !.
+         op(ltlY(term(lit(true), boolean)), boolean)).
+optimize(op(ltlO(term(lit(false), boolean)), boolean), term(lit(false), boolean)).
+optimize(op(ltlO(term(lit(true), boolean)), boolean), term(lit(true), boolean)).
 % O(Z _) --> true
-optimize(op(ltlO(op(ltlZ(_), boolean)), boolean), term(lit(true), boolean)) :- !.
+optimize(op(ltlO(op(ltlZ(_), boolean)), boolean), term(lit(true), boolean)).
 % H lit -> lit
-optimize(op(ltlH(term(lit(B), boolean)), boolean), term(lit(B), boolean)) :- !.
+optimize(op(ltlH(term(lit(B), boolean)), boolean), term(lit(B), boolean)).
 % H (Z FALSE) -> Z FALSE
 optimize(op(ltlH(op(ltlZ(term(lit(false), boolean)), boolean)), boolean),
-         op(ltlZ(term(lit(false), boolean)), boolean)) :- !.
+         op(ltlZ(term(lit(false), boolean)), boolean)).
 % H (p & q) --> H p & H q
 optimize(op(ltlH(op(and(P, Q), boolean)), boolean),
-         op(and(op(ltlH(P), boolean), op(ltlH(Q), boolean)), boolean)) :- !.
+         op(and(op(ltlH(P), boolean), op(ltlH(Q), boolean)), boolean)).
 % H (O p) --> H ((Y TRUE) | p)
 optimize(op(ltlH(op(ltlO(P), boolean)), boolean),
          op(ltlH(op(or(op(ltlY(term(lit(true), boolean)), boolean),
-                       P), boolean)), boolean)) :- !.
+                       P), boolean)), boolean)).
 % H (H[0, r] p) --> H p
 optimize(op(ltlH(op(ltlH_bound(Range, P), boolean)), boolean),
          op(ltlH(P), boolean)) :-
@@ -321,56 +321,56 @@ optimize(op(ltlH(op(ltlH_bound(Range, P), boolean)), boolean),
     !.
 % H (Y TRUE) --> FALSE
 optimize(op(ltlH(op(ltlY(term(lit(true), boolean)), boolean)), boolean),
-         term(lit(false), boolean)) :- !.
+         term(lit(false), boolean)).
 % !(H (!p)) --> O p
 optimize(op(not(op(ltlH(op(not(P), boolean)), boolean)), boolean),
-         op(ltlO(P), boolean)) :- !.
+         op(ltlO(P), boolean)).
 % !(O (!p)) --> H p
 optimize(op(not(op(ltlO(op(not(P), boolean)), boolean)), boolean),
-         op(ltlH(P), boolean)) :- !.
+         op(ltlH(P), boolean)).
 % true S p --> O p
 optimize(op(ltlS(term(lit(true), boolean), P), boolean),
-         op(ltlO(P), boolean)) :- !.
+         op(ltlO(P), boolean)).
 % p S (p & Z false) --> H p   [and variations]
 optimize(op(ltlS(P, op(and(P, ZF), boolean)), boolean), op(ltlH(P), boolean)) :-
     ZF = op(ltlZ(term(lit(false), boolean)), boolean), !.
 optimize(op(ltlS(P, op(and(ZF, P), boolean)), boolean), op(ltlH(P), boolean)) :-
     ZF = op(ltlZ(term(lit(false), boolean)), boolean), !.
 % p S p --> p
-optimize(op(ltlS(P, P), boolean), P) :- !.
+optimize(op(ltlS(P, P), boolean), P).
 % ((Y true) & p) S q --> p S q   [and variations]
 optimize(op(ltlS(op(and(op(ltlY(term(lit(true), boolean)), boolean),
                         P), boolean),
                  Q), boolean),
-         op(ltlS(P, Q), boolean)) :- !.
+         op(ltlS(P, Q), boolean)).
 optimize(op(ltlS(op(and(P,
                         op(ltlY(term(lit(true), boolean)), boolean)), boolean),
                  Q), boolean),
-         op(ltlS(P, Q), boolean)) :- !.
+         op(ltlS(P, Q), boolean)).
 % (Y true) S q --> O q
 optimize(op(ltlS(op(ltlY(term(lit(true), boolean)), boolean), Q), boolean),
-         op(ltlO(Q), boolean)) :- !.
+         op(ltlO(Q), boolean)).
 % (Y true) & (Y p) --> Y p   [and variations]
 optimize(op(and(op(ltlY(term(lit(true), boolean)), boolean),
                 op(ltlY(P), boolean)), boolean),
-         op(ltlY(P), boolean)) :- !.
+         op(ltlY(P), boolean)).
 optimize(op(and(op(ltlY(P), boolean),
                 op(ltlY(term(lit(true), boolean)), boolean)), boolean),
-         op(ltlY(P), boolean)) :- !.
+         op(ltlY(P), boolean)).
 % (Z false) | Y p -> Z p   [and variations]
 optimize(op(or(op(ltlZ(term(lit(false), boolean)), boolean),
                op(ltlY(P), boolean)), boolean),
-         op(ltlZ(P), boolean)) :- !.
+         op(ltlZ(P), boolean)).
 optimize(op(or(op(ltlY(P), boolean),
                op(ltlZ(term(lit(false), boolean)), boolean)), boolean),
-         op(ltlZ(P), boolean)) :- !.
+         op(ltlZ(P), boolean)).
 
 
 % These optimizations parallel those in
 % fret-electron/support/LTLParser/LTLASTSemantics.js introduce_SinceInclusive.
 % These are verified by tests/S_SI_xform.lus.
-optimize(op(ltlS(L,op(and(L,R), boolean)), boolean), op(ltlSI(L,R), boolean)) :- !.
-optimize(op(ltlS(L,op(and(R,L), boolean)), boolean), op(ltlSI(L,R), boolean)) :- !.
+optimize(op(ltlS(L,op(and(L,R), boolean)), boolean), op(ltlSI(L,R), boolean)).
+optimize(op(ltlS(L,op(and(R,L), boolean)), boolean), op(ltlSI(L,R), boolean)).
 
 optimize(term("LTL", bool), op(fby(term(lit(true), boolean),
                                    term(lit(false), boolean)), boolean)) :- !.
