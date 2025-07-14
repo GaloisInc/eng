@@ -436,16 +436,21 @@ validate(Context, Kind2File, OutDirectory, Args, ResultFile, Status) :-
               'JSONFile' = ResultFile ],
             [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
               % --lus_strict
-            ], [], ".", _Sts),
-    ( process_kind2_results(ResultFile, Status), !
+            ], [], ".", Sts),
+    ( process_kind2_results(Sts, ResultFile, Status), !
     ; Status = [invalid]
     ).
 
-process_kind2_results(ResultFile, Status) :-
+process_kind2_results(30, _, [invalid]) :-
+    !,
+    print_message(error, kind2_timeout).
+process_kind2_results(_, ResultFile, Status) :-
     open(ResultFile, read, ResultStrm),
     json_read_dict(ResultStrm, Results),
     !,  % no backtracking
     show_kind2_results(Results, Status).
+
+prolog:message(kind2_timeout) --> [ 'Timeout running kind2 analysis' ].
 
 show_kind2_results([], []).
 show_kind2_results([O|OS], [Sts|Status]) :-
