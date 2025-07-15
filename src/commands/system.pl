@@ -476,12 +476,25 @@ generate_spec_outputs(Context, Spec, "lando", SSL, Result) :-
     eng:key(system, spec, Spec, generate, OutDir),
     % This is an output directory, not an output file
     eng:eng(system, spec, Spec, generate, OutDir, format, "test_traces"),
+    % Test traces and the oracle cannot handle explicit enums, so disable them,
+    % forcing this kind2 output to use constrained integers instead.
     asserta(fret_kind2:kind2_disallow_enums),
+    % If there is a model, then the oracle will use the SUT output as "input of
+    % the output" to each oracle evaluation, which may be validated against
+    % initial guarantees (e.g. of output range for enums), but then the model
+    % will be used to calculate a new output value and that model's output will
+    % be validated against all the contracts, rather than the SUT output.
+    % Therefore, suppress inclusion of the model in the kind2 output here.
+    asserta(fret_kind2:kind2_no_model),
     delete_directory_contents(OutDir),
     (write_lando_fret_kind2(OutDir, SSL, OutFiles)
     -> wrote_file_messages(Spec, "fret_kind2", OutFiles),
+       retractall(fret_kind2:kind2_disallow_enums),
+       retractall(fret_kind2:kind2_no_model),
        kind2_gen_traces(Context, OutDir, OutFiles, Result)
     ; Result = 1,
+      retractall(fret_kind2:kind2_disallow_enums),
+      retractall(fret_kind2:kind2_no_model),
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
 kind2_gen_traces(_, _, [], 0).
@@ -494,13 +507,12 @@ kind2_gen_traces(Context, OutDir, IFile, IFiles, Result) :-
             [ 'OutDir' = OutDir,
               'InpFile' = IFile
             ],
-            [ "kind2 --testgen true --output_dir {OutDir} {InpFile}" ],
+            [ "kind2 --testgen true -q --exit_code_mode only_errors --output_dir {OutDir} {InpFile}" ],
             [], ".", Sts),
-    % Sts will be non-zero if guarantees fail, although test traces and an oracle
-    % will still be generated.  Technically, the traces/oracle are invalid
-    % because there are realizability errors (guarantee failures). Since we are
-    % generating them anyhow, generate all of them rather than stopping on the
-    % first failure.
+    % Will report some guarantees are invalid because there is no model (see
+    % above for why there is no model when generating test traces), but
+    % exit_code_mode only_errors ensures that sts will only be non-zero if the
+    % test traces and oracle generation fail.
     kind2_gen_traces(Context, OutDir, IFiles, SubResult),
     Result is Sts + SubResult.
 

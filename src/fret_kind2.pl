@@ -805,6 +805,9 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 
 %% ----------------------------------------------------------------------
 
+:- dynamic kind2_no_model/0.
+
+cc_model_impls(_, [], []) :- kind2_no_model, !.
 cc_model_impls(OutVars, Calls, NodeImplFileNames) :-
     findall(I, cc_model_impl_name(OutVars, I), ImplNames),
     findall(C, cc_model_impl_call(ImplNames, C), Calls),
