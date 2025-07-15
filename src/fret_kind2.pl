@@ -866,7 +866,7 @@ kind2_helper(_, []).
 kind2_helper_def("H", Helper) :-
     !,
     Helper = {|string||
-| --Historically: X has always been true
+| --Historically: X has always been true (so-far).
 | -- As soon as X is false once, Y will be false forever
 | -- (falling edge)
 | node H(X:bool) returns (Y:bool);
@@ -892,8 +892,9 @@ kind2_helper_def("O", Helper) :-
     !,
     Helper = {|string||
 | --Once
-| --  the first time X is true, Y is true forever
-| --  (rising edge)
+| --  The first time X is true, Y is true forever.
+| --  X has been true at least once.
+| --  Rising edge.
 | node O(X:bool) returns (Y:bool);
 | let
 |  Y = X or (false -> pre Y);
@@ -931,8 +932,10 @@ kind2_helper_def("OTlore", Helper) :-
 kind2_helper_def("S", Helper) :-
     !,
     Helper = {|string||
-| --Y since X
+| -- Since
+| -- Y since X
 | -- X is true, then Y until false
+| -- X has been true at some point in the past, and Y has been true since then
 | node S(X,Y: bool) returns (Z:bool);
 | let
 | Z = X or (Y and (false -> pre Z));
