@@ -269,6 +269,8 @@ kind2_result_for_RACK(kind2_reachable(_), "REACHABLE") :- !.
 kind2_result_for_RACK(kind2_reachable_unexpectedly(_), "REACHABLE") :- !.
 kind2_result_for_RACK(kind2_unreachable(_), "UNREACHABLE") :- !.
 kind2_result_for_RACK(kind2_unreachable_expected(_), "UNREACHABLE") :- !.
+kind2_result_for_RACK(kind2_falsifiable(_), "FALSIFIABLE") :- !.
+kind2_result_for_RACK(kind2_falsifiable_expected(_), "FALSIFIABLE") :- !.
 kind2_result_for_RACK(Msg, "UNKNOWN") :-
     format('Unknown kind2 result for RACK: ~w~n', [Msg]).
 
