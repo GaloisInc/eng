@@ -42,7 +42,8 @@ fret_kind2(EnumVals, FretReqs, Vars, Kind2Comps) :-
     define_lustre_language,
     connected_components(FretReqs, Vars, 0, CComps),
     fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps),
-    warn_about_skipped_models(Kind2Comps).
+    %warn_about_skipped_models(Kind2Comps),
+    true.
 
 fret_to_kind2(_, _, [], []).
 fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
