@@ -539,7 +539,7 @@ show_kind2_result(O, "falsifiable", failed) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     !,
-    falsifiable_result(O, warning, Name, kind2_falsifiable(Name)).
+    falsifiable_result(O, error, Name, kind2_falsifiable(Name)).
 show_kind2_result(O, "reachable", R) :-
     !,
     timed_result(O, reachable, R).
