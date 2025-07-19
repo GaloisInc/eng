@@ -197,11 +197,11 @@ is_enum_val([_|ENS], VName) :- is_enum_val(ENS, VName), !.
 
 %% --------------------
 
-globalvals(EnumVals, VS, DS) :-
+globalvals(EnumVals, VS, [const|DS]) :-
     kind2_disallow_enums,  % Only active when this is set
     implicit_vars_val(EnumVals, VS, VDS),
     list_to_set(VDS, ADS),
-    maplist([(N,V),O]>>format_str(O, 'const ~w : int = ~w;', [N,V]), ADS, DS).
+    maplist([(N,V),O]>>format_str(O, '  ~w : int = ~w;', [N,V]), ADS, DS).
 
 globalvals(_, [], []).
 globalvals(EnumVals, [_|VS], DS) :- implicit_vars(EnumVals, VS, DS).
@@ -785,9 +785,9 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 | let
 |   {NodeDecls}
 |   {Constraints}
-|   {Modes}
 |   {NodeReqDecls}
 |   {NodeGuarantees}
+|   {Modes}
 | tel
 |
 | ----------------------------------------------------------------------

@@ -219,7 +219,7 @@ validate_fret_results(Context, Spec, OutFiles, Results) :- % KWQ: version for wh
             RACK_out),
     maplist(validate_lando_fret_cc(Context), OutFiles, Results),
     erase(RACK_out).
-validate_fret_results(Context, Spec, OutFiles, Results) :-
+validate_fret_results(Context, _Spec, OutFiles, Results) :-
     maplist(validate_lando_fret_cc(Context), OutFiles, Results).
 
 output_kind2_rack_csv(OutStrm, ReqName, _Level, Msg) :-
