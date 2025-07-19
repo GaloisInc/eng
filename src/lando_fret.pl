@@ -111,6 +111,12 @@ collect_var(_, _, SS, VName ⦂ _, Collected, OutCollected) :-
     get_dict(constructors, S, CVS),
     member((VName, Val, Desc), CVS),
     collect_constr(VName, constr(VName, Val, Desc, S), Collected, OutCollected).
+collect_var(_, _, _, VName ⦂ VType, _, _) :-
+    print_message(error, undefined_variable(VName, VType)), !, fail.
+
+prolog:message(undefined_variable(VName, VType)) -->
+    [ 'Referenced undefined variable in FRETish: ~w (type ~w)' - [VName, VType] ].
+
 collect_constr(VName, _, Collected, Collected) :-
     already_collected(VName, Collected), !.
 collect_constr(_, Constr, Collected, [Constr|Collected]).
