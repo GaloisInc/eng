@@ -359,6 +359,24 @@ prolog:message(bad_response_text(EW, EP)) -->
 % FRET semantics handles "globally" and "strictly", but these are not supported
 % by the FRET parser, so they are not implemented.  The word "strictly" is the
 % only way that exclusive: can be true (so it is never true).
+%
+% See SemanticsAnalyzer.js enterScope
+%
+% Note that in and notin are somewhat concerning because they handle both MODE
+% and COND, and it seems unlikely that the semantics.json-derived formulate would
+% work for both.
+%
+% It's also unclear in general what a MODE representation is.  The semantics.json
+% for in will have a "left" and "right" of "Fin_$scope_mode$" and
+% "Lin_$scope_mode$", respectively, which get substituted into "ft" and "pt".
+% It's unclear where these variables would actually come from.  Additionally,
+% these substitutions are not whole symbol substitutions but instead string
+% substitutions, which is not handled by subst_term invocations (fret_json and
+% here in xform_conf). However, those semantic elements (left, right, ft, pt) are
+% unused by the processes here and the ptExpanded (the crucial semantic; see
+% fretish_ptltl below) uses conventional $scope_mode$ references.  Thus, we will
+% provide for special-case in handling those string substitutions for the
+% elements we don't really need (but must have for fret_json).
 
 scopeHelp("
 | Scope Type | FRETish               |
@@ -967,7 +985,7 @@ transformed_scope_mode_pt(Scope, SMPT) :-
     get_dict(type, S, ST),
     sc_mo_tr(ST, Scope, SMPT).
 sc_mo_tr(null, _, "BAD_PT") :- !.
-sc_mo_tr(_, Scope, ltl(MP)) :-
+sc_mo_tr(_, Scope, MP) :-
     get_dict(scope_mode, Scope, fretish(MD)),
     xform_past_temporal_unbounded(MD, MP).
 
@@ -987,12 +1005,17 @@ transformed_post_condition_smvpt(Semantics, SMPT, Response, PCSMV) :-
 transformed_post_condition_smvpt(_, _, _, "no_post_condition!").
 
 xform_cond(Defs, SMPT, C, SMVPT) :-
+    ltl_langdef(LTLLang),
+    get_dict(language, LTLLang, LTL),
+    xform_src(LTL, Defs, C, CPS1),
+    subst_term(LTL, '$scope_mode$', SMPT, CPS1, SMVPT).
+
+xform_src(LTL, Defs, C, XSrc) :-
     xform_past_temporal(C, CP),
     get_dict(endpoints, Defs, Endpoints),
     get_dict('SMVptExtleft', Endpoints, SMVLeft),
     parse_ltl(SMVLeft, SMVLeftLTL),
-    subst_term(LTL, '$Left$', SMVLeftLTL, CP, CPS1),
-    subst_term(LTL, '$scope_mode$', SMPT, CPS1, SMVPT).
+    subst_term(LTL, '$Left$', SMVLeftLTL, CP, XSrc).
 
 tmplsubs_ltl_seq([], FLTL, FLTL).
 tmplsubs_ltl_seq([(SrcLTL, TgtTempl)|Flds], InpFLTL, OutFLTL) :-
