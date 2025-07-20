@@ -336,12 +336,12 @@ json:json_write_hook(term(E, T), Strm, _, _) :-
     ),
     format(Strm, '"~w"', [Txt]).
 
-json:json_write_hook(ltl(op(O, T)), Strm, _, _) :-
+json:json_write_hook(ltlExpr(op(O, T)), Strm, _, _) :-
     (emit_ltl(op(O, T), Txt), !
     ; print_message(warning, convert_JSON_failure(op(O, T))), Txt = O
     ),
     format(Strm, '"~w"', [Txt]).
-json:json_write_hook(ltl(term(E, T)), Strm, _, _) :-
+json:json_write_hook(ltlExpr(term(E, T)), Strm, _, _) :-
     (emit_ltl(term(E, T), Txt), !
     ; print_message(warning, convert_JSON_failure(term(E, T))), Txt = E
     ),
@@ -430,7 +430,7 @@ sc_mo_tr(_, I, O) :-
     get_dict(scope_mode, I, fretish(MD)),
     xform_past_temporal_unbounded(MD, MP),
     xform_future_temporal_unbounded(MD, MF),
-    put_dict(_{ scope_mode_pt: ltl(MP), scope_mode_ft: ltl(MF) }, I, O).
+    put_dict(_{ scope_mode_pt: ltlExpr(MP), scope_mode_ft: ltlExpr(MF) }, I, O).
 
 
 regular_condition_transform(Defs, Inp, Out) :-
@@ -464,9 +464,18 @@ stop_condition_transform(Defs, Inp, Out) :-
               }, Inp, Out).
 stop_condition_transform(_, Inp, Inp). % if no stop_condition
 
-xform_cond(Defs, Inp, C, PT, FT, SMVPT, SMVFT) :-
+%% xform_cond(_Defs, _Inp, C, _, _, _, _) :-
+%%     format('xform_cond(Defs, Inp, ~w, _, _, _, _)~n', [C]), fail.
+xform_cond(Defs, Inp, C, ltlExpr(PT), ltlExpr(FT), ltlExpr(SMVPT), ltlExpr(SMVFT)) :-
     xform_past_temporal(C, CP),
     xform_future_temporal(C, CF),
+
+    (get_dict(scope_mode_pt, Inp, ltlExpr(SMPT)) % normal case
+    ; get_dict(scope_mode_pt, Inp, SMPT) % special case: probably "BAD_PT"
+    ),
+    ( get_dict(scope_mode_ft, Inp, ltlExpr(SMFT)) % normal case
+    ; get_dict(scope_mode_ft, Inp, SMFT) % special case: probably "BAD_FT"
+    ),
 
     get_dict(endpoints, Defs, Endpoints),
     get_dict(left, Endpoints, Left),
@@ -488,13 +497,11 @@ xform_cond(Defs, Inp, C, PT, FT, SMVPT, SMVFT) :-
     ltl_langdef(LTLLang),
     get_dict(language, LTLLang, LTL),
 
-    get_dict(scope_mode_pt, Inp, SMPT),
     subst_term(LTL, '$Left$', LeftLTL, CP, CP1),
     subst_term(LTL, '$scope_mode$', SMPT, CP1, PT),
     subst_term(LTL, '$Left$', SMVLeftLTL, CP, CPS1),
     subst_term(LTL, '$scope_mode$', SMPT, CPS1, SMVPT),
 
-    get_dict(scope_mode_ft, Inp, SMFT),
     subst_term(LTL, '$Right$', RightLTL, CF, CF1),
     subst_term(LTL, '$scope_mode$', SMFT, CF1, FT),
     subst_term(LTL, '$Right$', SMVRightLTL, CF, CFS1),
@@ -503,7 +510,7 @@ xform_cond(Defs, Inp, C, PT, FT, SMVPT, SMVFT) :-
 tmpl_final(Inp, SrcFld, ForTemplate, InpLTL, OutLTL) :-
     ltl_langdef(LTLLang),
     get_dict(language, LTLLang, Language),
-    (get_dict(SrcFld, Inp, S)
+    (get_dict(SrcFld, Inp, ltlExpr(S))
     ; (format(atom(B), '!No_~w!', [SrcFld]), S = term(ident(B), boolean))
     ),
     !,  % subst failure should not have retries here
@@ -599,7 +606,7 @@ fetched_ft_pt_update(Defs, Inp, Out) :-
                 pt_fetched: PTF,
                 pt: TPT,
                 ptExpanded_fetched: PTEF,
-                ptExpanded: ltl(PAST), % rewritten
+                ptExpanded: ltlExpr(PAST), % rewritten
                 'CoCoSpecCode': cocospec(PAST),
                 ftExpanded_fetched: FTEF,
                 ftExpandedUnoptimized: FSMV,
