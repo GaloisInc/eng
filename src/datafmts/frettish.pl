@@ -276,12 +276,9 @@ information on specifying that portion of the FRETish statement.
 
 
 fretment_vars(scope, fretment(scope_info(_, vars(VS)), _, _, _, _), VS).
-fretment_vars(condition, fretment(_, condition_info(_{condition:"null"}), _, _, _), []) :- !.
 fretment_vars(condition, fretment(_, condition_info(C), _, _, _), VS) :-
-    get_dict(regular_condition, C, fretish(Expr)),
-    fretish_expr_langdef(LangDef),
-    get_dict(language, LangDef, Language),
-    extract_vars(Language, Expr, VS).
+    get_dict(condition, C, Cndtn),
+    fretment_condition_vars(Cndtn, C, VS).
 fretment_vars(timing, fretment(_, _, _, timing_info(_, vars(VS)), _), VS).
 fretment_vars(response, fretment(_, _, _, _, response_info(R)), VS) :-
     get_dict(post_condition, R, fretish(Expr)),
@@ -289,6 +286,13 @@ fretment_vars(response, fretment(_, _, _, _, response_info(R)), VS) :-
     get_dict(language, LangDef, Language),
     extract_vars(Language, Expr, VS).
 
+fretment_condition_vars("null", _, []).
+fretment_condition_vars(Cndtn, C, VS) :-
+    \+ Cndtn = "null",
+    get_dict(regular_condition, C, fretish(Expr)),
+    fretish_expr_langdef(LangDef),
+    get_dict(language, LangDef, Language),
+    extract_vars(Language, Expr, VS).
 
 % scope conditions component shall timing responses
 fretish(Env,
