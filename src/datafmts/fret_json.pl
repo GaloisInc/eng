@@ -492,7 +492,7 @@ xform_cond(Defs, Inp, C, ltlExpr(PT), ltlExpr(FT), ltlExpr(SMVPT), ltlExpr(SMVFT
     parse_ltl(SMVLeft, SMVLeftLTL),
     (Right = "Lin_$scope_mode$"
     -> % sub-string substitution... preserved but unused
-        ( format_str(TName, "Lin_~w", SMPT),
+        ( format_str(TName, "Lin_~w", [SMPT]),
           RightLTL = term(ident(TName), boolean)
         )
      ; parse_ltl(Right, RightLTL)
