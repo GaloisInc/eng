@@ -13,9 +13,9 @@ peddler(_, Form, [(tribble(one), Form, [])]) :-
     Form = form(mem, sample_tribble),
     % the first one is free
     true.
-peddler(_, Form, [(tribble(two), Form, Money)
-                  ,(more, form(mem, trouble), [])  % tribbles are trouble as well!
+peddler(D, Form, [(tribble(two), Form, [Money])
+                  ,(more, form(mem, trouble), [Money])  % tribbles are trouble as well!
                  ]) :-
     Form = form(mem, tribble),
     % One tribble costs one coin, single production run.
-    demand(form(mem, money), Money).
+    demand(D, form(mem, money), Money).

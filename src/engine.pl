@@ -1,5 +1,5 @@
 %% The engine module is used to generate potentially heavy-weight things.  As
-%% opposed to a normal query, the engine/s demand/2 may cause significant amounts
+%% opposed to a normal query, the engine/s demand/3 may cause significant amounts
 %% of processing, as the engine that produced the demanded item may may demands
 %% of its own.  The engine(s) satisfying the demand may have choice points for
 %% providing additional demanded items, but once generated, these items are added
@@ -8,9 +8,10 @@
 %%
 %% General use:
 %%
-%% * demand(Form, Thing) will (multiply) return a Thing of type
-%%   Form, possibly finding and running an engine to supply the Thing(s)
-%%   (recursively).
+%% * demand(ID, Form, Thing) will (multiply) return a Thing of type Form,
+%%   possibly finding and running an engine to supply the Thing(s) (recursively).
+%%   The ID must have been supplied to the engine making the demand (the outer
+%%   level uses the atom 'outer').
 %%
 %% * engine(EnginePred, Form [, Name) will declare an engine that can supply Form
 %%   things.  There may be multiple Engines that can provide a single Form; only
@@ -21,24 +22,30 @@
 %% * restart_production will start things over again, emptying all stock of
 %%   Things and resetting engines so they can run again.
 %%
-%% * provide(What, Form) is called to provide initial stock that can be demanded
-%%   by engines to run.
+%% * provide(What, Form, ID) is called to provide initial stock that can be
+%%   demanded by engines to run.  This returns the ID of that stock item
+%%
+%% * same_production_series(A, B) will succeed if A and B are part of the same
+%%   production series (i.e. related demand ID's, where each Thing has an
+%%   internal demand ID).
+%%
+%% The engine will only be invoked ONCE for each input (generated via provide or
+%% in the results of the run of another engine.
 
 :- module(engine, [ engine/2, engine/3,
                     weight/2,
-                    demand/2,
+                    demand/3,
                     thing_form/2, thing_value/2,
-                    provide/2,
-                    stock/3,  % used internally
+                    provide/3,
                     same_production_series/2,
                     restart_production/0
                   ]).
 
-:- dynamic engine_/2, engine_/3, weight/2, stock/3.
+:- dynamic engine_/2, engine_/3, weight/2, stock/4, demanded/4.
 
 :- use_module(englib).
 
-%! demand(+X:form, --D:thing) is nondet
+%! demand(+I:id, +X:form, --D:thing) is nondet
 %
 % This predicate generates a demand for an engine to produce one or more items of
 % the 'X' form, returning a thing with choice points for potential additional
@@ -57,52 +64,61 @@
 % (which may be a choice point with a different demanded ID), but only one engine
 % will be invoked.
 
-demand(Form, thing(Val, Form, DID)) :-
+demand(D, Form, thing(Val, Form, DID)) :-
     % If it has already been produced/provided and is in stock, return it.
-    stock(DID, Val, Form).
+    stock(DID, Val, Form, Using),
+    \+ demanded(D, DID, Form, Using),
+    assertz(demanded(D, DID, Form, Using)).
 
-demand(Form, Thing) :-
+demand(D, Form, Thing) :-
     \+ is_list(Form),
     find_engine_for_form(Form, E, Name),
     !,
-    \+ engine_run_completed(_, E),
     % Get a new unique demand ID (do this before trying to satisfy the demand in
     % case that satisfaction generates demands of its own). Note: there may have
     % already been items of this form in stock, with a DID that might be
     % different from the demand ID we will generate here.  However, the cut after
     % find_engine_for_form above ensures that only ONE engine will be selected
-    % for any particular form (and thus, it wil never be re-invoked for the same
+    % for any particular form (and thus, it will never be re-invoked for the same
     % Form).
-    next_demand_id(DID),
-    retractall(next_demand_id(DID)),
-    DID = did(DIDNUM),
-    succ(DIDNUM, NewDID),
-    asserta(next_demand_id(did(NewDID))),
+    new_demand_id(DID),
     % Record the engine fulfilling this demand
     %% asserta(engine_used(DID, E)),
     % At present, all demands are fulfilled immediately and synchronously.
     callable(E),
     print_message(informational, running(E, Name, DID)),
-    call(E, DID, Form, Producing),
+    call(E,
+         E,  % What demanded this: the engine.  So it cannot demand it again
+         Form, Producing),
     length(Producing, NProduced),
     print_message(informational, finished(E, Name, DID, NProduced)),
-    assertz(engine_run_completed(DID, E)),
-    stock_production(DID, Producing),
+    stock_production(D, Form, DID, Producing),
     member(R, Producing),
     demand_result(DID, R, Thing),
     thing_form(Thing, Form).
 
-:- dynamic engine_run_completed/2.
-
-stock_production(DID, [(Val, Form, Used)|Produced]) :-
+stock_production(D, Form, DID, [(Val, Form, Used)|Produced]) :-
     produced(DID, Val, Form, Used),
-    stock_production(DID, Produced).
-stock_production(_, []).
+    assertz(demanded(D, DID, Form, Used)),
+    stock_production(D, Form, DID, Produced).
+stock_production(D, DForm, DID, [(Val, Form, Used)|Produced]) :-
+    \+ DForm = Form,
+    produced(DID, Val, Form, Used),
+    stock_production(D, DForm, DID, Produced).
+stock_production(_, _, _, []).
 
 demand_result(DID, (Val, Form, _), thing(Val, Form, DID)).
 
 thing_form(thing(_, Form, _), Form).
 thing_value(thing(Value, _, _), Value).
+
+new_demand_id(DID) :-
+    next_demand_id(DID),
+    retractall(next_demand_id(DID)),
+    DID = did(DIDNUM),
+    succ(DIDNUM, NewDID),
+    asserta(next_demand_id(did(NewDID))),
+    !.  % no backtracking: this did is unique
 
 :- asserta(next_demand_id(did(1))).
 
@@ -145,12 +161,14 @@ engine(Callable, Form, Name) :-
     assertz(engine_(Callable, Form, Name)).
 
 
-%! provide(+O:any, +F:form) is det.
+%! provide(+O:any, +F:form, -I:thing) is nondet.
 %
 % This is called to add stock that is generally/initially available and is not
 % produced by any engine.  This adds stock that can be used in engine demands.
+% Sets I to the thing representation of the stocked item
 
-provide(What, Form) :- produced(provided, What, Form, []).
+provide(What, Form, thing(What, Form, DID)) :- new_demand_id(DID),
+                                               produced(DID, What, Form, []).
 
 
 %! produced(+D:demand, +O:any, +F:form, +:demand_list) is det.
@@ -160,16 +178,24 @@ provide(What, Form) :- produced(provided, What, Form, []).
 % demanded_list as input demands to create that output.
 
 produced(DID, What, Form, Using) :-
-    assertz(stock(DID, What, Form)),
+    assertz(stock(DID, What, Form, Using)),
     produced(DID, Using).
 
+% stock(What_Generated_It, Stock_Item, Form_of_stock, Stock_Inputs)
+%
+%  What_Generated_It is used for:
+%    1. Identification to prevent re-running an engine on the same stock item
+%    2. Identifying relation between stock items (same_production_series/2)
+
+
 produced(_, []).
-produced(DID, [U|Using]) :- assertz(consumed(DID, U)), produced(DID, Using).
-produced(DID, Using) :-
+produced(DID, [thing(_, _, U)|Using]) :-
+    assertz(consumed(DID, U)),
+    produced(DID, Using).
+produced(DID, thing(_, _, Using)) :-
     \+ is_list(Using),
     assertz(consumed(DID, Using)).
 
-% KWQ: produced -> stock; created -> produced DONE
 
 %! same_production_series(A:thing, B:thing) is det.
 %
@@ -180,7 +206,7 @@ produced(DID, Using) :-
 % demanded input matches, transitively.
 
 same_production_series(thing(_, _, D1), thing(_, _, D2)) :-
-    same_production(D1, D2).
+    same_production(D1, D2), !.
 
 %% same_production_series(stock(D1, _, _), stock(D2, _, _)) :-
 %%     same_production(D1, D2).
@@ -191,7 +217,6 @@ same_production(D1, D2) :- consumed(D2, D1).
 same_production(D1, D2) :- consumed(D1, D3), consumed(D2, D4),
                            same_production(D3, D4).
 
-
 restart_production :-
-    retractall(stock(_, _, _)),
-    retractall(engine_run_completed(_,_)).
+    retractall(stock(_, _, _, _)),
+    retractall(demanded(_, _, _, _)).
