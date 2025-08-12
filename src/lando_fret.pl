@@ -10,6 +10,7 @@
 :- use_module(datafmts/lando).
 :- use_module(datafmts/ltl).
 :- use_module(englib).
+:- use_module(engine).
 :- use_module(exprlang).
 
 
@@ -46,6 +47,21 @@
 % SrcRefs returns a list of (reqsrc(FRET_REQ_ID, srcref(REQID, REQDOC)))
 
 lando_to_fret(LandoSSL, FretRequirements, FretVariables, SrcRefs) :-
+    provide(LandoSSL, form(mem, lando_SSL), _),
+    demand(lando_to_fret, form(mem, fretments), FR),
+    demand(lando_to_fret, form(mem, fretvars), FV),
+    demand(lando_to_fret, form(mem, fret_srcrefs), FS),
+    thing_value(FR, FretRequirements),
+    thing_value(FV, FretVariables),
+    thing_value(FS, SrcRefs).
+
+fret_from_lando(D, form(mem, fretments),
+                [ (FretRequirements, form(mem, fretments), [SSL]),
+                  (FretVariables, form(mem, fretvars), [SSL]),
+                  (SrcRefs, form(mem, fret_srcrefs), [SSL])
+                ]) :-
+    demand(D, form(mem, lando_SSL), SSL),
+    thing_value(SSL, LandoSSL),
     get_dict(body, LandoSSL, Body),
     get_semantics_defs(_),  %% asserts fret_semantics/5 facts used below
     fretish_expr_langdef(LangDef),
@@ -61,6 +77,8 @@ lando_to_fret(LandoSSL, FretRequirements, FretVariables, SrcRefs) :-
        )
     ; print_message(error, fret_conversion_failed()), fail
     ).
+
+:- engine(lando_fret:fret_from_lando, form(mem, fretments), "fretments_from_lando").
 
 prolog:message(fret_extracted(N)) --> [ 'Extracted ~w FRET requirements' - [N] ].
 prolog:message(fret_conversion_failed()) --> [ 'Failed to convert Lando to FRET' ].

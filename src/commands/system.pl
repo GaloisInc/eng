@@ -7,6 +7,7 @@
 :- use_module(library(lists)).
 :- use_module(library(strings)).
 :- use_module('../englib').
+:- use_module('../engine').
 :- use_module(exec_subcmds).
 :- use_module('../load').
 :- use_module('../datafmts/frettish').
@@ -193,14 +194,8 @@ validate_lando_fret(Context, Spec, SSL, R) :-
     ensure_dir(Dir),
     !,
     % if no FRET, the next should not succeed and this predicate is false
-    lando_to_fret(SSL, Reqs, FretVars, SrcRefs),
+    lando_to_fret(SSL, Reqs, FretVars, _SrcRefs),
     write_fret_kind2(Dir, SSL, Reqs, FretVars, OutFiles),
-
-    assertz(generated(gid(1), thing(SSL, form(mem, lando_SSL)))),
-    assertz(generated(gid(2), thing(Reqs, form(mem, fretments)), gid(1))),
-    assertz(generated(gid(3), thing(FretVars, form(mem, fret_variables)), gid(1))),
-    assertz(generated(gid(4), thing(SrcRefs, form(mem, fret_srcrefs)), gid(1))),
-
     validate_fret_results(Context, Spec, OutFiles, Results),
     process_kind2_results(Results, R).
 
@@ -223,7 +218,9 @@ validate_fret_results(Context, _Spec, OutFiles, Results) :-
     maplist(validate_lando_fret_cc(Context), OutFiles, Results).
 
 output_kind2_rack_csv(OutStrm, ReqName, _Level, Msg) :-
-    generated(gid(G1), thing(Reqs, form(mem, fretments)), gid(1)),
+    demand(ReqName, form(mem, fretments), ReqThings),
+    !,
+    thing_value(ReqThings, Reqs),
     find_req(ReqName, Reqs, R),
     %% If not found, probably a mode req or the _one_mode_active synthetic
     %% target.  For now, these are ignored, but enable this instead to get more
@@ -232,7 +229,10 @@ output_kind2_rack_csv(OutStrm, ReqName, _Level, Msg) :-
     %% (find_req(ReqName, Reqs, R), !
     %% ; format('no req for ~w~n~n~n', [ReqName]),
     %%   fail),
-    generated(gid(G2), thing(SrcRefs, form(mem, fret_srcrefs)), gid(1)),
+    demand(ReqName, form(mem, fret_srcrefs), SrcRefThings),
+    !,
+    thing_value(SrcRefThings, SrcRefs),
+    same_production_series(ReqThings, SrcRefThings),
     get_srcrefs_for_req(SrcRefs, R, SR),
     (SR == [] -> SRS = [srcref("", "")] ; SRS = SR),
     maplist(ww_csv(OutStrm, R, Msg), SRS, _).
