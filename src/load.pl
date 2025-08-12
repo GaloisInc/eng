@@ -36,6 +36,7 @@ load_eng.   % This used to have the use_module statements below as the body, but
 :- use_module('src/commands/exec_subcmds').
 :- use_module('src/commands/versionctl').
 :- use_module('src/datafmts/eqil').
+:- use_module('src/engine').
 
 known_commands([
                       "dev",
