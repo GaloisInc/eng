@@ -6,6 +6,7 @@
 :- use_module(library(filesex)).
 :- use_module(library(lists)).
 :- use_module(library(strings)).
+:- use_module(library(thread)).
 :- use_module('../englib').
 :- use_module('../engine').
 :- use_module(exec_subcmds).
@@ -494,30 +495,30 @@ generate_spec_outputs(Context, Spec, "lando", SSL, Result) :-
     -> wrote_file_messages(Spec, "fret_kind2", OutFiles),
        retractall(fret_kind2:kind2_disallow_enums),
        retractall(fret_kind2:kind2_no_model),
-       kind2_gen_traces(Context, OutDir, OutFiles, Result)
+       concurrent_maplist(kind2_gen_trace(Context, OutDir), OutFiles, Results),
+       sum_list(Results, Result)
     ; Result = 1,
       retractall(fret_kind2:kind2_disallow_enums),
       retractall(fret_kind2:kind2_no_model),
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
-kind2_gen_traces(_, _, [], 0).
-kind2_gen_traces(Context, OutDir, [contract(IFile)|IFiles], Result) :-
-    kind2_gen_traces(Context, OutDir, IFile, IFiles, Result).
-kind2_gen_traces(Context, OutDir, [model(IFile)|IFiles], Result) :-
-    kind2_gen_traces(Context, OutDir, IFile, IFiles, Result).
-kind2_gen_traces(Context, OutDir, IFile, IFiles, Result) :-
+
+kind2_gen_trace(Context, OutDir, contract(IFile), Result) :-
+    kind2_gen_trace_(Context, OutDir, IFile, Result).
+kind2_gen_trace(Context, OutDir, model(IFile), Result) :-
+    kind2_gen_trace_(Context, OutDir, IFile, Result).
+kind2_gen_trace_(Context, OutDir, IFile, Result) :-
+    % Will report some guarantees are invalid because there is no model (see
+    % above for why there is no model when generating test traces), but
+    % exit_code_mode only_errors ensures that sts will only be non-zero if the
+    % test traces and oracle generation fail.
     do_exec(Context, "kind2 test generation",
             [ 'OutDir' = OutDir,
               'InpFile' = IFile
             ],
             [ "kind2 --testgen true -q --exit_code_mode only_errors --output_dir {OutDir} {InpFile}" ],
-            [], ".", Sts),
-    % Will report some guarantees are invalid because there is no model (see
-    % above for why there is no model when generating test traces), but
-    % exit_code_mode only_errors ensures that sts will only be non-zero if the
-    % test traces and oracle generation fail.
-    kind2_gen_traces(Context, OutDir, IFiles, SubResult),
-    Result is Sts + SubResult.
+            [], ".", Result).
+
 
 delete_kind2_sources(OutDir) :-
     findall(F, (directory_member(OutDir, F, [extensions(['lus'])]),
