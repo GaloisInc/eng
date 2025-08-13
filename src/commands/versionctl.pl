@@ -732,8 +732,8 @@ vctl_subproj_remove(Context, VCTool, DepName, CloneSts) :-
     eng:key(vctl, subproject, DepName),
     !,
     remove_subproj(Context, VCTool, DepName, CloneSts).
-vctl_subproj_remove(context(EngDir, _TopDir), _, DepName, 1) :-
-    print_message(error, unknown_subproject(EngDir, DepName)).
+vctl_subproj_remove(context(EngDir, _TopDir), _, DepName,
+                    unknown(DepName, unknown_subproject(EngDir, DepName))).
 
 remove_subproj(context(EngDir, TopDir), VCTool, DepName, CloneSts) :-
     working_directory(OldDir, TopDir),
@@ -742,17 +742,17 @@ remove_subproj(context(EngDir, TopDir), VCTool, DepName, CloneSts) :-
     !,
     remove_subproj_if_clean(context(EngDir, TopDir), VCTool, DepName, TgtDir, CloneSts),
     working_directory(_, OldDir).
-remove_subproj(_, _, DepName, 0) :-
+remove_subproj(_, _, DepName, sts(DepName, 0)) :-
     vctl_subproj_local_dir(DepName, TgtDir),
     print_message(info, subproj_not_cloned(DepName, TgtDir)).
 
-remove_subproj_if_clean(Context, _VCTool, DepName, TgtDir, 1) :-
+remove_subproj_if_clean(Context, _VCTool, DepName, TgtDir, sts(DepName, 1)) :-
     vctl_subproj_context(Context, TgtDir, SPContext),
     vcs_tool(SPContext, TgtDirVCTool),
     vctl_changes(Context, TgtDirVCTool),
     !,
     print_message(error, subproj_not_clean(DepName, TgtDir)).
-remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, 0) :-
+remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, sts(DepName, 0)) :-
     vctl_subproj_preface(DepName, Pfc),
     format('~w~w~n', [ Pfc, TgtDir ]),
     delete_directory_and_contents(TgtDir),
