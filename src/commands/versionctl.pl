@@ -622,9 +622,9 @@ vctl_subproj_clone(Context, VCTool, DepName, CloneSts) :-
     vctl_subproj_local_dir(DepName, TgtDir),
     file_directory_name(TgtDir, TgtParentDir),
     ensure_dir_exists(Context, TgtParentDir),
-    vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts).
+    vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(DepName, CloneSts)).
 vctl_subproj_clone(context(EngDir, _TopDir), _, DepName,
-                   unknown_subproject(EngDir, DepName)).
+                   unknown(DepName, unknown_subproject(EngDir, DepName))).
 
 ensure_dir_exists(context(_, TopDir), TgtDir) :-
     format(atom(D), '~w/~w', [ TopDir, TgtDir ]),
