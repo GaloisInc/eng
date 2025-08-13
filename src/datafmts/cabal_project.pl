@@ -20,12 +20,15 @@ write_cabal_project(VCTool, InDir) :-
 prolog:message(wrote_cabal_project(ProjFile)) -->
     [ 'Wrote cabal project file: ~w' - [ProjFile]].
 
-get_repos(KnownRepos) :-
-    findall(N, eng:key(vctl, subproject, N), KnownRepos).
+get_repos(Repos) :-
+    findall(N, eng:key(vctl, subproject, N), KnownRepos),
+    % KnownRepos might have duplicates due to multiple eng specs.
+    list_to_set(KnownRepos, Repos).
 
 get_local_repos(RelPath, KnownRepos, Locals) :-
     setof(X, get_local_repos_(RelPath, KnownRepos, X), LocalsList),
-    append(LocalsList, Locals).
+    append(LocalsList, AllLocals),
+    list_to_set(AllLocals, Locals).
 get_local_repos_(_, KnownRepos, Locals) :-
     setof((N,Dir), (member(N, KnownRepos),
                     vctl_subproj_local_dir(N, Dir),
