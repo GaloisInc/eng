@@ -143,12 +143,10 @@ vctl_cmd(_, [subproj,clone], 1) :-
     writeln('  * ALL'), !.
 vctl_cmd(Context, [subproj,clone,'ALL'], Sts) :-
     vcs_tool(Context, VCTool), !,
-    findall(E, (vctl_subproj_clone(Context, VCTool, _, E)), AllSts),
-    sum_list(AllSts, Sts), !.
+    findall(E, vctl_subproj_clone(Context, VCTool, _, E), Sts).
 vctl_cmd(Context, [subproj,clone|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
-    findall(E, (member(N, Args), vctl_subproj_clone(Context, VCTool, N, E)), AllSts),
-    sum_list(AllSts, Sts).
+    findall(E, (member(N, Args), vctl_subproj_clone(Context, VCTool, N, E)), Sts).
 
 vctl_cmd(_, [subproj,remove], no_subprojects) :-
     findall(S, eng:key(vctl, subproject, S), []), !.
@@ -625,8 +623,8 @@ vctl_subproj_clone(Context, VCTool, DepName, CloneSts) :-
     file_directory_name(TgtDir, TgtParentDir),
     ensure_dir_exists(Context, TgtParentDir),
     vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts).
-vctl_subproj_clone(context(EngDir, _TopDir), _, DepName, 1) :-
-    print_message(error, unknown_subproject(EngDir, DepName)).
+vctl_subproj_clone(context(EngDir, _TopDir), _, DepName,
+                   unknown_subproject(EngDir, DepName)).
 
 ensure_dir_exists(context(_, TopDir), TgtDir) :-
     format(atom(D), '~w/~w', [ TopDir, TgtDir ]),
