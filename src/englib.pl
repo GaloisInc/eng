@@ -12,6 +12,8 @@
                     get_dict_or/4,
                     ensure_dir/1,
                     ensure_file_loc/1,
+                    ensure_context_subdir/2,
+                    exists_context_subdir/2,
                     format_str/3,
                     format_lines/2,
                     write_strings/2,
@@ -148,6 +150,13 @@ ensure_dir(Dir) :- directory_file_path(Parent, _, Dir),
                    ensure_dir(Parent),
                    (exists_directory(Dir), !; make_directory(Dir)).
 
+ensure_context_subdir(context(_, TopDir), SubDir) :-
+    format(atom(D), '~w/~w', [ TopDir, SubDir ]),
+    ensure_dir(D).
+
+exists_context_subdir(context(_, TopDir), SubDir) :-
+    format(atom(D), '~w/~w', [ TopDir, SubDir ]),
+    exists_directory(D).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
