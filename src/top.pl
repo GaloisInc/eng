@@ -84,9 +84,10 @@ run_each_eng_cmd(Cmd, CmdArgs) :-
 % *all* operations for *all* Names succeeds, or--when single_success_ok is
 % true--one operation for every name succeeds.
 %
-postproc(AllSts, Sts) :- postproc_(AllSts, [], 0, Sts).
+postproc(AllSts, Sts) :- postproc_(AllSts, [], -1, Sts).
 % ...end of status list
-postproc_([], _, 0, 0) :- !.  % successful, ignore msgs
+postproc_([], [], -1, 0) :- !.  % nothing ran
+postproc_([], [], 0, 0) :- !.  % successful and no msgs
 postproc_([], Msgs, -1, 1) :-
     !,
     list_to_set(Msgs, MsgSet),
@@ -111,25 +112,29 @@ postproc_([E|ES], Msgs, SumSts, Sts) :-
     append(E, ES, EES),
     postproc_(EES, Msgs, SumSts, Sts).
 postproc_([Msg|ES], Msgs, SumSts, Sts) :-
-    postproc_(ES, [Msg|Msgs], SubSumSts, Sts),
-    succ(SumSts, SubSumSts).
+    SSts is 1 + max(0, SumSts),
+    postproc_(ES, [Msg|Msgs], SSts, Sts).
 
 % Found unknown(N, Msg), so scan Other for sts(N, X) and if found, remove all
 % unknown(N, Msg) from Rem, otherwise convert them all to sts(N, Msg).
 postproc_unk_(_, sts, [], Msgs, Msgs, []).  % reached end, had sts, return msgs
-postproc_unk_(N, NMsgs, [], Msgs, OutMsgs, []) :-
-    % reached end, no sts found, unknowns are sts now
-    maplist(NMsgs, [M]>>sts(N, M), NewSts),
-    append([NewSts, Msgs], OutMsgs).
+postproc_unk_(_, NMsgs, [], Msgs, OutMsgs, []) :-
+    % reached end, no sts found, unknowns for N are are msgs now
+    append([NMsgs, Msgs], OutMsgs).
 postproc_unk_(N, sts, [unknown(N, _)|Other], Msgs, OutMsgs, Rem) :-
     % found a sts, drop this unknown
     postproc_unk_(N, sts, Other, Msgs, OutMsgs, Rem).
 postproc_unk_(N, NMsgs, [unknown(N, M)|Other], Msgs, OutMsgs, Rem) :-
     postproc_unk_(N, [M|NMsgs], Other, Msgs, OutMsgs, Rem).
-postproc_unk_(N, _, [sts(N, S)|Other], Msgs, OutMsgs, Rem) :-
+postproc_unk_(N, _, [sts(N, S)|Other], Msgs, OutMsgs, [sts(N, S)|Rem]) :-
     % found a sts, drop all unknown by setting UMsgs to sts
-    postproc_unk_(N, sts, Other, Msgs, OutMsgs, [sts(N, S)|Rem]).
+    postproc_unk_(N, sts, Other, Msgs, OutMsgs, Rem).
+postproc_unk_(N, NMsgs, [L|Other], Msgs, OutMsgs, Rem) :-
+    is_list(L),
+    append(L, Other, Flat),
+    postproc_unk_(N, NMsgs, Flat, Msgs, OutMsgs, Rem).
 postproc_unk_(N, NMsgs, [OtherSts|Other], Msgs, OutMsgs, [OtherSts|Rem]) :-
+    \+ is_list(OtherSts),
     postproc_unk_(N, NMsgs, Other, Msgs, OutMsgs, Rem).
 
 
