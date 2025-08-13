@@ -61,9 +61,11 @@ doc_cmd(_, [show,Doc|_Args], no_doc_loc(Doc)) :-
     !.
 doc_cmd(_, [show,Doc|_Args], doc_not_found(Doc)) :- !.
 
+doc_cmd(_, [lando|_], 0) :- !.  % No error when invoked with context; does nothing
+
 doc_cmd(_, [Cmd|_], invalid_subcmd(doc, Cmd)) :- !.
 
-% Commands that do not use Context
+% Commands that do not use a Context.
 
 doc_cmd([lando], 1) :- writeln({|string||
 | Please specify the lando file and optionally the lando operation to perform.
