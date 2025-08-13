@@ -598,12 +598,11 @@ vctl_subproj_remote_rev(Name, Rev) :-
 
 % ----------------------------------------------------------------------
 
-vctl_subproj_show(context(_, TopDir), VCTool, (Name, IntoDir), IsPresent) :-
-    working_directory(_, TopDir),
+vctl_subproj_show(Context, VCTool, (Name, IntoDir), IsPresent) :-
     vctl_subproj_preface(Name, Pfc),
-    (exists_directory(IntoDir)
+    (exists_context_subdir(Context, IntoDir)
     -> IsPresent = 1,
-       ansi_format([bold], '~w~w~n', [ Pfc, IntoDir ])
+       ansi_format([bold], '~w~`-t> ~w~78|~n', [ Pfc, IntoDir ])
     ; IsPresent = 0,
       vctl_subproj_remote_repo(VCTool, Name, RmtAddr),
       vctl_subproj_remote_repo_str(RmtAddr, Rmt),
