@@ -61,7 +61,9 @@ write_projfile(CProj, _Repos, Locals, Remotes, Extra) :-
     open(CProj, write, ProjFile),
     write_local_packages(ProjFile, Locals),
     write_extras(ProjFile, Extra),
-    write_remotes(ProjFile, Locals, Remotes).
+    write_remotes(ProjFile, Locals, Remotes),
+    format(ProjFile, '~n--end of eng generated cabal.project~n', []),
+    close(ProjFile).
 
 write_local_packages(ProjFile, Locals) :-
     findall((M,D), eng:eng(cabal_project, 'main packages', M, D), MainPkgs),
