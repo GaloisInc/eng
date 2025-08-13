@@ -499,15 +499,14 @@ vctl_changes(Context, git(VCSDir, _)) :-
 vctl_changes(Context, darcs(VCSDir)) :-
     catch(do_exec(Context, 'vcs darcs changes?', [],
                   capture(["darcs", "status", "-s", "-q"]),
-                  [], VCSDir, 0),
+                  [], VCSDir, Out),
           _, fail),
-    writeln(dchg).
+    Out \= [].
 vctl_changes(Context, darcs(VCSDir)) :-
     do_exec(Context, 'vcs darcs unpushed?', [],
             capture([ "darcs", "push", "--dry-run", "-q" ]),
             [], VCSDir, Out),
-    Out \= [],
-    writeln(dunp), writeln(Out).
+    Out \= [].
 vctl_changes(Context, darcs(VCSDir, _)) :-
     vctl_changes(Context, darcs(VCSDir)).
 
