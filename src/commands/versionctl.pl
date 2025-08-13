@@ -165,12 +165,10 @@ vctl_cmd(_, [subproj,remove], 1) :-
     ), !.
 vctl_cmd(Context, [subproj,remove,'ALL'], Sts) :-
     vcs_tool(Context, VCTool), !,
-    findall(E, (vctl_subproj_remove(Context, VCTool, _, E)), AllSts),
-    sum_list(AllSts, Sts), !.
+    findall(E, (vctl_subproj_remove(Context, VCTool, _, E)), Sts), !.
 vctl_cmd(Context, [subproj,remove|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
-    findall(E, (member(N, Args), vctl_subproj_remove(Context, VCTool, N, E)), AllSts),
-    sum_list(AllSts, Sts).
+    findall(E, (member(N, Args), vctl_subproj_remove(Context, VCTool, N, E)), Sts).
 
 vctl_cmd(_, [Cmd|_], vcs_tool_undefined) :-
     member(Cmd, [ status, push ]), !.
