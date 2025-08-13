@@ -120,7 +120,7 @@ vctl_cmd(Context, [pull|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_pull(Context, VCTool, Args, Sts), !.
 
-vctl_cmd(Context, [subproj], 0) :-
+vctl_cmd(Context, [subproj], sts(here, 0)) :-
     vcs_tool(Context, VCTool),
     setof((S,L), (eng:key(vctl, subproject, S),
                   vctl_subproj_local_dir(S, L)), SL),
@@ -128,9 +128,9 @@ vctl_cmd(Context, [subproj], 0) :-
     maplist(vctl_subproj_show(Context, VCTool), SL, SP),
     sum_list(SP, TSP),
     length(SL, NSL),
-    format('Subprojects: ~w known, ~w present locally~n', [ NSL, TSP ]), !.
-vctl_cmd(_, [subproj], 0) :-
-    writeln('No subprojects defined').
+    format('Subprojects: ~w known, ~w present locally~n', [ NSL, TSP ]),
+    !.
+vctl_cmd(_, [subproj], unknown(here, no_subprojects)).
 
 vctl_cmd(_, [subproj,clone], no_subprojects) :-
     findall(S, eng:key(vctl, subproject, S), []), !.
