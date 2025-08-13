@@ -698,21 +698,27 @@ darcs_clone(context(EngDir, TopDir), Repo, "tag", SelVal, TgtDir, Sts) :-
             [], TopDir, Sts).
 darcs_clone(context(EngDir, TopDir), Repo, "hash", SelVal, TgtDir, Sts) :-
     !,
-    format(atom(X), '-to-hash=~w', [SelVal]),
+    format(atom(X), '--to-hash=~w', [SelVal]),
     do_exec(context(EngDir, TopDir), 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
             [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
             [], TopDir, Sts).
 darcs_clone(context(EngDir, TopDir), Repo, "patch", SelVal, TgtDir, Sts) :-
     !,
-    format(atom(X), '-to-patch=~w', [SelVal]),
+    format(atom(X), '--to-patch=~w', [SelVal]),
     do_exec(context(EngDir, TopDir), 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
             [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
             [], TopDir, Sts).
+darcs_clone(context(EngDir, TopDir), Repo, "match", head, TgtDir, Sts) :-
+    !,
+    do_exec(context(EngDir, TopDir), 'vcs clone',
+            [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo ],
+            [ 'darcs clone {RepoAddr} {TgtDir}' ],
+            [], TopDir, Sts).
 darcs_clone(context(EngDir, TopDir), Repo, "match", SelVal, TgtDir, Sts) :-
     !,
-    format(atom(X), '-to-match=~w', [SelVal]),
+    format(atom(X), '--to-match=~w', [SelVal]),
     do_exec(context(EngDir, TopDir), 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
             [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
