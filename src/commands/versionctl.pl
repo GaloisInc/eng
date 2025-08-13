@@ -623,10 +623,10 @@ vctl_subproj_clone(Context, VCTool, DepName, CloneSts) :-
 vctl_subproj_clone(context(EngDir, _TopDir), _, DepName,
                    unknown(DepName, unknown_subproject(EngDir, DepName))).
 
-vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir,
-                        sts(DepName, clone_tgt_already_exists(TgtDir))) :-
+vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(DepName, 0)) :-
     exists_context_subdir(Context, TgtDir),
     !,
+    print_message(warning, clone_tgt_already_exists(TgtDir)),
     % Still perform post-clone operation to keep things synchronized: the subproj
     % might have been checked out manually.
     vctl_post_clone(Context, VCTool, TgtDir).
