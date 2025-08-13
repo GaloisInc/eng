@@ -1,6 +1,7 @@
 :- module(cabal_project, [ write_cabal_project/2 ]).
 
 :- use_module(library(filesex)).
+:- use_module(library(apply)).
 :- use_module(library(url)).
 :- use_module("../englib").
 :- use_module("../commands/versionctl").
@@ -23,7 +24,15 @@ prolog:message(wrote_cabal_project(ProjFile)) -->
 get_repos(Repos) :-
     findall(N, eng:key(vctl, subproject, N), KnownRepos),
     % KnownRepos might have duplicates due to multiple eng specs.
-    list_to_set(KnownRepos, Repos).
+    cabal_exclusions(KnownRepos, EnabledRepos),
+    list_to_set(EnabledRepos, Repos).
+
+cabal_exclusions(InpRepos, InpRepos) :- \+ eng:key(cabal_project, exclude), !.
+cabal_exclusions(InpRepos, OutRepos) :-
+    eng:eng(cabal_project, exclude, ExcludeSpec),
+    split_string(ExcludeSpec, " ", "", ExcludeStrs),
+    maplist(flip(atom_string), ExcludeStrs, Excludes),
+    partition(flip(member, Excludes), InpRepos, _, OutRepos).
 
 get_local_repos(RelPath, KnownRepos, Locals) :-
     setof(X, get_local_repos_(RelPath, KnownRepos, X), LocalsList),

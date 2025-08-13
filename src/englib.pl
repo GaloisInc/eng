@@ -1,4 +1,5 @@
 :- module(englib, [ enumerate/2,
+                    flip/3,
                     append_nub/3,
                     intercalate/3,
                     list_call/3,
@@ -24,6 +25,8 @@
 
 :- use_module(library(apply)).
 :- use_module(library(lists)).
+
+flip(O,A,B) :- call(O, B, A).
 
 list_call(Op, [X|XS], Out) :- list_call(call(Op, X), XS, Out).
 list_call(Op, [], Out) :- call(Op, Out).
