@@ -27,6 +27,6 @@ run_help(Info) :-
 
 run_help(SubCmd, Help) :- eng:key(run, subcmd, SubCmd, Help).
 
-run_cmd(Context, [Cmd|Args], Sts) :-
+run_cmd(Context, [Cmd|Args], sts(Cmd, Sts)) :-
     exec_subcmd_do(Context, run, Cmd, Args, Sts).
-run_cmd(Context, [Cmd|_], invalid_subcmd(run, Context, Cmd)).
+run_cmd(Context, [Cmd|_], unknown(Cmd, invalid_subcmd(run, Context, Cmd))).
