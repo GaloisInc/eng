@@ -56,8 +56,36 @@ run_each_eng_cmd(Cmd, CmdArgs) :-
     ),
     halt(Sts).
 
-postproc(AllSts, Sts) :- postproc_(AllSts, [], -1, Sts).
-postproc_([], [], -1, 0) :- !.  % nothing ran
+% Collect and summarize the results of run_eng_cmd_each over a possible set of
+% _eng_ directories.
+%
+% The input AllSts is the list of results of each run_eng_cmd_each, each being:
+%
+% * a number (0 = success, non-zero = failure)
+%
+% * an sts(Name, number) value [see below for Name handling]
+%
+% * a message to be displayed with print_message (error severity)
+%
+% * a sts(Name, message) value [see below for Name handling]
+%
+% * an unknown(Name, message) value [see below for Name handling]
+%
+% * a list to be processed recursively.
+%
+% Some commands will operate on multiple targets.  For many of these, they will
+% return a sts(Name, status) or unknown(Name, status).  The results should be
+% segregated by Name and each Name reported separately.  Any unknown(name, msg)
+% status values will be ignored if there are other sts(name, X) values present.
+%
+% The output Sts is 0 on success or non-zero on failure (usually the count of
+% failures).  If single_success_ok(Cmd, CmdArgs) is true, then if any Sts is 0
+% then all other Sts values are ignored (on a per-Name basis).  Sts is only 0 if
+% *all* operations for *all* Names succeeds, or--when single_success_ok is
+% true--one operation for every name succeeds.
+%
+postproc(AllSts, Sts) :- postproc_(AllSts, [], 0, Sts).
+% ...end of status list
 postproc_([], _, 0, 0) :- !.  % successful, ignore msgs
 postproc_([], Msgs, -1, 1) :-
     !,
@@ -67,6 +95,13 @@ postproc_([], Msgs, SumSts, Sts) :-
     list_to_set(Msgs, MsgSet),
     show_msgs(MsgSet),
     succ(SumSts, Sts).
+% ... process each status
+postproc_([unknown(N, M)|ES], Msgs, SumSts, Sts) :-
+    postproc_unk_(N, [M], ES, Msgs, UpdMsgs, RES),
+    postproc_(RES, UpdMsgs, SumSts, Sts).
+postproc_([sts(N, X)|ES], Msgs, SumSts, Sts) :-
+    postproc_unk_(N, sts, ES, Msgs, UpdMsgs, RES),
+    postproc_([X|RES], UpdMsgs, SumSts, Sts).
 postproc_([E|ES], Msgs, SumSts, Sts) :-
     number(E),
     SSts is E + max(0, SumSts),
@@ -76,7 +111,27 @@ postproc_([E|ES], Msgs, SumSts, Sts) :-
     append(E, ES, EES),
     postproc_(EES, Msgs, SumSts, Sts).
 postproc_([Msg|ES], Msgs, SumSts, Sts) :-
-    postproc_(ES, [Msg|Msgs], SumSts, Sts).
+    postproc_(ES, [Msg|Msgs], SubSumSts, Sts),
+    succ(SumSts, SubSumSts).
+
+% Found unknown(N, Msg), so scan Other for sts(N, X) and if found, remove all
+% unknown(N, Msg) from Rem, otherwise convert them all to sts(N, Msg).
+postproc_unk_(_, sts, [], Msgs, Msgs, []).  % reached end, had sts, return msgs
+postproc_unk_(N, NMsgs, [], Msgs, OutMsgs, []) :-
+    % reached end, no sts found, unknowns are sts now
+    maplist(NMsgs, [M]>>sts(N, M), NewSts),
+    append([NewSts, Msgs], OutMsgs).
+postproc_unk_(N, sts, [unknown(N, _)|Other], Msgs, OutMsgs, Rem) :-
+    % found a sts, drop this unknown
+    postproc_unk_(N, sts, Other, Msgs, OutMsgs, Rem).
+postproc_unk_(N, NMsgs, [unknown(N, M)|Other], Msgs, OutMsgs, Rem) :-
+    postproc_unk_(N, [M|NMsgs], Other, Msgs, OutMsgs, Rem).
+postproc_unk_(N, _, [sts(N, S)|Other], Msgs, OutMsgs, Rem) :-
+    % found a sts, drop all unknown by setting UMsgs to sts
+    postproc_unk_(N, sts, Other, Msgs, OutMsgs, [sts(N, S)|Rem]).
+postproc_unk_(N, NMsgs, [OtherSts|Other], Msgs, OutMsgs, [OtherSts|Rem]) :-
+    postproc_unk_(N, NMsgs, Other, Msgs, OutMsgs, Rem).
+
 
 show_msgs([]).
 show_msgs([help(M)|Msgs]) :-
@@ -88,9 +143,15 @@ show_msgs([M|Msgs]) :-
     show_msgs(Msgs).
 
 run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
+    % Runs all commands that do not take a Context.  This is essentially invoked
+    % once, then the Context-passing version below is tried.  Commands that do
+    % not take a Context do not wildcard/don't-care the Context argument because
+    % they would then be invoked multiple times for each Context.
     call_eng_cmd(Cmd, CmdArgs, Sts).
 run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
-    ingest_engfiles(Context, Refs),
+    ingest_engfiles(Context, Refs), % backtraces here for each set of possible
+                                    % ingestions (sub-projects), creating a
+                                    % Context for each.
     call_eng_cmd(Context, Cmd, CmdArgs, Sts),
     erase_refs(Refs).
 
