@@ -293,6 +293,23 @@ the FRET and associated Variable definitions are extracted from a Lando document
 
 * ~eng~ Tool implementation
 
+** General operations
+
+  The ~eng~ tool is built around an AST/ABT (Abstract Syntax Tree/Abstract
+  Binding Tree) approach rather than a primarily-string approach used by FRET.
+  The FRETish statements in the Lando file are parsed by the frettish language
+  specification (via exprlang) into this AST/ABT form, and all subsequent
+  substitution, optimization, and combinations are performed on this structured
+  form which also contains type and variable information.  This allows a more
+  principled approach overall.
+
+  When converting to LTL or Lustre/CoCoSpec, the ltl, lustre, or cocospec
+  language definitions (also via exprlang) are used.  Ideally the AST/ABT would
+  be language agnostic, but there are some assumptions about the types of LTL/MTL
+  operators provided by all three forms.  Ultimately, the (possibly converted)
+  AST/ABT will be transformed back to textual format needed for a JSON or Kind2
+  file via emit_ltl or emit_cocospec as appropriate.
+
 ** Contract checking
 
   The ~eng~ tool extracts FRETish statements and Variable definitions from the
@@ -320,6 +337,17 @@ the FRET and associated Variable definitions are extracted from a Lando document
   When generating the FRET JSON import file, the full information from the
   ~semantics.json~ file is (re-read and) used to create the JSON file.
 
+  Note that there are some unclear and unconvincing elements to the
+  semantics.json files (how is Mode handled?  how does ~Lin_$scope_mode$~ get
+  set/used?) but most of those do not affect the ~ptExpanded~ semantic, which is
+  the key semantic used for ~kind2~ evaluation.  The others are still necessary
+  for import into FRET itself however, so they are reproduced as faithfully as
+  possible.
+
+  Note that FRET is fairly picky about the JSON import, and if anything in the
+  import file is unsatisfactory, it will simply import nothing with no
+  complaints, but no results either.  If this occurs, please create an issue in
+  ~eng~ with the offending Lando+FRET input.
 
 ** Differences between ~eng~ and ~FRET~
 
@@ -327,3 +355,9 @@ the FRET and associated Variable definitions are extracted from a Lando document
      with builtins).  The ~eng~ tool does not perform any prefixing and presumes
      the user has enough control over the input to eleminate naming collisions
      there.
+
+  1. FRET has support for Copilot, NuSMV, and (more recently) probabilistic
+     specifications.  The ~eng~ support is focused almost exclusively on use with
+     ~kind2~.
+
+  1. The ~eng~ version currently does not have support for ~float~ values.
