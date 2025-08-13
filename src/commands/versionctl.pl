@@ -302,7 +302,9 @@ vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
         )
       )
     ),
-    format('build status = ~w~n', [ BldStatus ]).
+    member(host(RH), URL),
+    member(path(RP), URL),
+    show_bld_status(RH, RP, BldStatus).
 
 vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
     darcs_pull_args(VCSDir, ExtraArgs),
@@ -322,6 +324,14 @@ vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
 
 vctl_status(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
+
+show_bld_status(RH, RP, "success") :- show_bld_status_(RH, RP, [bold], "success"), !.
+show_bld_status(RH, RP, "running") :- show_bld_status_(RH, RP, [bold, fg('#45d6cf')], "running"), !.
+show_bld_status(RH, RP, S) :- show_bld_status_(RH, RP, [bold, fg(red)], S).
+show_bld_status_(RH, RP, F, S) :-
+    format('~w ~w build status = ', [RH, RP]),
+    ansi_format(F, '~w', [S]),
+    writeln('').
 
 git_remote_head(_, VCSDir, RmtHeadSHA) :-
     directory_file_path(VCSDir, ".git", GitDir),
