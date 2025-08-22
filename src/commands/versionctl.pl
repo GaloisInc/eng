@@ -179,7 +179,7 @@ vctl_cmd(Context, [subproj,remove|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     findall(E, (member(N, Args), vctl_subproj_remove(Context, VCTool, N, E)), Sts).
 
-vctl_cmd(_, [Cmd|_], vcs_tool_undefined) :-
+vctl_cmd(context(_, TopDir), [Cmd|_], vcs_tool_undefined(TopDir)) :-
     member(Cmd, [ status, push ]), !.
 vctl_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, vctl, Cmd, Args, Sts).
@@ -812,8 +812,9 @@ remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, sts(DepName, 0)) :-
 
 prolog:message(unknown_vcs_tool(Tool)) -->
     [ 'Unknown VCS tool: ~w.  Unable to perform action' - [ Tool ] ].
-prolog:message(vcs_tool_undefined) -->
-    [ 'Unable to determine the VCS tool to use (e.g. git, darcs)' ].
+prolog:message(vcs_tool_undefined(TopDir)) -->
+    [ 'Unable to determine the VCS tool to use (e.g. git, darcs) in ~w'-[TopDir]
+    ].
 prolog:message(unknown_subproject(EngDir, ProjName)) -->
     [ 'VCTL sub-project "~w" not defined in ~w files.' - [ ProjName, EngDir ] ].
 prolog:message(clone_target_exists(TgtDir, FromLoc)) -->
