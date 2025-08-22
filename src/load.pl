@@ -6,6 +6,7 @@
                   known_subcommands/2,
                   known_subcommand_help/1,
                   known_subcommand_info/2,
+                  known_internal_subcommand_info/2,
                   call_eng_cmd/4,
                   call_eng_cmd/3,
                   eng_cmd_help/2,
@@ -79,7 +80,13 @@ show_cmd_focus(with_subcommands, cmdfocus(Cmd, CmdFocus), [OutCmd|OutSub]) :-
     known_subcommand_info(OutSub, Cmd).
 
 known_subcommand_info(Info, Cmd) :-
-    findall(I, show_subcmd_focus(Cmd, _, I), SInfo),
+    findall(I, show_subcmd_focus(Cmd, _, "_help", I), SInfo),
+    append(SInfo, SI),
+    list_to_set(SI, Lines),
+    sort(Lines, Info).
+
+known_internal_subcommand_info(Cmd, Info) :-
+    findall(I, show_subcmd_focus(Cmd, _, "_help_internal", I), SInfo),
     append(SInfo, SI),
     list_to_set(SI, Lines),
     sort(Lines, Info).
@@ -96,15 +103,15 @@ known_subcommands(Cmd, SubCmds) :-
     ; SubCmds = []
     ).
 
-show_subcmd_focus(Cmd, SubCmd, [OutStr]) :-
-    get_subcmd_focus(Cmd, SubCmd, OutStr).
-show_subcmd_focus(Cmd, SubCmd, OutStr) :-
+show_subcmd_focus(Cmd, SubCmd, CmdType, [OutStr]) :-
+    get_subcmd_focus(Cmd, SubCmd, CmdType, OutStr).
+show_subcmd_focus(Cmd, SubCmd, CmdType, OutStr) :-
     ingest_engfiles(_Context, Refs, silent),
-    findall(O, get_subcmd_focus(Cmd, SubCmd, O), OutStr),
+    findall(O, get_subcmd_focus(Cmd, SubCmd, CmdType, O), OutStr),
     erase_refs(Refs).
-get_subcmd_focus(Cmd, SubCmd, OutStr) :-
+get_subcmd_focus(Cmd, SubCmd, CmdType, OutStr) :-
     atom_string(Cmd, CmdS),
-    string_concat(CmdS, "_help", CmdH),
+    string_concat(CmdS, CmdType, CmdH),
     atom_string(CmdHPred, CmdH),
     catch(call(CmdHPred, SubCmd, H), _Err, fail),
     (is_list(H), H = [CmdHelp|_]

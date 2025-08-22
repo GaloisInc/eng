@@ -11,7 +11,13 @@ help_cmd([], 1) :-
     known_command_info(CmdInfo, main_only),
     writeln(CmdInfo).
 
-% Context-specific help.
+
+help_cmd([On,'_'|_], 0) :-
+    !,
+    known_internal_subcommand_info(On, Info),
+    help_cmd_internal(On, Info).
+
+% Command-specific help.
 help_cmd([On|_], 0) :-
     eng_cmd_help(On, HelpInfo),
     !,
@@ -37,6 +43,14 @@ help_cmd(Context, [On|_], 0) :-
     Context = context(_, TopDir),
     format('[~w] ~`-t~40|~n~n~w~n', [TopDir, Info]).
 help_cmd(_, _, 0).
+
+
+help_cmd_internal(Cmd, []) :-
+    format('No internal commands for ~w~n', [Cmd]).
+help_cmd_internal(Cmd, Info) :-
+    \+ Info = [],
+    intercalate(Info, "\n", Internals),
+    format('Internal commands for ~w~n~w~n', [ Cmd, Internals ]).
 
 
 help_help(Info) :-
