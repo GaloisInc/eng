@@ -1,4 +1,5 @@
 :- module(vctl, [ vctl_cmd/3, vctl_focus/1, vctl_help/1, vctl_help/2,
+                  vctl_help_internal/2,
                   % These are internal helpers for other modules to use:
                   vctl_subproj_local_dir/2,
                   vctl_subproj_remote_repo/3
@@ -110,6 +111,8 @@ vctl_help("subproj clone", "clone a dependency to a local sub-project.") :-
 vctl_help("subproj remove", "remove a local copy of a dependency.") :-
     eng:key(vctl, subproject).
 
+vctl_help_internal("build_status", "show CI build status").
+
 vctl_cmd(Context, [status|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_status(Context, VCTool, Args, Sts), !.
@@ -119,6 +122,10 @@ vctl_cmd(Context, [push|Args], Sts) :-
 vctl_cmd(Context, [pull|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_pull(Context, VCTool, Args, Sts), !.
+
+vctl_cmd(Context, ['_',build_status|Args], Sts) :-
+    vcs_tool(Context, VCTool), !,
+    vctl_build_status(Context, VCTool, Args, Sts).
 
 vctl_cmd(Context, [subproj], sts(here, 0)) :-
     vcs_tool(Context, VCTool),
