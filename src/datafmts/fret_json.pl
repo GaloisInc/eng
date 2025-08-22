@@ -495,7 +495,12 @@ xform_cond(Defs, Inp, C, ltlExpr(PT), ltlExpr(FT), ltlExpr(SMVPT), ltlExpr(SMVFT
         ( format_str(TName, "Lin_~w", [SMPT]),
           RightLTL = term(ident(TName), boolean)
         )
-     ; parse_ltl(Right, RightLTL)
+    ; (Right = "FFin_$scope_mode$"
+      -> ( format_str(TName, "FFin_~w", [SMPT]),
+           RightLTL = term(ident(TName), boolean)
+         )
+      ; parse_ltl(Right, RightLTL)
+      )
     ),
     parse_ltl(SMVRightF, SMVRightLTL),
     !,
@@ -540,10 +545,28 @@ tmplsubs_ltl_seq(Inp, [(SrcFld, TgtTempl)|Flds], InpILTL, InpFLTL, OutILTL, OutF
     !,  % no backtracking on failures after this point
     tmplsubs_ltl_seq(Inp, Flds, ILTL2, FLTL2, OutILTL, OutFLTL).
 
+remove_FFin(TxtIn, TxtOut) :-
+    string_contains(TxtIn, "FFin_$scope_mode$"), !,
+    % Four issues here.  First: FFin_$scope_mode$ is an invalid identifier and
+    % we must do a substitution.  Second: scope_mode may be an expression
+    % (e.g. `before (x = y)`, and thus this isn't a valid substitution.  Third:
+    % FFin_xxx isn't defined anywhere.  Fourth: FF is not a valid prefix for a
+    % variable because it cannot be distinguished from the F operator (and this
+    % ends up being parsed as F(F(in_...)).
+    %
+    % Fortunately, these are all in Future LTL and Past LTL, which are unused
+    % (only ptExpanded is used), therefore here we just substitute them with some
+    % valid variable name that will be inferred to be a boolean and thus pass the
+    % parsing (whose only object on these elements is to provide *something* for
+    % the FRET JSON import.
+    subst("FFin_$scope_mode$", "bad_FFin_TBD_scope_mode_something", TxtIn, N),
+    remove_FFin(N, TxtOut).
+
 fetched_ft_pt_update(Defs, Inp, Out) :-
     % n.b. do not change the order of substitutions here
     get_dict(ft, Defs, FT),
-    parse_ltl(FT, FTLTL),
+    remove_FFin(FT, FT_),
+    parse_ltl(FT_, FTLTL),
     tmplsubs_ltl_seq(Inp, [ (regular_condition_unexp_ft, '$regular_condition$'),
                             (post_condition_unexp_ft, '$post_condition$'),
                             (stop_condition_unexp_ft, '$stop_condition$'),
@@ -552,7 +575,8 @@ fetched_ft_pt_update(Defs, Inp, Out) :-
                      FTLTL, FTLTL, FTF, TFT),
 
     get_dict(pt, Defs, PT),
-    parse_ltl(PT, PTLTL),
+    remove_FFin(PT, PT_),
+    parse_ltl(PT_, PTLTL),
     tmplsubs_ltl_seq(Inp, [ (regular_condition_unexp_pt, '$regular_condition$'),
                             (post_condition_unexp_pt, '$post_condition$'),
                             (stop_condition_unexp_pt, '$stop_condition$'),
