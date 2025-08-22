@@ -113,9 +113,10 @@ vctl_help("subproj remove", "remove a local copy of a dependency.") :-
 
 vctl_help_internal("build_status", "show CI build status").
 
-vctl_cmd(Context, [status|Args], Sts) :-
+vctl_cmd(Context, [status|Args], [MainSts|SubSts]) :-
+    vctl_subcmd(Context, vctl_status, Args, SubSts),
     vcs_tool(Context, VCTool), !,
-    vctl_status(Context, VCTool, Args, Sts), !.
+    vctl_status(Context, VCTool, Args, MainSts), !.
 vctl_cmd(Context, [push|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_push(Context, VCTool, Args, Sts), !.
@@ -123,7 +124,8 @@ vctl_cmd(Context, [pull|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_pull(Context, VCTool, Args, Sts), !.
 
-vctl_cmd(Context, ['_',build_status|Args], Sts) :-
+vctl_cmd(Context, ['_',build_status|Args], [Sts|SubSts]) :-
+    vctl_subcmd(Context, vctl_build_status, Args, SubSts),
     vcs_tool(Context, VCTool), !,
     vctl_build_status(Context, VCTool, Args, Sts).
 
@@ -194,10 +196,10 @@ vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
 %   darcs(DIR)                  % DIR contains the _darcs directory
 %   darcs(DIR, git(..))         % Like above, but with the git backing dir (for dgsync)
 %
-vcs_tool(context(_, TopDir), GitTool) :-
-    vcs_tool_git(context(_, TopDir), TopDir, GitTool).
-vcs_tool(context(_, TopDir), DarcsTool) :-
-    vcs_tool_darcs(context(_, TopDir), TopDir, DarcsTool).
+vcs_tool(context(C, TopDir), T) :- vcs_tool_in(context(C, TopDir), TopDir, T).
+
+vcs_tool_in(Context, InDir, Tool) :- vcs_tool_git(Context, InDir, Tool).
+vcs_tool_in(Context, InDir, Tool) :- vcs_tool_darcs(Context, InDir, Tool).
 
 vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
     directory_file_path(InDir, ".git", VCSDir),
@@ -281,6 +283,7 @@ replace_url_host([X|XS], H, [X|URL]) :- replace_url_host(XS, H, URL).
 
 prolog:message(using_pat(H)) --> [ "Using PAT to access ~w" - [ H ] ].
 
+
 % ----------------------------------------------------------------------
 %% VCTL status command
 
@@ -294,24 +297,7 @@ vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
             [], TopDir, Sts).
 vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
     vctl_status(Context, git(VCSDir), Args, Sts),
-    git_remote_head(Context, VCSDir, Fetch_SHA),
-    git_build_status_url(URL, Fetch_SHA, StatusURL),
-    http_get(StatusURL, RData, [json_object(dict)|Auth]),
-    % gitlab returns a list; just use the first by default.
-    (is_list(RData) -> RData = [Data|_] ; Data = RData),
-    (get_dict(status, Data, BldStatus)  % Gitlab
-    ; (get_dict(workflow_runs, Data, []), BldStatus = "no CI"
-      ; get_dict(workflow_runs, Data, WFRuns),  % Github
-        reverse(WFRuns, [WFRun|_]),  % use the latest github workflow run
-        ( get_dict(status, WFRun, "completed"),
-          get_dict(conclusion, WFRun, BldStatus)
-        ; get_dict(status, WFRun,  BldStatus)
-        )
-      )
-    ),
-    member(host(RH), URL),
-    member(path(RP), URL),
-    show_bld_status(RH, RP, BldStatus).
+    vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), Args, _).
 
 vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
     darcs_pull_args(VCSDir, ExtraArgs),
@@ -331,6 +317,31 @@ vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
 
 vctl_status(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
+
+vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, 0) :-
+    !,
+    git_remote_head(Context, VCSDir, Fetch_SHA), % TODO if local git repo, doesn't get *current* remote head, just remote head from this revision!
+    git_build_status_url(URL, Fetch_SHA, StatusURL),
+    http_get(StatusURL, RData, [json_object(dict)|Auth]),
+    % gitlab returns a list; just use the first by default.
+    (is_list(RData) -> RData = [Data|_] ; Data = RData),
+    (get_dict(status, Data, BldStatus)  % Gitlab
+    ; (get_dict(workflow_runs, Data, []), BldStatus = "no CI"
+      ; get_dict(workflow_runs, Data, WFRuns),  % Github
+        reverse(WFRuns, [WFRun|_]),  % use the latest github workflow run
+        ( get_dict(status, WFRun, "completed"),
+          get_dict(conclusion, WFRun, BldStatus)
+        ; get_dict(status, WFRun,  BldStatus)
+        )
+      )
+    ),
+    member(host(RH), URL),
+    member(path(RP), URL),
+    show_bld_status(RH, RP, BldStatus).
+vctl_build_status(Context, darcs(_, Parent), Args, Sts) :-
+    !, vctl_build_status(Context, Parent, Args, Sts).
+vctl_build_status(_Context, _VCSTool, _Args, 0) :-
+    writeln('No build status available').
 
 show_bld_status(RH, RP, "success") :- show_bld_status_(RH, RP, [bold], "success"), !.
 show_bld_status(RH, RP, "running") :- show_bld_status_(RH, RP, [bold, fg('#45d6cf')], "running"), !.
@@ -498,10 +509,31 @@ vctl_subproj_preface(Name, Preface) :-
 vctl_subproj_context(context(EngDir, TopDir), SubProjDir, context(EngDir, SPDir)) :-
     directory_file_path(TopDir, SubProjDir, SPDir).
 
+vctl_subproj_context_has_engfiles(context(_, SPDir)) :-
+    has_engfiles(SPDir, _).
+
 vctl_subproj_local_dir(Name, LclDir) :-
     eng:eng(vctl, subproject, Name, into, LclDir), !.
 vctl_subproj_local_dir(Name, LclDir) :-
     format(atom(LclDir), 'subproj/~w', [Name]).
+
+vctl_subcmd(Context, Op, Args, SubSts) :-
+    setof((S,D), (eng:key(vctl, subproject, S),
+                  vctl_subproj_local_dir(S, D),
+                  exists_directory(D)
+                 ), SDS),
+    !,
+    vctl_subcmd_each(Context, Op, Args, SDS, SubSts).
+vctl_subcmd(_, _, _, []).  % setof fails if there is nothing found, fall thru here
+vctl_subcmd_each(_Context, _Op, _Args, [], [0]).
+vctl_subcmd_each(Context, Op, Args, [(S,D)|SDS], [sts(S,Sts)|SubSts]) :-
+    vctl_subproj_context(Context, D, SubContext),
+    (vctl_subproj_context_has_engfiles(SubContext)
+    -> Sts = 0  % will be handled by a separate ingest_engfiles processing run
+    ; vcs_tool(SubContext, VCTool),
+      call(Op, SubContext, VCTool, Args, Sts)
+    ),
+    vctl_subcmd_each(Context, Op, Args, SDS, SubSts).
 
 vctl_changes(Context, git(VCSDir)) :-
     do_exec(Context, 'vcs git changes?', [],
