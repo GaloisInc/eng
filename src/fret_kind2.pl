@@ -818,7 +818,7 @@ cc_model_impl_name(OutVars, ImplName) :-
     eng:eng(system, model, kind2, ImplName, output, IOutVars),
     % n.b. expect a single output variable, but allow multiples separated by
     % commas here.
-    split_string(IOutVars, ",", "", VS),
+    split_string(IOutVars, ",", " ", VS),
     findall(V, (member(V, VS), member(V, OutVars)), NVS),
     length(VS, VSLen),
     length(NVS, VSLen).  % lengths are the same
