@@ -19,6 +19,8 @@
                     format_lines/2,
                     write_strings/2,
                     %% classification_marks/1,
+                    engfile_dir/1,
+                    has_engfiles/2,
                     assert_eng/2,
                     assert_eng/3
                   ]).
@@ -161,6 +163,15 @@ exists_context_subdir(context(_, TopDir), SubDir) :-
     format(atom(D), '~w/~w', [ TopDir, SubDir ]),
     exists_directory(D).
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+engfile_dir("_eng_").
+
+has_engfiles(Dir, EngDir) :-
+    engfile_dir(EngDirName),
+    directory_file_path(Dir, EngDirName, EngDir),
+    exists_directory(EngDir).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

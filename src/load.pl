@@ -163,8 +163,6 @@ eng_cmd_help(Context, Cmd, HelpInfo) :-
     atom_string(CmdHelp, S),
     catch(call(CmdHelp, Context, HelpInfo), _Err, fail).
 
-engfile_dir("_eng_").
-
 % Entrypoint: assume "Dir" is relative, may have multiple elements, and may
 % be relative to the current working directory: convert it to absolute and
 % start the search from that parent.
