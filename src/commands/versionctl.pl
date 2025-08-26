@@ -347,8 +347,8 @@ show_bld_status(RH, RP, "success") :- show_bld_status_(RH, RP, [bold], "success"
 show_bld_status(RH, RP, "running") :- show_bld_status_(RH, RP, [bold, fg('#45d6cf')], "running"), !.
 show_bld_status(RH, RP, S) :- show_bld_status_(RH, RP, [bold, fg(red)], S).
 show_bld_status_(RH, RP, F, S) :-
-    format('~w ~w build status = ', [RH, RP]),
-    ansi_format(F, '~w', [S]),
+    ansi_format(F, '~w~t~10|', [S]),
+    format('~w ~w build status', [RH, RP]),
     writeln('').
 
 git_remote_head(_, VCSDir, RmtHeadSHA) :-
