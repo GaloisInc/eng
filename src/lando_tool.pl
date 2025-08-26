@@ -149,10 +149,10 @@ constructor_summary(CUsed, CInfo, CType, Summary) :-
 constrsumm(CUsed, CType, (CType, N, E), O, [T|O]) :-
     member((CType, N, E), CUsed),
     !,
-    format_str(T, '    ~w = ~w *', [N, E]).
+    format_str(T, '    ~w = ~w', [N, E]).
 constrsumm(_, CType, (CType, N, E), O, [T|O]) :-
     !,
-    format_str(T, '    ~w = ~w', [N, E]).
+    format_str(T, '    ~w = ~w   [unused]', [N, E]).
 constrsumm(_, _, _, O, O).
 
 write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
