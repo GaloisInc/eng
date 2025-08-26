@@ -742,18 +742,18 @@ prolog:message(kind2_realizable(0.0, _Unit)) -->
     % of those brackets... why?
     [ ].
 prolog:message(kind2_realizable(Time, Unit)) -->
-    [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
+    [ 'Realizable    (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_realizable(ReqID, Time, Unit)) -->
-    [ 'Realizable ~w (~w ~w)' - [ ReqID, Time, Unit ] ].
+    [ 'Realizable    (~w ~w): ~w' - [ Time, Unit, ReqID ] ].
 prolog:message(kind2_reachable(Time, Unit, Name)) -->
-    [ 'Reachable (~w ~w): ~w' - [ Time, Unit, Name ] ].
+    [ 'Reachable     (~w ~w): ~w' - [ Time, Unit, Name ] ].
 prolog:message(kind2_reachable_unexpectedly(Time, Unit, Name)) -->
-    [ 'Reachable (~w ~w): ~w  ... EXPECTED THIS TO FAIL!'
+    [ 'Reachable     (~w ~w): ~w  ... EXPECTED THIS TO FAIL!'
       - [ Time, Unit, Name ] ].
 prolog:message(kind2_valid(Time, Unit, Name)) -->
-    [ 'Valid (~w ~w): ~w' - [ Time, Unit, Name ] ].
+    [ 'Valid         (~w ~w): ~w' - [ Time, Unit, Name ] ].
 prolog:message(kind2_satisfiable(Time, Unit)) -->
-    [ 'Satisfiable (~w ~w)' - [ Time, Unit ] ].
+    [ 'Satisfiable   (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_unrealizable(Num, Names)) -->
     [ 'UNREALIZABLE, ~w conflicts: ~w' - [ Num, Names ] ].
 prolog:message(kind2_unreachable(Name)) -->
