@@ -470,6 +470,7 @@ process_kind2_results(30, _, _, [invalid]) :-
 process_kind2_results(_, LustreFile, ResultFile, Status) :-
     open(ResultFile, read, ResultStrm),
     json_read_dict(ResultStrm, Results),
+    close(ResultStrm),
     !,  % no backtracking
     show_kind2_results(LustreFile, Results, Status).
 
