@@ -344,7 +344,9 @@ vctl_build_status(_Context, _VCSTool, _Args, 0) :-
     writeln('No build status available').
 
 show_bld_status(RH, RP, "success") :- show_bld_status_(RH, RP, [bold], "success"), !.
-show_bld_status(RH, RP, "running") :- show_bld_status_(RH, RP, [bold, fg('#45d6cf')], "running"), !.
+show_bld_status(RH, RP, "running") :- show_bld_status_(RH, RP, [bold, fg('#fcec03')], "running"), !.
+show_bld_status(RH, RP, "pending") :- show_bld_status_(RH, RP, [bold, fg('#fc8403')], "pending"), !.
+show_bld_status(RH, RP, "no CI") :- show_bld_status_(RH, RP, [fg('#a0a0a0')], "no CI"), !.
 show_bld_status(RH, RP, S) :- show_bld_status_(RH, RP, [bold, fg(red)], S).
 show_bld_status_(RH, RP, F, S) :-
     ansi_format(F, '~w~t~10|', [S]),
