@@ -202,25 +202,38 @@ validate_lando_fret(Context, Spec, SSL, [RR,MR]) :-
     validate_fret_model(Context, Spec, Dir, SSL, Reqs, FretVars, MR).
 
 validate_fret_realizability(Context, Spec, Dir, SSL, Reqs, FretVars, R) :-
+    print_message(informational, validating_fret_contracts),
     asserta(fret_kind2:kind2_no_model),
     directory_file_path(Dir, "realizability", RDir),
     ensure_dir(RDir),
     write_fret_kind2(RDir, SSL, Reqs, FretVars, OutFiles),
     retractall(fret_kind2:kind2_no_model),
+    % Assert all the contract(OutFile, ReqIDs) relations so that
+    % process_kind2_results knows which contracts are validated as realizable by
+    % which files.
+    assert_contracts(OutFiles),
     validate_fret_results(Context, Spec, OutFiles, Results),
-    process_kind2_results(Results, R).
+    process_kind2_results(Results, R),
+    retractall(fret_kind2:contract(_, _)).
+
+assert_contracts([]).
+assert_contracts([C|CS]) :- asserta(fret_kind2:C), assert_contracts(CS).
 
 validate_fret_model(Context, Spec, Dir, SSL, Reqs, FretVars, Results) :-
     % Check if there are any models; this may not result in a model for *this*
     % spec, but there's not enough detail to check for that yet.
     eng:key(system, model, kind2),
     !,
+    print_message(informational, validating_lustre_models),
     directory_file_path(Dir, "model_validity", MDir),
     ensure_dir(MDir),
     write_fret_kind2(MDir, SSL, Reqs, FretVars, OutFiles),
     validate_fret_results(Context, Spec, OutFiles, R),
     process_kind2_results(R, Results).
 validate_fret_model(_, _, _, _, _, _, []).
+
+prolog:message(validating_fret_contracts) --> ['Validating FRET contracts'].
+prolog:message(validating_lustre_models) --> ['Validating Lustre models'].
 
 validate_fret_results(Context, Spec, OutFiles, Results) :- % KWQ: version for which there is no RACK generate!  And rename generate to something else since this no longer comes from "eng system gen".
     eng:key(system, spec, Spec, generate, OutFile),
@@ -261,14 +274,10 @@ output_kind2_rack_csv(OutStrm, ReqName, _Level, Msg) :-
     maplist(ww_csv(OutStrm, R, Msg), SRS, _).
 
 find_req(RName, [R|_], R) :- get_dict(lando_req, R, LR),
-                             get_dict(req_name, LR, RName).
-find_req(RName, [R|_], R) :- get_dict(lando_req, R, LR),
-                             atom_string(RName, RNS),
-                             get_dict(req_name, LR, RNS).
-find_req(RName, [R|_], R) :- get_dict(lando_req, R, LR),
-                             atom_string(RNA, RName),
-                             get_dict(req_name, LR, RNA).
+                             get_dict(req_name, LR, Name),
+                             match_req(RName, Name).
 find_req(RName, [_|RS], R) :- find_req(RName, RS, R).
+
 
 get_srcrefs_for_req(SrcRefs, R, SR) :-
     get_dict(lando_req, R, X),
@@ -287,6 +296,8 @@ ww_csv(OutStrm, R, Msg, srcref(ReqTag, ReqSrc), ReqTag) :-
     format(OutStrm, '~w,~w,~w,~w,~w,~w,"~w"~n',
            [P, C, ReqTag, ReqSrc, I, CVal, T]).
 
+kind2_result_for_RACK(kind2_realizable(_, _, _), "REALIZABLE") :- !.
+kind2_result_for_RACK(kind2_unrealizable(_, _), "UNREALIZABLE") :- !.
 kind2_result_for_RACK(kind2_valid(_, _, _), "VALID") :- !.
 kind2_result_for_RACK(kind2_reachable(_), "REACHABLE") :- !.
 kind2_result_for_RACK(kind2_reachable_unexpectedly(_), "REACHABLE") :- !.
@@ -438,7 +449,7 @@ stats_field(failed_as_expected, nfailAsExp).
 stats_field(unexpectedly_passed, nUnexpPass).
 stats_field(satisfiable, npass).
 
-validate_lando_fret_cc(Context, contract(OutFile), Status)  :-
+validate_lando_fret_cc(Context, contract(OutFile, _), Status)  :-
     validate_lando_fret_cc(Context, contract, OutFile, Status).
 validate_lando_fret_cc(Context, model(OutFile), Status) :-
     validate_lando_fret_cc(Context, model, OutFile, Status).
@@ -448,7 +459,7 @@ validate_lando_fret_cc(Context, Kind2Mode, OutFile, Status) :-
     file_name_extension(OutBase, 'lus', OutFile),
     string_concat(OutBase, "_result", ResultBase),
     file_name_extension(ResultBase, 'json', ResultFile),
-    kind2_validate(Context, OutFile, OutD, Kind2Mode, ResultFile, Status).
+    kind2_validate(Context, OutFile, OutD, Kind2Mode, OutFile, ResultFile, Status).
 
 show_lando_validation_error(Spec, SpecFile, Err) :-
     print_message(error, lando_validation_error(Spec, SpecFile, Err)).
@@ -525,7 +536,7 @@ generate_spec_outputs(Context, Spec, "lando", SSL, Result) :-
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
 
-kind2_gen_trace(Context, OutDir, contract(IFile), Result) :-
+kind2_gen_trace(Context, OutDir, contract(IFile, _), Result) :-
     kind2_gen_trace_(Context, OutDir, IFile, Result).
 kind2_gen_trace(Context, OutDir, model(IFile), Result) :-
     kind2_gen_trace_(Context, OutDir, IFile, Result).
@@ -555,7 +566,7 @@ spec_output_type("fret-summary", "FRET Summary", write_lando_fret_summary).
 
 
 wrote_file_messages(_, _, []).
-wrote_file_messages(Spec, Kind, [contract(OutFile)|FS]) :-
+wrote_file_messages(Spec, Kind, [contract(OutFile, _)|FS]) :-
     string_concat(Kind, " contract", FKind),
     print_message(information, wrote_lando_as(FKind, Spec, OutFile)),
     wrote_file_messages(Spec, Kind, FS).

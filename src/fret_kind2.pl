@@ -1,7 +1,8 @@
 :- module(fret_kind2, [ fret_kind2/4,
                         normalize_kind2_var/2,
-                        kind2_validate/6,
+                        kind2_validate/7,
                         output_kind2_result/3,
+                        match_req/2,
                         %% -- for testing only
                         connected_components/4
                       ]).
@@ -50,8 +51,10 @@ fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
     fret_to_kind2(EnumVals, Vars, CCs, K2s),
     format(atom(CName), '~w_~w', [ CompName, N ]),
     reqs_to_kind2(EnumVals, Vars, CName, Reqs, CVars, Kind2, NodeFiles),
+    reqs_to_ids(Reqs, CompReqIds),
     K2 = _{ compNum: N,
             compName: CompName,
+            compReqIds: CompReqIds,
             kind2: Kind2,
             files: NodeFiles
           }.
@@ -159,6 +162,11 @@ out_varname(VS, VName) :-
     get_dict(varname, V, VName),
     get_dict(usage, V, "Output").
 
+reqs_to_ids([R|Reqs], [I|CompReqIds]) :-
+    reqs_to_ids(Reqs, CompReqIds),
+    get_dict(lando_req, R, LR),
+    get_dict(req_name, LR, I).
+reqs_to_ids([], []).
 
 %% ----------------------------------------------------------------------
 
@@ -416,6 +424,18 @@ is_req_var(VName, Reqs) :-
 normalize_kind2_var(Inp, Out) :-
     subst('-', '_', Inp, Out).
 
+match_req(Spec1, Spec1) :- !.
+match_req(Spec1, Spec2) :- atom_string(Spec2, Spec1), !.
+match_req(Spec1, Spec2) :- atom_string(Spec1, Spec2), !.
+match_req(Spec1, Spec2) :- normalize_kind2_var(Spec1, Spec2), !.
+match_req(Spec1, Spec2) :- normalize_kind2_var(Spec2, Spec1), !.
+match_req(Spec1, Spec2) :- normalize_kind2_var(Spec1, Spec1N), atom_string(Spec1N, Spec2), !.
+match_req(Spec1, Spec2) :- normalize_kind2_var(Spec1, Spec1N), atom_string(Spec2, Spec1N), !.
+match_req(Spec1, Spec2) :- normalize_kind2_var(Spec2, Spec2N), atom_string(Spec2N, Spec1), !.
+match_req(Spec1, Spec2) :- normalize_kind2_var(Spec2, Spec2N), atom_string(Spec1, Spec2N), !.
+match_req(Spec1, Spec2) :- atom_string(Spec2A, Spec2), normalize_kind2_var(Spec1, Spec2A), !.
+
+
 %% ----------------------------------------------------------------------
 
 %% Perform kind2 validation of the specified file.
@@ -426,11 +446,11 @@ normalize_kind2_var(Inp, Out) :-
 %     * invalid = kind2 run failed (input syntax) or output processing failed
 %                 (e.g. output file not generated)
 %
-kind2_validate(Context, Kind2File, OutDirectory, contract, ResultFile, Status) :-
-    validate(Context, Kind2File, OutDirectory, "--enable CONTRACTCK", ResultFile, Status).
-kind2_validate(Context, Kind2File, OutDirectory, model, ResultFile, Status) :-
-    validate(Context, Kind2File, OutDirectory, "", ResultFile, Status).
-validate(Context, Kind2File, OutDirectory, Args, ResultFile, Status) :-
+kind2_validate(Context, Kind2File, OutDirectory, contract, LustreFile, ResultFile, Status) :-
+    validate(Context, Kind2File, OutDirectory, "--enable CONTRACTCK", LustreFile, ResultFile, Status).
+kind2_validate(Context, Kind2File, OutDirectory, model, LustreFile, ResultFile, Status) :-
+    validate(Context, Kind2File, OutDirectory, "", LustreFile, ResultFile, Status).
+validate(Context, Kind2File, OutDirectory, Args, LustreFile, ResultFile, Status) :-
     do_exec(Context, "kind2 lando fret validation",
             [ 'InpFile' = Kind2File,
               'OutDir' = OutDirectory,
@@ -439,49 +459,50 @@ validate(Context, Kind2File, OutDirectory, Args, ResultFile, Status) :-
             [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
               % --lus_strict
             ], [], ".", Sts),
-    ( process_kind2_results(Sts, ResultFile, Status), !
+    ( process_kind2_results(Sts, LustreFile, ResultFile, Status), !
     ; Status = [invalid]
     ).
 
-process_kind2_results(30, _, [invalid]) :-
+
+process_kind2_results(30, _, _, [invalid]) :-
     !,
     print_message(error, kind2_timeout).
-process_kind2_results(_, ResultFile, Status) :-
+process_kind2_results(_, LustreFile, ResultFile, Status) :-
     open(ResultFile, read, ResultStrm),
     json_read_dict(ResultStrm, Results),
     !,  % no backtracking
-    show_kind2_results(Results, Status).
+    show_kind2_results(LustreFile, Results, Status).
 
 prolog:message(kind2_timeout) --> [ 'Timeout running kind2 analysis' ].
 
-show_kind2_results([], []).
-show_kind2_results([O|OS], [Sts|Status]) :-
+show_kind2_results(_, [], []).
+show_kind2_results(LustreFile, [O|OS], [Sts|Status]) :-
     get_dict(objectType, O, OType),
-    show_kind2_results(O, OType, Sts),
-    show_kind2_results(OS, Status).
+    show_kind2_results(LustreFile, O, OType, Sts),
+    show_kind2_results(LustreFile, OS, Status).
 
-show_kind2_results(_, "kind2Options", ignored) :- !. % ignored
-show_kind2_results(_, "analysisStart", ignored) :- !. % ignored
-show_kind2_results(_, "analysisStop", ignored) :- !. % ignored
-show_kind2_results(O, "log", Status) :-
+show_kind2_results(_, _, "kind2Options", ignored) :- !. % ignored
+show_kind2_results(_, _, "analysisStart", ignored) :- !. % ignored
+show_kind2_results(_, _, "analysisStop", ignored) :- !. % ignored
+show_kind2_results(_, O, "log", Status) :-
     !,
     get_dict(level, O, Level),
     show_kind2_log(O, Level, Status).
-show_kind2_results(O, "realizabilityCheck", Status) :-
+show_kind2_results(LustreFile, O, "realizabilityCheck", Status) :-
     !,
     get_dict(result, O, Result),
-    show_kind2_result(O, Result, Status).
-show_kind2_results(O, "satisfiabilityCheck", Status) :-
+    show_kind2_result(LustreFile, O, Result, Status).
+show_kind2_results(_, O, "satisfiabilityCheck", Status) :-
     !,
     get_dict(result, O, Result),
     show_kind2_satresult(O, Result, Status).
-show_kind2_results(O, "property", Status) :-
+show_kind2_results(LustreFile, O, "property", Status) :-
     !,
     get_dict(answer, O, Answer),
     get_dict(value, Answer, PropSts),
-    show_kind2_result(O, PropSts, Status).
+    show_kind2_result(LustreFile, O, PropSts, Status).
 
-show_kind2_results(_, OType, failed) :-
+show_kind2_results(_, _, OType, failed) :-
     print_message(warning, unrecognized_kind2_result_type(OType)).
 
 
@@ -496,13 +517,13 @@ show_kind2_log(O, "error", failed) :-
 show_kind2_log(_, _, ignored).  % All other log levels ignored
 
 
-show_kind2_result(O, "realizable", passed) :-
+show_kind2_result(LustreFile, O, "realizable", passed) :-
     !,
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
     get_dict(unit, RT, Unit),
-    print_message(success, kind2_realizable(Time, Unit)). % which CC?
-show_kind2_result(O, "unrealizable", failed) :-
+    realizable(LustreFile, Time, Unit).
+show_kind2_result(LustreFile, O, "unrealizable", failed) :-
     !,
     get_dict(conflictingSet, O, Conflicts),
     get_dict(size, Conflicts, CSize),
@@ -528,33 +549,36 @@ show_kind2_result(O, "unrealizable", failed) :-
     append(InsOuts, ContractNames, InterestingVars),
     !,
     show_stream_steps(InterestingVars, Streams),
-    print_message(error, kind2_unrealizable(CSize, Names)).
-show_kind2_result(O, "falsifiable", failed_as_expected) :-
+    get_dict(runtime, O, RT),
+    get_dict(value, RT, Time),
+    get_dict(unit, RT, Unit),
+    unrealizable(LustreFile, Time, Unit, CSize, Names, ContractNames).
+show_kind2_result(_, O, "falsifiable", failed_as_expected) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     allowed_kind2_failure(Name),
     !,
     falsifiable_result(O, warning, Name, kind2_falsifiable_expected(Name)).
-show_kind2_result(O, "falsifiable", failed) :-
+show_kind2_result(_, O, "falsifiable", failed) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     !,
     falsifiable_result(O, error, Name, kind2_falsifiable(Name)).
-show_kind2_result(O, "reachable", R) :-
+show_kind2_result(_, O, "reachable", R) :-
     !,
     timed_result(O, reachable, R).
-show_kind2_result(O, "unreachable", failed_as_expected) :-
+show_kind2_result(_, O, "unreachable", failed_as_expected) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     allowed_kind2_failure(Name),
     !,
     call(output_kind2_result, Name, warning, kind2_unreachable_expected(Name)).
-show_kind2_result(O, "unreachable", failed) :-
+show_kind2_result(_, O, "unreachable", failed) :-
     !,
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     call(output_kind2_result, Name, error, kind2_unreachable(Name)).
-show_kind2_result(O, "valid", passed) :-
+show_kind2_result(_, O, "valid", passed) :-
     !,
     get_dict(runtime, O, RT),
     get_dict(value, RT, Time),
@@ -562,8 +586,43 @@ show_kind2_result(O, "valid", passed) :-
     get_dict(name, O, FullName),
     simple_varname(FullName, Name),
     call(output_kind2_result, Name, success, kind2_valid(Time, Unit, Name)).
-show_kind2_result(_, R, failed) :-
+show_kind2_result(_, _, R, failed) :-
     print_message(error, unknown_kind2_result(R)).
+
+:- dynamic contract/2.
+
+realizable(_, 0.0, _) :- !.
+realizable(LustreFile, Time, Unit) :-
+    contract(LustreFile, ReqIDs),
+    !,
+    realizable_id(Time, Unit, ReqIDs).
+realizable(X, Time, Unit) :-
+    format('no contract specification for ~w~n', [X]),
+    print_message(success, kind2_realizable(Time, Unit)).
+
+realizable_id(_, _, []).
+realizable_id(Time, Unit, [R|RS]) :-
+    call(output_kind2_result, R, success, kind2_realizable(R, Time, Unit)),
+    realizable_id(Time, Unit, RS).
+
+unrealizable(LustreFile, Time, Unit, _, _, Conflicts) :-
+    % First, get all contracts in this file that were NOT in conflict and report them as realizable
+    contract(LustreFile, ReqIDs),
+    member(ReqID, ReqIDs),
+    \+ find_reqid(ReqID, Conflicts),
+    call(output_kind2_result, ReqID, success, kind2_realizable(ReqID, Time, Unit)),
+    % Now backtrack to member above for the next ReqID. When ReqIDs depleted,
+    % fall through to next below to report on the unrealizable requirements.
+    fail.
+unrealizable(_, _, _, CSize, Names, Conflicts) :-
+    unrealizable_(CSize, Names, Conflicts).
+unrealizable_(CSize, Names, [C|CS]) :-
+    call(output_kind2_result, C, error, kind2_unrealizable(CSize, Names)),
+    unrealizable_(CSize, Names, CS).
+unrealizable_(_, _, []).
+
+find_reqid(ReqID, [C|_]) :- match_req(ReqID, C), !.
+find_reqid(ReqID, [_|CS]) :- find_reqid(ReqID, CS).
 
 timed_result(O, reachable, unexpectedly_passed) :-
     get_dict(name, O, FullName),
@@ -615,6 +674,10 @@ trim_trailing_index(V, Simple) :-
     !.
 trim_trailing_index(V, V).
 
+show_kind2_satresult(O, "satisfiable", satisfiable) :-
+    get_dict(runtime, O, RT),
+    get_dict(value, RT, 0.0),  % just environment, not useful
+    !.
 show_kind2_satresult(O, "satisfiable", satisfiable) :-
     !,
     get_dict(runtime, O, RT),
@@ -680,6 +743,8 @@ prolog:message(kind2_realizable(0.0, _Unit)) -->
     [ ].
 prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable (~w ~w)' - [ Time, Unit ] ].
+prolog:message(kind2_realizable(ReqID, Time, Unit)) -->
+    [ 'Realizable ~w (~w ~w)' - [ ReqID, Time, Unit ] ].
 prolog:message(kind2_reachable(Time, Unit, Name)) -->
     [ 'Reachable (~w ~w): ~w' - [ Time, Unit, Name ] ].
 prolog:message(kind2_reachable_unexpectedly(Time, Unit, Name)) -->

@@ -86,7 +86,7 @@ demand(D, Form, Thing) :-
     %% asserta(engine_used(DID, E)),
     % At present, all demands are fulfilled immediately and synchronously.
     callable(E),
-    print_message(informational, running(E, Name, DID)),
+    % print_message(debug, running(E, Name, DID)),
     call(E,
          E,  % What demanded this: the engine.  So it cannot demand it again
          Form, Producing),

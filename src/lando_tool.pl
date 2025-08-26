@@ -167,14 +167,15 @@ write_fret_kind2(OutDir, SSL, Reqs, FretVars, OutFiles) :-
 
 
 %% Writes the Lando SSL specification to files in the OutDir.  Returns the list
-%% of files written as either `contract(FName)` or `model(FName)`, depending on
+%% of files written as either `contract(FName, ReqIDs)` or `model(FName)`, depending on
 %% whether the file simply contains a contract specification or if it contains a
 %% full model (this affects the kind2 modules enabled on the command-line for
 %% analyzing that file).
-write_kind2(OutDir, Kind2Comp, contract(Kind2FName)) :-
+write_kind2(OutDir, Kind2Comp, contract(Kind2FName, ReqIDs)) :-
     get_dict(files, Kind2Comp, []),
     !,
     % No additional model files specified: just has contracts
+    get_dict(compReqIds, Kind2Comp, ReqIDs),
     write_kind2(OutDir, Kind2Comp, '~w_~w.lus', Kind2FName).
 write_kind2(OutDir, Kind2Comp, model(Kind2FName)) :-
     % Additional model files, indicate via different filename
