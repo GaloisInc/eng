@@ -188,7 +188,7 @@ validate_spec(_, Spec, Format, SpecFile, 1) :-
     print_message(error, invalid_parse(Format, Spec, SpecFile)).
 validate_spec(_, _, _, _, 1).
 
-validate_lando_fret(Context, Spec, SSL, R) :-
+validate_lando_fret(Context, Spec, SSL, [RR,MR]) :-
     ( eng:eng(system, spec, Spec, generate, Dir, format, "fret_kind2")
     ; Dir = "fret_kind2"
     ),
@@ -196,9 +196,31 @@ validate_lando_fret(Context, Spec, SSL, R) :-
     !,
     % if no FRET, the next should not succeed and this predicate is false
     lando_to_fret(SSL, Reqs, FretVars, _SrcRefs),
-    write_fret_kind2(Dir, SSL, Reqs, FretVars, OutFiles),
+    !,  % no backtracking to re-extract FRET if checks below fail
+    validate_fret_realizability(Context, Spec, Dir, SSL, Reqs, FretVars, RR),
+    !,  % no retry of realizability checking if model check fails
+    validate_fret_model(Context, Spec, Dir, SSL, Reqs, FretVars, MR).
+
+validate_fret_realizability(Context, Spec, Dir, SSL, Reqs, FretVars, R) :-
+    asserta(fret_kind2:kind2_no_model),
+    directory_file_path(Dir, "realizability", RDir),
+    ensure_dir(RDir),
+    write_fret_kind2(RDir, SSL, Reqs, FretVars, OutFiles),
+    retractall(fret_kind2:kind2_no_model),
     validate_fret_results(Context, Spec, OutFiles, Results),
     process_kind2_results(Results, R).
+
+validate_fret_model(Context, Spec, Dir, SSL, Reqs, FretVars, Results) :-
+    % Check if there are any models; this may not result in a model for *this*
+    % spec, but there's not enough detail to check for that yet.
+    eng:key(system, model, kind2),
+    !,
+    directory_file_path(Dir, "model_validity", MDir),
+    ensure_dir(MDir),
+    write_fret_kind2(MDir, SSL, Reqs, FretVars, OutFiles),
+    validate_fret_results(Context, Spec, OutFiles, R),
+    process_kind2_results(R, Results).
+validate_fret_model(_, _, _, _, _, _, []).
 
 validate_fret_results(Context, Spec, OutFiles, Results) :- % KWQ: version for which there is no RACK generate!  And rename generate to something else since this no longer comes from "eng system gen".
     eng:key(system, spec, Spec, generate, OutFile),
