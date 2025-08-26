@@ -194,12 +194,16 @@ validate_lando_fret(Context, Spec, SSL, [RR,MR]) :-
     ),
     ensure_dir(Dir),
     !,
+    restart_production,
     % if no FRET, the next should not succeed and this predicate is false
     lando_to_fret(SSL, Reqs, FretVars, _SrcRefs),
     !,  % no backtracking to re-extract FRET if checks below fail
+    prep_output(Spec, Erase),
     validate_fret_realizability(Context, Spec, Dir, SSL, Reqs, FretVars, RR),
     !,  % no retry of realizability checking if model check fails
-    validate_fret_model(Context, Spec, Dir, SSL, Reqs, FretVars, MR).
+    validate_fret_model(Context, Spec, Dir, SSL, Reqs, FretVars, MR),
+    finish_output(Spec),
+    maplist(erase, Erase).
 
 validate_fret_realizability(Context, Spec, Dir, SSL, Reqs, FretVars, R) :-
     print_message(informational, validating_fret_contracts),
@@ -235,11 +239,12 @@ validate_fret_model(_, _, _, _, _, _, []).
 prolog:message(validating_fret_contracts) --> ['Validating FRET contracts'].
 prolog:message(validating_lustre_models) --> ['Validating Lustre models'].
 
-validate_fret_results(Context, Spec, OutFiles, Results) :- % KWQ: version for which there is no RACK generate!  And rename generate to something else since this no longer comes from "eng system gen".
+prep_output(Spec, [RACK_out, RACK_close]) :-
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, "RACK"),
     !,
     ensure_file_loc(OutFile),
+    (exists_file(OutFile) -> delete_file(OutFile)),
     open(OutFile, write, OutStrm),
     format(OutStrm, '~w,~w,~w,~w,~w,~w,~w~n',
            [ "Project", "Component", "Requirement", "Source", "FretID",
@@ -248,13 +253,34 @@ validate_fret_results(Context, Spec, OutFiles, Results) :- % KWQ: version for wh
                  output_kind2_rack_csv(OutStrm, ReqName, Level, Msg),
                  fail),  % fail to next output_kind2_result (print_message below)
             RACK_out),
-    maplist(validate_lando_fret_cc(Context), OutFiles, Results),
-    erase(RACK_out).
+    asserta(rack_result(1), _),
+    asserta((finish_output(Spec) :- close(OutStrm), writeln(closed_rack_file)), RACK_close).
+prep_output(_Spec, []).
+
+:- dynamic rack_result/1.
+:- dynamic finish_output/1.
+
+finish_output(_Spec).
+
+validate_fret_results(Context, Spec, OutFiles, Results) :-
+    eng:key(system, spec, Spec, generate, OutFile),
+    eng:eng(system, spec, Spec, generate, OutFile, format, "RACK"),
+    !,
+    ensure_file_loc(OutFile),
+    maplist(validate_lando_fret_cc(Context), OutFiles, Results).
 validate_fret_results(Context, _Spec, OutFiles, Results) :-
     maplist(validate_lando_fret_cc(Context), OutFiles, Results).
 
 output_kind2_rack_csv(OutStrm, ReqName, _Level, Msg) :-
-    demand(ReqName, form(mem, fretments), ReqThings),
+    % Create a unique DemandID because there may be multiple results for a
+    % ReqName, spread across both realizeability and model checking.
+    rack_result(ThisResult),
+    retractall(rack_result/1),
+    succ(ThisResult, NextResult),
+    asserta(rack_result(NextResult), _),
+    atom_concat(ThisResult, ReqName, DemandID),
+
+    demand(DemandID, form(mem, fretments), ReqThings),
     !,
     thing_value(ReqThings, Reqs),
     find_req(ReqName, Reqs, R),
@@ -265,7 +291,7 @@ output_kind2_rack_csv(OutStrm, ReqName, _Level, Msg) :-
     %% (find_req(ReqName, Reqs, R), !
     %% ; format('no req for ~w~n~n~n', [ReqName]),
     %%   fail),
-    demand(ReqName, form(mem, fret_srcrefs), SrcRefThings),
+    demand(DemandID, form(mem, fret_srcrefs), SrcRefThings),
     !,
     thing_value(SrcRefThings, SrcRefs),
     same_production_series(ReqThings, SrcRefThings),
