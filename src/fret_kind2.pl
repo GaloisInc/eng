@@ -592,7 +592,14 @@ show_kind2_result(_, _, R, failed) :-
 
 :- dynamic contract/2.
 
-realizable(_, 0.0, _) :- !.
+realizable(_, 0.0, _) :-
+    % Suppress messages for instantly realizable elements: these are generally
+    % the ancillary nodes and functions supporting the primary.  Another method
+    % for detecting these would be to check the surrounding
+    % analysisStart/analysisStop, except the realizable realizablityCheck outputs
+    % are within those brackets and the unrealizable realizablityCheck is outside
+    % of those brackets... why?
+    !.
 realizable(LustreFile, Time, Unit) :-
     contract(LustreFile, ReqIDs),
     !,
@@ -734,14 +741,6 @@ get_step_val([_|Streams], StepNum, Var, Val) :-
 
 get_valnum(StepVals, StepNum, Val) :- member([StepNum,Val], StepVals).
 
-prolog:message(kind2_realizable(0.0, _Unit)) -->
-    % Suppress messages for instantly realizable elements: these are generally
-    % the ancillary nodes and functions supporting the primary.  Another method
-    % for detecting these would be to check the surrounding
-    % analysisStart/analysisStop, except the realizable realizablityCheck outputs
-    % are within those brackets and the unrealizable realizablityCheck is outside
-    % of those brackets... why?
-    [ ].
 prolog:message(kind2_realizable(Time, Unit)) -->
     [ 'Realizable    (~w ~w)' - [ Time, Unit ] ].
 prolog:message(kind2_realizable(ReqID, Time, Unit)) -->
