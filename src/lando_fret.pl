@@ -128,6 +128,7 @@ collect_var(_, _, SS, VName ⦂ _, Collected, OutCollected) :-
     member(S, SS),
     get_dict(constructors, S, CVS),
     member((VName, Val, Desc), CVS),
+    !,
     collect_constr(VName, constr(VName, Val, Desc, S), Collected, OutCollected).
 collect_var(_, _, _, VName ⦂ VType, _, _) :-
     print_message(error, undefined_variable(VName, VType)), !, fail.
