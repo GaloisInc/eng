@@ -136,6 +136,7 @@ collect_var(_, _, _, VName ⦂ VType, _, _) :-
 prolog:message(undefined_variable(VName, VType)) -->
     [ 'Referenced undefined variable in FRETish: ~w (type ~w)' - [VName, VType] ].
 
+
 collect_constr(VName, _, Collected, Collected) :-
     already_collected(VName, Collected), !.
 collect_constr(_, Constr, Collected, [Constr|Collected]).
