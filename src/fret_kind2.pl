@@ -502,7 +502,6 @@ show_kind2_results(LustreFile, O, "property", Status) :-
     get_dict(answer, O, Answer),
     get_dict(value, Answer, PropSts),
     show_kind2_result(LustreFile, O, PropSts, Status).
-
 show_kind2_results(_, _, OType, failed) :-
     print_message(warning, unrecognized_kind2_result_type(OType)).
 
@@ -540,7 +539,6 @@ show_kind2_result(LustreFile, O, "unrealizable", failed) :-
     % "contractname[UNIQUENODEID].ContractVar"; here, we extract just the
     % ContractVar from either form.
     maplist(simple_varname, CNames, ContractNames),
-
     get_dict(deadlockingTrace, O, [Trace|Traces]),
     (Traces == [] ; print_message(warning, other_unrealizable_traces(Traces))),
     get_dict(streams, Trace, Streams),
