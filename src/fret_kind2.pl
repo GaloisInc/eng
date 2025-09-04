@@ -789,6 +789,11 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 % Kind2: returns the Kind2 specification
 
 reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
+
+    cc_model_impls(CVars, Calls, FileNames),
+    intercalate(Calls, "\n", NodeCalls),
+    !,
+
     globals(EnumVals, Vars, Kind2Globals),
     !,
 
@@ -819,8 +824,6 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     intercalate(ConstraintSpecs, "\n  ", Constraints),
 
     !,
-    cc_model_impls(CVars, Calls, FileNames),
-    intercalate(Calls, "\n", NodeCalls),
 
     [NodeName] = [ CompName ],
     !,
