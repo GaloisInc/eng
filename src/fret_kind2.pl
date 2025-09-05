@@ -707,9 +707,9 @@ show_stream_steps(Vars, Streams) :-
     show_stream_steps(Vars, Streams, ColSizes, 0, Fmt, Lines),
     format_lines(Fmt, [["Step"|Vars]|Lines]).
 show_stream_steps(Vars, Streams, ColSizes, StepNum, Fmt, [[StepNum|Vals]|Lines]) :-
-    maplist(get_step_val(Streams, StepNum), Vars, Vals),
+    maplist(get_step_val(Streams, StepNum), Vars, Vals, ValLens),
     !,
-    maplist(string_max_length, ColSizes, Vals, UpdColSizes),
+    maplist(string_max_length, ColSizes, ValLens, UpdColSizes),
     succ(StepNum, NextStepNum),
     show_stream_steps(Vars, Streams, UpdColSizes, NextStepNum, Fmt, Lines).
 show_stream_steps(_, _, ColSizes, _, Fmt, []) :-
@@ -717,10 +717,7 @@ show_stream_steps(_, _, ColSizes, _, Fmt, []) :-
     make_format([4|SZS], Fmt).
 
 
-string_max_length(CurLen, Str, MaxLen) :-
-        string_length(Str, MaxLen),
-        MaxLen > CurLen,
-        !.
+string_max_length(CurLen, MaxLen, MaxLen) :- CurLen < MaxLen.
 string_max_length(MaxLen, _, MaxLen).
 
 make_format([S|SZ], Fmt) :-
@@ -728,14 +725,18 @@ make_format([S|SZ], Fmt) :-
     format(atom(Fmt), '~w~d~w ~w', ['~w~t~', S, '+', SubFmt]).
 make_format([], "~n").
 
-get_step_val([S|_], StepNum, Var, Val) :-
+get_step_val([S|_], StepNum, Var, Val, ValLen) :-
     get_dict(name, S, Var),
     get_dict(instantValues, S, Vals),
     get_valnum(Vals, StepNum, RawVal),
+    format_colval(RawVal, Val),
+    string_length(Val, ValLen).
+get_step_val([_|Streams], StepNum, Var, Val, ValLen) :-
+    get_step_val(Streams, StepNum, Var, Val, ValLen).
+
+format_colval(RawVal, Val) :-
     format(atom(V), '~w', [RawVal]),
     atom_string(V, Val).
-get_step_val([_|Streams], StepNum, Var, Val) :-
-    get_step_val(Streams, StepNum, Var, Val).
 
 get_valnum(StepVals, StepNum, Val) :- member([StepNum,Val], StepVals).
 
