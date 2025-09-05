@@ -1,6 +1,7 @@
 :- encoding(utf8).
 :- module(lando_fret, [ lando_to_fret/4,
-                        scenarios_final_var_name/2
+                        scenarios_final_var_name/2,
+                        collect_var/3
                       ]).
 
 :- use_module(library(http/json)).
@@ -105,6 +106,33 @@ collect_vars(SSLBody, InpReqs, OutReqs, OutVars) :-
     collect_vars(SSLBody, InpReqs, [], OutReqs, UsedVars),
     foldl(collect_var(CS, ES, SS), UsedVars, [], OutVars).
 
+collect_vars(_, [], [], [], []).
+collect_vars(SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
+    !,
+    collect_vars(SSLBody, InpReqs, Vars, OutReqs, OutVars).
+collect_vars(SSLBody, [R|InpReqs], Vars, [R|SubReqs], OutVars) :-
+    collect_vars(SSLBody, InpReqs, Vars, SubReqs, SubVars),
+    collect_vars_from_req(R, ReqVars),
+    append([ReqVars, SubVars], OutVars).
+
+collect_vars_from_req(Req, Vars) :-
+    get_dict(lando_req, Req, LR),
+    get_dict(fret_req, LR, FR),
+    fretment_vars(scope, FR, SVars),
+    fretment_vars(condition, FR, CVars),
+    fretment_vars(timing, FR, TVars),
+    fretment_vars(response, FR, RVars),
+    append([SVars, CVars, TVars, RVars], AllVars),
+    list_to_set(AllVars, Vars).
+
+collect_var(SSL, VName, Var) :-
+    get_dict(body, SSL, SSLBody),
+    findall(C, component_var(SSLBody, C), CS),
+    findall(E, events_var(SSLBody, E), ES),
+    findall(S, scenarios_var(SSLBody, S), SS),
+    collect_var(CS, ES, SS, VName ⦂unspecified_type, [], [Var]).
+
+
 collect_var(_, _, _, VName ⦂ _, Collected, Collected) :-
     already_collected(VName, Collected), !.
 collect_var(CS, _, _, VName ⦂ _, Collected, [Var|Collected]) :-
@@ -149,25 +177,6 @@ already_collected(VName, [constr(VName, _, _, _)|_]) :- !.
 already_collected(VName, [constr(_, _, _, _)|VS]) :- !, already_collected(VName, VS).
 already_collected(VName, [V|_]) :- get_dict(varname, V, VName), !.
 already_collected(VName, [_|VS]) :- already_collected(VName, VS).
-
-collect_vars(_, [], [], [], []).
-collect_vars(SSLBody, [noreq|InpReqs], Vars, OutReqs, OutVars) :-
-    !,
-    collect_vars(SSLBody, InpReqs, Vars, OutReqs, OutVars).
-collect_vars(SSLBody, [R|InpReqs], Vars, [R|SubReqs], OutVars) :-
-    collect_vars(SSLBody, InpReqs, Vars, SubReqs, SubVars),
-    collect_vars_from_req(R, ReqVars),
-    append([ReqVars, SubVars], OutVars).
-
-collect_vars_from_req(Req, Vars) :-
-    get_dict(lando_req, Req, LR),
-    get_dict(fret_req, LR, FR),
-    fretment_vars(scope, FR, SVars),
-    fretment_vars(condition, FR, CVars),
-    fretment_vars(timing, FR, TVars),
-    fretment_vars(response, FR, RVars),
-    append([SVars, CVars, TVars, RVars], AllVars),
-    list_to_set(AllVars, Vars).
 
 
 

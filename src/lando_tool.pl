@@ -161,7 +161,7 @@ write_lando_fret_kind2(OutDir, SSL, OutFiles) :-
 
 write_fret_kind2(OutDir, SSL, Reqs, FretVars, OutFiles) :-
     enumerated_values(SSL, EnumVals),
-    fret_kind2(EnumVals, Reqs, FretVars, Kind2ConnComps),
+    fret_kind2(SSL, EnumVals, Reqs, FretVars, Kind2ConnComps),
     !,
     maplist(write_kind2(OutDir), Kind2ConnComps, OutFiles).
 

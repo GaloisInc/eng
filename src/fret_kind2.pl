@@ -1,4 +1,4 @@
-:- module(fret_kind2, [ fret_kind2/4,
+:- module(fret_kind2, [ fret_kind2/5,
                         normalize_kind2_var/2,
                         kind2_validate/7,
                         output_kind2_result/3,
@@ -38,19 +38,19 @@
 %  node body, and files are all the implementation files referenced by the node
 %  body.
 %
-fret_kind2(EnumVals, FretReqs, Vars, Kind2Comps) :-
+fret_kind2(SSL, EnumVals, FretReqs, Vars, Kind2Comps) :-
     define_ltl_language,
     define_lustre_language,
     connected_components(FretReqs, Vars, 0, CComps),
-    fret_to_kind2(EnumVals, Vars, CComps, Kind2Comps),
+    fret_to_kind2(SSL, EnumVals, Vars, CComps, Kind2Comps),
     %warn_about_skipped_models(Kind2Comps),
     true.
 
-fret_to_kind2(_, _, [], []).
-fret_to_kind2(EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
-    fret_to_kind2(EnumVals, Vars, CCs, K2s),
+fret_to_kind2(_, _, _, [], []).
+fret_to_kind2(SSL, EnumVals, Vars, [comp(N, CompName, Reqs, CVars)|CCs], [K2|K2s]) :-
+    fret_to_kind2(SSL, EnumVals, Vars, CCs, K2s),
     format(atom(CName), '~w_~w', [ CompName, N ]),
-    reqs_to_kind2(EnumVals, Vars, CName, Reqs, CVars, Kind2, NodeFiles),
+    reqs_to_kind2(SSL, EnumVals, Vars, CName, Reqs, CVars, Kind2, NodeFiles),
     reqs_to_ids(Reqs, CompReqIds),
     K2 = _{ compNum: N,
             compName: CompName,
@@ -780,6 +780,8 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 
 %% ----------------------------------------------------------------------
 
+is_member(X, Y) :- member(Y, X).
+
 %% Called to generate an output file for kind2 contract analysis.
 %
 % EnumVals: list of values which are an enumeration
@@ -789,9 +791,9 @@ prolog:message(kind2_log_error(Source, File, Line, Col, Msg)) -->
 % CVars: the output variables for this contract
 % Kind2: returns the Kind2 specification
 
-reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
+reqs_to_kind2(SSL, EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 
-    cc_model_impls(CVars, Calls, FileNames),
+    cc_model_impls(CVars, MdlInpVars, Calls, FileNames),
     intercalate(Calls, "\n", NodeCalls),
     !,
 
@@ -808,9 +810,15 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     intercalate(Kind2Decls, "\n  ", NodeDecls),
 
     input_vars(Reqs, CVars, Vars, Kind2Input, Kind2Args),
+    exclude(is_member(Kind2Args), MdlInpVars, MoreArgsNeeded),
+    maplist(collect_var(SSL), MoreArgsNeeded, MoreArgsCollected),
+    maplist(arg_decl, MoreArgsCollected, MoreArgDecls),
+    append([Kind2Input, MoreArgDecls], Kind2InputComplete),
     !,
-    intercalate(Kind2Input, ";\n                    ", NodeArgDecls),
+    intercalate(Kind2Input, ";\n                    ", ContractArgDecls),
+    intercalate(Kind2InputComplete, ";\n                    ", NodeArgDecls),
     intercalate(Kind2Args, ", ", ContractArgs),
+
 
     output_vars(Vars, CVars, Kind2OutputDecls, Kind2Outputs),
     !,
@@ -833,7 +841,8 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
     intercalate(HelperImpls, "\n", Helpers),
 
     Kind2 = {|string(NodeName,
-                     NodeArgDecls, ContractArgs,
+                     NodeArgDecls,
+                     ContractArgs, ContractArgDecls,
                      NodeRet, ContractOutputs,
                      NodeDecls,
                      NodeReqDecls,
@@ -848,7 +857,7 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 | {GlobalDecls}
 |
 | ----------------------------------------------------------------------
-| contract {NodeName}Spec( {NodeArgDecls} )
+| contract {NodeName}Spec( {ContractArgDecls} )
 | returns ( {NodeRet} );
 | let
 |   {NodeDecls}
@@ -875,9 +884,12 @@ reqs_to_kind2(EnumVals, Vars, CompName, Reqs, CVars, Kind2, FileNames) :-
 
 :- dynamic kind2_no_model/0.
 
-cc_model_impls(_, [], []) :- kind2_no_model, !.
-cc_model_impls(OutVars, Calls, NodeImplFileNames) :-
+cc_model_impls(_, [], [], []) :- kind2_no_model, !.
+cc_model_impls(OutVars, InpVars, Calls, NodeImplFileNames) :-
     findall(I, cc_model_impl_name(OutVars, I), ImplNames),
+    findall(V, cc_model_impl_inpvars(ImplNames, V), InpVarSets),
+    append(InpVarSets, InpVarList),
+    list_to_set(InpVarList, InpVars),
     findall(C, cc_model_impl_call(ImplNames, C), Calls),
     findall(N, cc_model_impl_file(ImplNames, N), NodeImplFileNames).
 
@@ -889,6 +901,12 @@ cc_model_impl_name(OutVars, ImplName) :-
     findall(V, (member(V, VS), member(V, OutVars)), NVS),
     length(VS, VSLen),
     length(NVS, VSLen).  % lengths are the same
+
+cc_model_impl_inpvars(ImplNames, InpVars) :-
+    member(NodeName, ImplNames),
+    eng:eng(system, model, kind2, NodeName, inputs, InpArgs),
+    split_string(InpArgs, ",", " ", InpArgList),
+    list_to_set(InpArgList, InpVars).
 
 cc_model_impl_call(ImplNames, Call) :-
     member(NodeName, ImplNames),
