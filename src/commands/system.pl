@@ -254,7 +254,9 @@ prep_output(Spec, [RACK_out, RACK_close]) :-
                  fail),  % fail to next output_kind2_result (print_message below)
             RACK_out),
     asserta(rack_result(1), _),
-    asserta((finish_output(Spec) :- close(OutStrm), writeln(closed_rack_file)), RACK_close).
+    asserta((finish_output(Spec) :- close(OutStrm),
+                                    print_message(informational, wrote_file("RACK", OutFile, "CSV"))),
+            RACK_close).
 prep_output(_Spec, []).
 
 :- dynamic rack_result/1.
@@ -602,6 +604,6 @@ wrote_file_messages(Spec, Kind, [model(OutFile)|FS]) :-
     wrote_file_messages(Spec, Kind, FS).
 
 prolog:message(wrote_file(Spec, OutFile, Kind)) -->
-    [ 'Wrote lando spec "~w" to ~w file ~w~n' - [ Spec, Kind, OutFile ]].
+    [ 'Wrote "~w" specification to ~w: ~w' - [ Spec, Kind, OutFile ] ].
 prolog:message(did_not_write(_Spec, OutFile, Kind)) -->
     [ 'Unable to write ~w to file ~w due to errors~n' - [ Kind, OutFile ]].
