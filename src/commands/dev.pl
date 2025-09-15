@@ -100,14 +100,14 @@ dev_subcmd_help(Cmd) :-
     format('Help for dev "~w" sub-command:~n~n~w~n', [ Cmd, CmdHelp ]).
 
 
-dev_subcmd_do(Context, test, Args, Sts) :-
+dev_subcmd_do(Context, test, Args, sts(test, Sts)) :-
     % test operations are slightly more complex as described in the help above.
     !,
     run_tests(Context, Args, Cnt, Sts),
     (Sts = 0, !, print_message(info, tests_passed(Cnt))
     ; print_message(error, test_failures(Cnt, Sts))
     ).
-dev_subcmd_do(Context, testlist, _Args, 0) :-
+dev_subcmd_do(Context, testlist, _Args, sts(test, 0)) :-
     !,
     list_tests(Context, Cnt),
     print_message(info, test_count(Cnt)).
