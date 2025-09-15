@@ -204,6 +204,20 @@ vcs_tool_in(Context, InDir, Tool) :- vcs_tool_darcs(Context, InDir, Tool).
 vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
     directory_file_path(InDir, ".git", VCSDir),
     exists_directory(VCSDir),
+    vcs_tool_git_with_remote(TopDir, InDir, URL, Auth).
+
+vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
+    directory_file_path(InDir, ".git", VCSFile),
+    exists_file(VCSFile),
+    read_file_to_string(VCSFile, VCSContents, []),
+    string_concat("gitdir: ", _, VCSContents),
+    vcs_tool_git_with_remote(TopDir, InDir, URL, Auth).
+
+vcs_tool_git(_Context, InDir, git(InDir)) :-
+    directory_file_path(InDir, ".git", VCSDir),
+    exists_directory(VCSDir).
+
+vcs_tool_git_with_remote(TopDir, InDir, URL, Auth) :-
     do_exec(context(_, TopDir), 'vcs git remote origin',
             [ 'VCSDir' = InDir ],
             capture(["git", "-C", "{VCSDir}", "remote", "get-url", "origin"]),
@@ -211,10 +225,6 @@ vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
     atom_string(URLAtom, GitForgeURL),
     git_remote_url(URLAtom, URL),
     git_repo_AUTH(URL, Auth).
-
-vcs_tool_git(_Context, InDir, git(InDir)) :-
-    directory_file_path(InDir, ".git", VCSDir),
-    exists_directory(VCSDir).
 
 
 vcs_tool_darcs(Context, InDir, darcs(InDir, GitTool)) :-
@@ -368,7 +378,7 @@ git_remote_head(Context, VCSDir, RmtHead) :-
     % n.b. this is a fallback from the previous matching clause that is not
     % always reliable (the refs/remotes below does not always exist, and it's not
     % clear what a consistent ref would be); warn when using this method.
-    print_message(warning, unreliable_git_remote_head(VCSDir)),
+    print_message(informational, unreliable_git_remote_head(VCSDir)),
     do_exec(Context, 'vcs remote head', [ 'VCSDir' = VCSDir ],
             capture([git, '-C', VCSDir, 'show-ref' ]),
             [], curdir, StdOut),
