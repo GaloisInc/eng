@@ -583,6 +583,12 @@ vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
     string_contains(Rmt, "git"),
     !,
     git_rmt_with_auth(VCTool, URL, Rmt).
+vctl_subproj_remote_repo(darcs(_), Name, darcsremote(Rmt)) :-
+    eng:eng(vctl, subproject, Name, repo, Rmt),
+    split_string(Rmt, ":", "", Split),
+    length(Split, SL),
+    SL > 1,
+    !.
 vctl_subproj_remote_repo(_VCTool, Name, miscremote(Rmt)) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
     !.
