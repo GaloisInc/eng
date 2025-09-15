@@ -580,13 +580,12 @@ vctl_subproj_remote_repo(_, Name, gitremote_ssh(Rmt)) :-
 vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
     parse_url(Rmt, URL),
-    string_split(Rmt, "git", "", Split),
-    length(Split, SL),
-    SL > 1,
+    string_contains(Rmt, "git"),
     !,
     git_rmt_with_auth(VCTool, URL, Rmt).
 vctl_subproj_remote_repo(_VCTool, Name, miscremote(Rmt)) :-
-    eng:eng(vctl, subproject, Name, repo, Rmt), !.
+    eng:eng(vctl, subproject, Name, repo, Rmt),
+    !.
 vctl_subproj_remote_repo(_VCTool, _Name, rmtNotSpecified).
 
 git_rmt_with_auth(git(_, forge(_, Auth)), URL, gitremote(URL, Auth)).
