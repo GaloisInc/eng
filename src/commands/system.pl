@@ -530,6 +530,7 @@ generate_spec_outputs(_, Spec, "lando", SSL, Result) :-
     % This is an output directory, not an output file
     eng:eng(system, spec, Spec, generate, OutDir, format, "fret_kind2"),
     retractall(fret_kind2:kind2_disallow_enums),
+    ensure_dir(OutDir),
     delete_kind2_sources(OutDir),
     (write_lando_fret_kind2(OutDir, SSL, OutFiles)
     -> Result = 0,
@@ -551,6 +552,7 @@ generate_spec_outputs(Context, Spec, "lando", SSL, Result) :-
     % be validated against all the contracts, rather than the SUT output.
     % Therefore, suppress inclusion of the model in the kind2 output here.
     asserta(fret_kind2:kind2_no_model),
+    ensure_dir(OutDir),
     delete_kind2_sources(OutDir),
     (write_lando_fret_kind2(OutDir, SSL, OutFiles)
     -> wrote_file_messages(Spec, "fret_kind2", OutFiles),
