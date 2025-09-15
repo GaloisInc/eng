@@ -912,7 +912,7 @@ bool_expr(Env, V, FinalEnv) -->
     { fretish_expr_langdef(LangDef),
       get_dict(language, LangDef, Language)
     },
-    expr(Language, Env, boolean, V, FinalEnv).
+    expr(Language, Env, normal, boolean, V, FinalEnv).
 
 
 % KWQ: ~ XOR -> => <-> <=> "IF be THEN be" "AT THE (PREVIOUS|NEXT) OCCURRENCE OF be, be"

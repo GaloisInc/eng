@@ -2,7 +2,9 @@
 :- module(exprlang, [ define_language/2, ensure_language_defined/1,
                       show_language/1,
                       initial_gamma/1, fresh_var/4, fresh_var/7,
-                      parse_expr/3, parse_expr/4, expr/6, expr/7,
+                      parse_expr/3, parse_expr/4,
+                      % expr/7,
+                      expr/8,
                       op(750, xfy, →),
                       op(760, yfx, ⦂),
                       type_of/2,
@@ -96,8 +98,8 @@ parse_expr_(Language, Expr, ABT, FinalEnv, TopType) :-
     enumerate(ECodes, Input),
     initial_gamma(Env),
     ( TopType == anytype
-    -> phrase(expr(Language, Env, ABT, FinalEnv), Input, Rem)
-    ; phrase(expr(Language, Env, TopType, ABT, FinalEnv), Input, Rem)
+    -> phrase(expr(Language, Env, normal, ABT, FinalEnv), Input, Rem)
+    ; phrase(expr(Language, Env, normal, TopType, ABT, FinalEnv), Input, Rem)
     ),
     (Rem == [], !
     ; print_message(error, unparsed(Rem)), !, fail
@@ -109,8 +111,8 @@ prolog:message(unparsed(Remainder)) -->
     },
     [ 'Parsing failed at position ~w: ~w~n' - [ CharNum, Text ] ].
 
-expr(Language, Env, ExprType, OutExprABT, OutEnv) -->
-    expr(Language, Env, ExprABT, Env1),
+expr(Language, Env, Mode, ExprType, OutExprABT, OutEnv) -->
+    expr(Language, Env, Mode, ExprABT, Env1),
     { verify_expr_type(Language, Env1, ExprABT, ExprType, OutExprABT, OutEnv) }.
 
 :- dynamic type_repair/6.
@@ -132,33 +134,52 @@ verify_expr_type(Language, Env, Expr, ExprType, OutExpr, OutEnv) :-
     ).
 
 
-expr(Language, Env, OutExpr, OutEnv) -->
+expr(Language, Env, normal, OutExpr, OutEnv) -->
+    %% Find an operator that can be applied, where the parser is a list of parsers
     { lang(Language, expop(Op ⦂ OpType, OpParser, _)),
       is_list(OpParser)
     },
-    exprParts(Language, Env, OpType, OpParser, [], Terms, Env1),
+    exprParts(Language, Env, Op, OpType, OpParser, [], Terms, Env1),
     { typecheck_expr(Language, Env1, OpType, Terms, Env2, OutTerms, OpOutType),
       Expr =.. [Op|OutTerms]
     },
     exprMore(Language, Env2, op(Expr, OpOutType), OutEnv, OutExpr).
-expr(Language, Env, Expr, Env2) -->
+expr(Language, Env, left_recursion, OutExpr, OutEnv) -->
+    %% Find an operator that can be applied, where the parser is a list of parsers
+    { lang(Language, expop(Op ⦂ OpType, OpParser, _)),
+      is_list(OpParser),
+      \+ [subexpr|_] = OpParser  % Break left recursion cycle
+    },
+    exprParts(Language, Env, Op, OpType, OpParser, [], Terms, Env1),
+    { typecheck_expr(Language, Env1, OpType, Terms, Env2, OutTerms, OpOutType),
+      Expr =.. [Op|OutTerms]
+    },
+    exprMore(Language, Env2, op(Expr, OpOutType), OutEnv, OutExpr).
+expr(Language, Env, _, Expr, Env2) -->
+    %% Find a term that can be matched (may be followed by an infix operator)
     { lang(Language, term(TermID ⦂ TermType, TermParser, _)) },
     lexeme(call(TermParser, P)),
     typecheck(Language, Env, TermID, P, TermType, Env1, CheckedTermType),
     { Term =.. [TermID, P] },
     exprMore(Language, Env1, term(Term, CheckedTermType), Env2, Expr).
-expr(Language, Env, Expr, OutEnv) -->
+expr(Language, Env, _, Expr, OutEnv) -->
+    %% Parenthetical sub-expression
     lexeme(chrs('(')),
-    expr(Language, Env, SubExpr, Env1),
+    expr(Language, Env, normal, SubExpr, Env1),
     lexeme(chrs(')')),
     exprMore(Language, Env1, SubExpr, OutEnv, Expr).
-expr(Language, Env, Expr, OutEnv) --> ws(_), expr(Language, Env, Expr, OutEnv).
-expr(_, Env, end, Env) --> [].
+expr(Language, Env, Mode, Expr, OutEnv) -->
+    %% Skip whitespace
+    ws(_), expr(Language, Env, Mode, Expr, OutEnv).
+expr(_, Env, _, end, Env) --> [].
 
+% exprMore is called when an expression has been fully parsed, but there may be
+% additional portions (usually due to an infix operator occurring next).
 exprMore(Language, Env, LeftTerm, OutEnv, op(Expr, OT)) -->
+    %% Infix always follows a term
     { lang(Language, expop(Op ⦂ OpType, infix(OpParser), _)) },
     lexeme(call(OpParser)),
-    lexeme(expr(Language, Env, RTP, Env1)),
+    lexeme(expr(Language, Env, normal, RTP, Env1)),
     { typecheck_expr(Language, Env1, OpType, [LeftTerm, RTP],
                      OutEnv, [LT, RT], OT),
       Expr =.. [Op, LT, RT]
@@ -169,24 +190,33 @@ exprMore(Language, Env, Expr, OutEnv, OutExpr) -->
     exprMore(Language, Env, Expr, OutEnv, OutExpr).
 exprMore(_, Env, E, Env, E) --> [].
 
-
-exprParts(Language, Env, _ → TPS, [subexpr|Parsers], OpArgs,
-          Terms, OutEnv) -->
-    lexeme(expr(Language, Env, Arg, Env1)),
+% exprParts is called when an operator has been partially parsed and additional
+% arguments to the operator are needed.
+exprParts(Language, Env, Op, _ → TPS, [subexpr|Parsers], [], Terms, OutEnv) -->
+    %% FIRST part is a sub-expression (have not collected any OpArgs yet).  This
+    %% risks LL infinite recursion.
+    lexeme(expr(Language, Env, left_recursion, Arg, Env1)),
     typecheck(Language, Env1, Arg, Env2, TypedArg),
     % n.b. TParam will be checked against TypedArg after the entire expression is
     % parsed at the call site (above).
-    exprParts(Language, Env2, TPS, Parsers, [TypedArg|OpArgs], Terms, OutEnv).
-exprParts(Language, Env, TPS, [swapargs|Parsers], [OA1,OA2|OpArgs],
+    exprParts(Language, Env2, Op, TPS, Parsers, [TypedArg], Terms, OutEnv).
+exprParts(Language, Env, Op, _ → TPS, [subexpr|Parsers], OpArgs,
           Terms, OutEnv) -->
-    exprParts(Language, Env, TPS, Parsers, [OA2,OA1|OpArgs], Terms, OutEnv).
-exprParts(Language, Env, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
+    {\+ OpArgs = []},
+    lexeme(expr(Language, Env, normal, Arg, Env1)),
+    typecheck(Language, Env1, Arg, Env2, TypedArg),
+    % n.b. TParam will be checked against TypedArg after the entire expression is
+    % parsed at the call site (above).
+    exprParts(Language, Env2, Op, TPS, Parsers, [TypedArg|OpArgs], Terms, OutEnv).
+exprParts(Language, Env, Op, TPS, [swapargs|Parsers], [OA1,OA2|OpArgs],
+          Terms, OutEnv) -->
+    exprParts(Language, Env, Op, TPS, Parsers, [OA2,OA1|OpArgs], Terms, OutEnv).
+exprParts(Language, Env, Op, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
     { \+ member(Parser, [subexpr, swapargs])},
-    call(Parser),
-    exprParts(Language, Env, TPS, Parsers, OpArgs, Terms, OutEnv).
-exprParts(_, Env, _OpType, [], OpArgs, Terms, Env) -->
-    [], { reverse(OpArgs, Terms) }.
-
+    call(Parser),  % Parses a keyword
+    exprParts(Language, Env, Op, TPS, Parsers, [keyword|OpArgs], Terms, OutEnv).
+exprParts(_, Env, _Op, _OpType, [], OpArgs, Terms, Env) -->
+    [], { exclude(is_keyword, OpArgs, L), reverse(L, Terms) }.
 %% N.B.: this is intended to report an error, but enabling it cuts off a
 %% backtracking somehow so the parse fails very early (for
 %% complex_nesting_indeterminate_types test).  If this is re-enabled, Op should
@@ -199,6 +229,8 @@ exprParts(_, Env, _OpType, [], OpArgs, Terms, Env) -->
 %%     }.
 %% prolog:message(incomplete_op_args(O, A, T)) -->
 %%     [ 'Incomplete ~w operation; parsed ~w but failed with remaining type ~w' - [O,A,T] ].
+
+is_keyword(keyword).
 
 %% ----------------------------------------
 
