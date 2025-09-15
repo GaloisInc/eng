@@ -288,6 +288,7 @@ prolog:message(using_pat(H)) --> [ "Using PAT to access ~w" - [ H ] ].
 %% VCTL status command
 
 vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
+    !,
     vctl_subproj_preface(TopDir, Preface),
     writeln(Preface),
     do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
@@ -296,10 +297,12 @@ vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
             ],
             [], TopDir, Sts).
 vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
+    !,
     vctl_status(Context, git(VCSDir), Args, Sts),
     vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), Args, _).
 
 vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+    !,
     darcs_pull_args(VCSDir, ExtraArgs),
     format(atom(PullCmd), 'darcs pull --repodir=~w -q --dry-run ~w',
            [VCSDir, ExtraArgs]),
@@ -311,6 +314,7 @@ vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
             [], TopDir, Sts).
 
 vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
+    !,
     vctl_status(Context, GitTool, Args, GSts),
     vctl_status(Context, darcs(DarcsDir), Args, DSts),
     sum_list([DSts, GSts], Sts).
@@ -454,7 +458,8 @@ vctl_push(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
             ],
             [], TopDir, Sts).
 
-vctl_push(Context, darcs(DarcsDir, GitTool), Args, Sts) :- !,
+vctl_push(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
+    !,
     vctl_push(Context, darcs(DarcsDir), Args, DSts),
     (DSts == 0
     -> dgsync(Context, GitTool, Sts)
@@ -486,6 +491,7 @@ vctl_pull(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
     vctl_pull(Context, git(VCSDir), Args, Sts).
 
 vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+    !,
     darcs_pull_args(VCSDir, ExtraArgs),
     format(atom(PullCmd), 'darcs pull --repodir=~w -q ~w',
            [VCSDir, ExtraArgs]),
