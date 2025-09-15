@@ -594,10 +594,11 @@ prolog:message(unknown_expr_type(Language, Expr, ExprType)) -->
     [ 'Unknown ~w type for "~w" of ~w; expected ~w' - [Language, Txt, Ty, ExprType]].
 prolog:message(invalid_expr_types(TypeSpec, Terms)) -->
     { maplist([A,S]>>fmt_str(S,'    arg: ~w~n', [A]), Terms, ArgInfos),
-      atomic_list_concat(ArgInfos, "", ArgInfo)
+      atomic_list_concat(ArgInfos, "", ArgInfo),
+      length(Terms, NTerms)
     },
-    [ 'Invalid argument types for expression of type: ~w~n~w'
-      - [ TypeSpec, ArgInfo ]].
+    [ 'Invalid argument types (~w) for expression of type: ~w~n~w'
+      - [ NTerms, TypeSpec, ArgInfo ]].
 
 % fresh_var/5 (DCG).  Called to check/save the new variable (with type determined
 % by expression context) as a free variable, updating the Env and possibly
