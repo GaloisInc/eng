@@ -134,6 +134,14 @@ verify_expr_type(Language, Env, Expr, ExprType, OutExpr, OutEnv) :-
     ).
 
 
+expr(Language, Env, _, Expr, OutEnv) -->
+    %% Parenthetical sub-expression
+    lexeme(chrs('(')),
+    !,
+    expr(Language, Env, normal, SubExpr, Env1),
+    lexeme(chrs(')')),
+    !,
+    exprMore(Language, Env1, SubExpr, OutEnv, Expr).
 expr(Language, Env, normal, OutExpr, OutEnv) -->
     %% Find an operator that can be applied, where the parser is a list of parsers
     { lang(Language, expop(Op ⦂ OpType, OpParser, _)),
@@ -159,18 +167,13 @@ expr(Language, Env, _, Expr, Env2) -->
     %% Find a term that can be matched (may be followed by an infix operator)
     { lang(Language, term(TermID ⦂ TermType, TermParser, _)) },
     lexeme(call(TermParser, P)),
+    !,
     typecheck(Language, Env, TermID, P, TermType, Env1, CheckedTermType),
     { Term =.. [TermID, P] },
     exprMore(Language, Env1, term(Term, CheckedTermType), Env2, Expr).
-expr(Language, Env, _, Expr, OutEnv) -->
-    %% Parenthetical sub-expression
-    lexeme(chrs('(')),
-    expr(Language, Env, normal, SubExpr, Env1),
-    lexeme(chrs(')')),
-    exprMore(Language, Env1, SubExpr, OutEnv, Expr).
 expr(Language, Env, Mode, Expr, OutEnv) -->
     %% Skip whitespace
-    ws(_), expr(Language, Env, Mode, Expr, OutEnv).
+    ws(_), !, expr(Language, Env, Mode, Expr, OutEnv).
 expr(_, Env, _, end, Env) --> [].
 
 % exprMore is called when an expression has been fully parsed, but there may be
@@ -179,6 +182,7 @@ exprMore(Language, Env, LeftTerm, OutEnv, op(Expr, OT)) -->
     %% Infix always follows a term
     { lang(Language, expop(Op ⦂ OpType, infix(OpParser), _)) },
     lexeme(call(OpParser)),
+    !,
     lexeme(expr(Language, Env, normal, RTP, Env1)),
     { typecheck_expr(Language, Env1, OpType, [LeftTerm, RTP],
                      OutEnv, [LT, RT], OT),
@@ -214,9 +218,10 @@ exprParts(Language, Env, Op, TPS, [swapargs|Parsers], [OA1,OA2|OpArgs],
 exprParts(Language, Env, Op, TPS, [Parser|Parsers], OpArgs, Terms, OutEnv) -->
     { \+ member(Parser, [subexpr, swapargs])},
     call(Parser),  % Parses a keyword
+    !,
     exprParts(Language, Env, Op, TPS, Parsers, [keyword|OpArgs], Terms, OutEnv).
 exprParts(_, Env, _Op, _OpType, [], OpArgs, Terms, Env) -->
-    [], { exclude(is_keyword, OpArgs, L), reverse(L, Terms) }.
+    [], !, { exclude(is_keyword, OpArgs, L), reverse(L, Terms) }.
 %% N.B.: this is intended to report an error, but enabling it cuts off a
 %% backtracking somehow so the parse fails very early (for
 %% complex_nesting_indeterminate_types test).  If this is re-enabled, Op should
