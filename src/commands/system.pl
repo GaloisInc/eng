@@ -123,7 +123,7 @@ find_spec(Input, Spec) :- atom_string(Input, InpStr),
 with_spec_format_and_file(InputSpec, Op, R) :-
     find_spec(InputSpec, Spec), !,
     with_spec_format_and_file_(Spec, Op, R).
-with_spec_format_and_file(Spec, _, unknown_spec(Spec)).
+with_spec_format_and_file(Spec, _, unknown(Spec, unknown_spec(Spec))).
 
 with_spec_format_and_file_(Spec, Op, R) :-
     eng:eng(system, spec, Spec, format, Format), !,
@@ -174,7 +174,7 @@ show_system_spec(Spec, Name, Format) :-
 validate_system_spec(Context, InputSpec, R) :-
     with_spec_format_and_file(InputSpec, validate_spec(Context), R).
 
-validate_spec(Context, Spec, "lando", SpecFile, R) :-
+validate_spec(Context, Spec, "lando", SpecFile, sts(Spec, R)) :-
     parse_lando_file(SpecFile, SSL), !,
     validate_lando(SSL, Problems),
     length(Problems, NumProbs),
@@ -184,11 +184,11 @@ validate_spec(Context, Spec, "lando", SpecFile, R) :-
       print_message(error, lando_validation_errors(Spec, SpecFile, NumProbs)),
       R = NumProbs
     ).
-validate_spec(_, Spec, Format, SpecFile, 1) :-
+validate_spec(_, Spec, Format, SpecFile, sts(Spec, 1)) :-
     print_message(error, invalid_parse(Format, Spec, SpecFile)).
-validate_spec(_, _, _, _, 1).
+validate_spec(_, Spec, _, _, sts(Spec, 1)).
 
-validate_lando_fret(Context, Spec, SSL, [RR,MR]) :-
+validate_lando_fret(Context, Spec, SSL, [RR, MR]) :-
     ( eng:eng(system, spec, Spec, generate, Dir, format, "fret_kind2")
     ; Dir = "fret_kind2"
     ),
@@ -507,13 +507,12 @@ prolog :message(number_lando_validation_errors(Spec, SpecFile, Count)) -->
 generate_system_spec(Context, InputSpec, R) :-
     with_spec_format_and_file(InputSpec, generate_spec(Context), R).
 
-generate_spec(Context, Spec, "lando", SpecFile, Result) :-
+generate_spec(Context, Spec, "lando", SpecFile, Results) :-
     parse_lando_file(SpecFile, SSL), !,
-    findall(R, generate_spec_outputs(Context, Spec, "lando", SSL, R), Results),
-    sum_list(Results, Result).
+    findall(R, generate_spec_outputs(Context, Spec, "lando", SSL, R), Results).
 generate_spec(_, _, _, _, 1).
 
-generate_spec_outputs(_, Spec, "lando", SSL, Result) :-
+generate_spec_outputs(_, Spec, "lando", SSL, sts(Spec, Result)) :-
     spec_output_type(OutType, OutName, OutFunc),
     eng:key(system, spec, Spec, generate, OutFile),
     eng:eng(system, spec, Spec, generate, OutFile, format, OutType),
@@ -525,7 +524,7 @@ generate_spec_outputs(_, Spec, "lando", SSL, Result) :-
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutFile, OutName))
     ).
-generate_spec_outputs(_, Spec, "lando", SSL, Result) :-
+generate_spec_outputs(_, Spec, "lando", SSL, sts(Spec, Result)) :-
     eng:key(system, spec, Spec, generate, OutDir),
     % This is an output directory, not an output file
     eng:eng(system, spec, Spec, generate, OutDir, format, "fret_kind2"),
@@ -538,7 +537,7 @@ generate_spec_outputs(_, Spec, "lando", SSL, Result) :-
     ; Result = 1,
       print_message(error, did_not_write(Spec, OutDir, "fret_kind2"))
     ).
-generate_spec_outputs(Context, Spec, "lando", SSL, Result) :-
+generate_spec_outputs(Context, Spec, "lando", SSL, sts(Spec, Result)) :-
     eng:key(system, spec, Spec, generate, OutDir),
     % This is an output directory, not an output file
     eng:eng(system, spec, Spec, generate, OutDir, format, "test_traces"),
@@ -558,8 +557,7 @@ generate_spec_outputs(Context, Spec, "lando", SSL, Result) :-
     -> wrote_file_messages(Spec, "fret_kind2", OutFiles),
        retractall(fret_kind2:kind2_disallow_enums),
        retractall(fret_kind2:kind2_no_model),
-       concurrent_maplist(kind2_gen_trace(Context, OutDir), OutFiles, Results),
-       sum_list(Results, Result)
+       concurrent_maplist(kind2_gen_trace(Context, OutDir), OutFiles, Result)
     ; Result = 1,
       retractall(fret_kind2:kind2_disallow_enums),
       retractall(fret_kind2:kind2_no_model),
