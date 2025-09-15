@@ -583,12 +583,12 @@ vctl_subproj_remote_repo(_, Name, gitremote_ssh(Rmt)) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
     string_concat("git@", _, Rmt),
     !.
-vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
+vctl_subproj_remote_repo(VCTool, Name, Remote) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
     parse_url(Rmt, URL),
     string_contains(Rmt, "git"),
     !,
-    git_rmt_with_auth(VCTool, URL, Rmt).
+    git_rmt_with_auth(VCTool, URL, Remote).
 vctl_subproj_remote_repo(darcs(_), Name, darcsremote(Rmt)) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
     split_string(Rmt, ":", "", Split),
