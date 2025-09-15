@@ -129,7 +129,7 @@ vctl_cmd(Context, ['_',build_status|Args], [Sts|SubSts]) :-
     vcs_tool(Context, VCTool), !,
     vctl_build_status(Context, VCTool, Args, Sts).
 
-vctl_cmd(Context, [subproj], sts(here, 0)) :-
+vctl_cmd(Context, [subproj], sts(subproj, 0)) :-
     vcs_tool(Context, VCTool),
     setof((S,L), (eng:key(vctl, subproject, S),
                   vctl_subproj_local_dir(S, L)), SL),
@@ -139,11 +139,13 @@ vctl_cmd(Context, [subproj], sts(here, 0)) :-
     length(SL, NSL),
     format('Subprojects: ~w known, ~w present locally~n', [ NSL, TSP ]),
     !.
-vctl_cmd(_, [subproj], unknown(here, no_subprojects)).
+vctl_cmd(context(Here, _), [subproj], unknown(subproj, no_subprojects(Here))).
 
-vctl_cmd(_, [subproj,clone], no_subprojects) :-
-    findall(S, eng:key(vctl, subproject, S), []), !.
-vctl_cmd(_, [subproj,clone], 1) :-
+vctl_cmd(context(Here, _), [subproj,clone],
+         unknown(subproj_clone, no_subprojects(Here))) :-
+    findall(S, eng:key(vctl, subproject, S), []),
+    !.
+vctl_cmd(_, [subproj,clone], sts(subproj_clone, 1)) :-
     setof(S, eng:key(vctl, subproject, S), SS),
     writeln('Please specify one or more subprojects to clone:'),
     maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
@@ -151,15 +153,18 @@ vctl_cmd(_, [subproj,clone], 1) :-
     writeln(OSS),
     writeln('  * ALL'), !.
 vctl_cmd(Context, [subproj,clone,'ALL'], Sts) :-
-    vcs_tool(Context, VCTool), !,
+    vcs_tool(Context, VCTool),
+    !,
     findall(E, vctl_subproj_clone(Context, VCTool, _, E), Sts).
 vctl_cmd(Context, [subproj,clone|Args], Sts) :-
-    vcs_tool(Context, VCTool), !,
+    vcs_tool(Context, VCTool),
+    !,
     findall(E, (member(N, Args), vctl_subproj_clone(Context, VCTool, N, E)), Sts).
 
-vctl_cmd(_, [subproj,remove], no_subprojects) :-
+vctl_cmd(context(Here, _), [subproj,remove],
+         unknown(subproj_rmv, no_subprojects(Here))) :-
     findall(S, eng:key(vctl, subproject, S), []), !.
-vctl_cmd(_, [subproj,remove], 1) :-
+vctl_cmd(_, [subproj,remove], sts(subproj_rmv, 1)) :-
     setof(S, D^(eng:key(vctl, subproject, S),
                 vctl_subproj_local_dir(S, D),
                 exists_directory(D)
@@ -184,6 +189,7 @@ vctl_cmd(context(_, TopDir), [Cmd|_], vcs_tool_undefined(TopDir)) :-
 vctl_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, vctl, Cmd, Args, Sts).
 vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
+
 
 % ----------------------------------------------------------------------
 %% Determine the VCS tool used for this project working directory.
@@ -692,21 +698,21 @@ vctl_subproj_clone(Context, VCTool, DepName, CloneSts) :-
     ensure_context_subdir(Context, TgtParentDir),
     vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts).
 vctl_subproj_clone(context(EngDir, _TopDir), _, DepName,
-                   unknown(DepName, unknown_subproject(EngDir, DepName))).
+                   unknown(subproj_clone, unknown_subproject(EngDir, DepName))).
 
-vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(DepName, 0)) :-
+vctl_subproj_clone_into(Context, VCTool, _DepName, TgtDir, sts(subproj_clone, 0)) :-
     exists_context_subdir(Context, TgtDir),
     !,
     print_message(warning, clone_tgt_already_exists(TgtDir)),
     % Still perform post-clone operation to keep things synchronized: the subproj
     % might have been checked out manually.
     vctl_post_clone(Context, VCTool, TgtDir).
-vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(DepName, CloneSts)) :-
+vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, CloneSts)) :-
     vctl_subproj_remote_repo(VCTool, DepName, RmtRepo),
     (vctl_subproj_remote_rev(DepName, Rev), ! ; Rev = head),
     vctl_clone(Context, RmtRepo, Rev, TgtDir, CloneSts),
     (CloneSts == 0
-    -> vctl_post_clone(Context, VCTool, TgtDir)
+    -> vctl_post_clone(Context, VCTool, TgtDir), !
     ; true).
 
 prolog:message(clone_tgt_already_exists(TgtDir)) -->
@@ -804,7 +810,7 @@ vctl_subproj_remove(Context, VCTool, DepName, CloneSts) :-
     !,
     remove_subproj(Context, VCTool, DepName, CloneSts).
 vctl_subproj_remove(context(EngDir, _TopDir), _, DepName,
-                    unknown(DepName, unknown_subproject(EngDir, DepName))).
+                    unknown(subproj_rmv, unknown_subproject(EngDir, DepName))).
 
 remove_subproj(context(EngDir, TopDir), VCTool, DepName, CloneSts) :-
     working_directory(OldDir, TopDir),
@@ -813,17 +819,17 @@ remove_subproj(context(EngDir, TopDir), VCTool, DepName, CloneSts) :-
     !,
     remove_subproj_if_clean(context(EngDir, TopDir), VCTool, DepName, TgtDir, CloneSts),
     working_directory(_, OldDir).
-remove_subproj(_, _, DepName, sts(DepName, 0)) :-
+remove_subproj(_, _, DepName, sts(subproj_rmv, 0)) :-
     vctl_subproj_local_dir(DepName, TgtDir),
     print_message(info, subproj_not_cloned(DepName, TgtDir)).
 
-remove_subproj_if_clean(Context, _VCTool, DepName, TgtDir, sts(DepName, 1)) :-
+remove_subproj_if_clean(Context, _VCTool, DepName, TgtDir, sts(subproj_rmv, 1)) :-
     vctl_subproj_context(Context, TgtDir, SPContext),
     vcs_tool(SPContext, TgtDirVCTool),
     vctl_changes(Context, TgtDirVCTool),
     !,
     print_message(error, subproj_not_clean(DepName, TgtDir)).
-remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, sts(DepName, 0)) :-
+remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, sts(subproj_rmv, 0)) :-
     vctl_subproj_preface(DepName, Pfc),
     format('~w~w~n', [ Pfc, TgtDir ]),
     delete_directory_and_contents(TgtDir),
@@ -845,7 +851,7 @@ prolog:message(clone_target_exists(TgtDir, FromLoc)) -->
 prolog:message(cannot_clone(Repo, TgtDir)) -->
     [ 'Failed to clone ~w into ~w' - [ Repo, TgtDir ] ].
 prolog:message(no_repo_remote(VCTool)) --> ['No remote repo for ~w' - [VCTool]].
-prolog:message(no_subprojects()) --> [ 'No subprojects are defined.' ].
+prolog:message(no_subprojects(In)) --> ['No known subprojects for ~w' - [In]].
 prolog:message(unknown_darcs_revtype(Spec, Val)) -->
     [ 'Unknown revision specification type "~w" for: ~w' - [ Spec, Val ]].
 prolog:message(subproj_not_cloned(DepName, TgtDir)) -->
