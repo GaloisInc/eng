@@ -79,7 +79,7 @@ dev_cmd(Context, [Cmd|Args], Sts) :-
     ), !.
 dev_cmd(Context, [testlist|Args], Sts) :-
     dev_subcmd_do(Context, testlist, Args, Sts).
-dev_cmd(Context, [Cmd|_], invalid_subcmd(dev, Context, Cmd)).
+dev_cmd(Context, [Cmd|_], unknown(Cmd, invalid_subcmd(dev, Context, Cmd))).
 
 
 subcmd_help(Cmd, CmdHelp) :-
@@ -112,8 +112,9 @@ dev_subcmd_do(Context, testlist, _Args, 0) :-
     list_tests(Context, Cnt),
     print_message(info, test_count(Cnt)).
 dev_subcmd_do(Context, Cmd, Args, Sts) :-
-    exec_subcmd_do(Context, dev, Cmd, Args, Sts), !.
-dev_subcmd_do(_, Cmd, _Args, unknown_dev_subcmd_do(Cmd)).
+    exec_subcmd_do(Context, dev, Cmd, Args, Sts),
+    !.
+dev_subcmd_do(_, Cmd, _Args, unknown(Cmd, unknown_dev_subcmd_do(Cmd))).
 
 
 %% ----------------------------------------------------------------------

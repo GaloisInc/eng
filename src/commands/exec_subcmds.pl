@@ -84,23 +84,22 @@ exec_subcmd_do(Context, Cmd, SubCmd, Args, Sts) :-
 exec_subcmd_ready(Context, Cmd, SubCmd, Args, Sts) :-
     exec_subcmd_each(Context, Cmd, SubCmd, Args, Sts).
 
-exec_subcmd_each(Context, Cmd, SubCmd, Args, Sts) :-
+exec_subcmd_each(Context, Cmd, SubCmd, Args, AllSts) :-
     % Each SubCmd may have multiple instances delineated by the Descr.  The Descr
     % provides a summary for help information, and helps to keep the key/values
     % for different parts of the SubCmd isolated (SubCmds are compositional).
     findall(D, eng:key(Cmd, subcmd, SubCmd, D), Descrs),
-    maplist(exec_subcmd_descr(Context, Cmd, SubCmd, Args), Descrs, AllSts),
-    sum_list(AllSts, Sts).
+    maplist(exec_subcmd_descr(Context, Cmd, SubCmd, Args), Descrs, AllSts).
 
 
-exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, Sts) :-
+exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, sts(SubCmd, Sts)) :-
     eng:eng(Cmd, subcmd, SubCmd, Descr, needs, PreCmd),
     atom_string(PCmd, PreCmd),
     exec_subcmd_do(Context, Cmd, PCmd, Args, Sts),
     ( Sts == 0, fail  %% PreCmd succeeded, move on to retry
     ; \+ Sts == 0, !, true  %% PreCmd failed, don't try anything else.
     ).
-exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, Sts) :-
+exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, sts(SubCmd, Sts)) :-
     subcmd_args_argmap(Args, ArgMap),
     exec_from_spec_at(Context, ArgMap, [Cmd, subcmd, SubCmd, Descr], Sts).
 
