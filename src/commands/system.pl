@@ -577,7 +577,22 @@ kind2_gen_trace_(Context, OutDir, IFile, Result) :-
             [ 'OutDir' = OutDir,
               'InpFile' = IFile
             ],
-            [ "kind2 --testgen true -q --exit_code_mode only_errors --output_dir {OutDir} {InpFile}" ],
+            [
+                %% These can take a long time to generate, so every time they are
+                %% generated (the last step is the generation of a tests.xml),
+                %% store a hash of the InpFile.  Every time a request is made to
+                %% generate these, if the tests.xml exists and the hash exists
+                %% and the hash matches, then the previous generated traces are
+                %% still valid and new generation can be skipped.
+                "if [ -e {InpFile}.sha384
+                      -a -e {OutDir}/$(basename {InpFile} .lus)/tests.xml ]
+                    && sha384sum {InpFile}.sha384 ; then
+                   echo Test traces are up to date.
+                 else
+                   sha384sum {InpFile} > {InpFile}.sha384
+                   kind2 --testgen true -q --exit_code_mode only_errors --output_dir {OutDir} {InpFile}
+                 fi"
+            ],
             [], ".", Result).
 
 
