@@ -244,7 +244,7 @@ prep_output(Spec, [RACK_out, RACK_close]) :-
     eng:eng(system, spec, Spec, generate, OutFile, format, "RACK"),
     !,
     ensure_file_loc(OutFile),
-    (exists_file(OutFile) -> delete_file(OutFile)),
+    (exists_file(OutFile) -> delete_file(OutFile); true),
     open(OutFile, write, OutStrm),
     format(OutStrm, '~w,~w,~w,~w,~w,~w,~w~n',
            [ "Project", "Component", "Requirement", "Source", "FretID",
