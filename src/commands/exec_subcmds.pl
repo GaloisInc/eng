@@ -2,6 +2,7 @@
                           exec_subcmd_do/5,
                           exec_spec_help/2,
                           exec_from_spec_at/4,
+                          exec_with_shell_wrapper/4,
                           do_exec/7,
                           prep_args/3
                         ]).

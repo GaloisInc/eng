@@ -451,14 +451,19 @@ kind2_validate(Context, Kind2File, OutDirectory, contract, LustreFile, ResultFil
 kind2_validate(Context, Kind2File, OutDirectory, model, LustreFile, ResultFile, Status) :-
     validate(Context, Kind2File, OutDirectory, "", LustreFile, ResultFile, Status).
 validate(Context, Kind2File, OutDirectory, Args, LustreFile, ResultFile, Status) :-
+    exec_with_shell_wrapper(
+        Context,
+        [system],
+        [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
+          % --lus_strict
+        ],
+        ActualCmds),
     do_exec(Context, "kind2 lando fret validation",
             [ 'InpFile' = Kind2File,
               'OutDir' = OutDirectory,
               'Kind2Args' = Args,
               'JSONFile' = ResultFile ],
-            [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
-              % --lus_strict
-            ], [], ".", Sts),
+            ActualCmds, [], ".", Sts),
     ( process_kind2_results(Sts, LustreFile, ResultFile, Status), !
     ; Status = [invalid]
     ).
