@@ -472,14 +472,17 @@ validate(Context, Kind2File, OutDirectory, Args, LustreFile, ResultFile, Status)
 process_kind2_results(30, _, _, [invalid]) :-
     !,
     print_message(error, kind2_timeout).
-process_kind2_results(_, LustreFile, ResultFile, Status) :-
+process_kind2_results(StsVal, LustreFile, ResultFile, Status) :-
+    print_message(informational, show_detailed_kind2_results(StsVal)),
     open(ResultFile, read, ResultStrm),
     json_read_dict(ResultStrm, Results),
     close(ResultStrm),
     !,  % no backtracking
     show_kind2_results(LustreFile, Results, Status).
 
-prolog:message(kind2_timeout) --> [ 'Timeout running kind2 analysis' ].
+prolog:message(kind2_timeout) --> [ 'Timeout running kind2 analysis (returns 30)' ].
+prolog:message(show_detailed_kind2_results(StsVal)) -->
+    [ 'Showing detailed results for kind2 return of ~w:' - [StsVal] ].
 
 show_kind2_results(_, [], []).
 show_kind2_results(LustreFile, [O|OS], [Sts|Status]) :-
