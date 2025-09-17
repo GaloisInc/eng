@@ -186,6 +186,11 @@ select_engfile_dir(engnode(_,SS), EngDir) :-
 select_engfile_dir(engnode(H,_), H).
 select_engfile_dir(engleaf(H), H).
 
+safe_directory_files(Dir, Files) :-
+    catch(directory_files(Dir, Files),
+          error(syntax_error(illegal_multibyte_sequence), _),
+          Files = []).
+
 find_engfile_tree(Dir, EngDirs) :-
     absolute_file_name(Dir, AbsDir),
     file_directory_name(AbsDir, Main),
@@ -201,7 +206,7 @@ find_topmost_engfile_dir(Dir, ParentDir, Result) :-
     directory_file_path(ParentDir, Dir, Result),
     exists_directory(Result).
 find_engfile_dirs(TgtDir, Here, Tree) :-
-    directory_files(Here, AllHere),
+    safe_directory_files(Here, AllHere),
     atom_string(ATgtDir, TgtDir),
     findall(D, (member(E, AllHere),
                 \+ member(E, [ '.', '..', ATgtDir,
@@ -237,7 +242,7 @@ ingest_engfiles(context(EngDir, TopDir), Refs, Verbosity) :-
     engfile_dir(Dir),
     find_engfile_dir(Dir, EngDir),
     file_directory_name(EngDir, TopDir),
-    directory_files(EngDir, Files),
+    safe_directory_files(EngDir, Files),
     ingest_files(Verbosity, EngDir, Files, Refs).
 
 ingest_user_engfiles(Refs) :-
@@ -247,7 +252,7 @@ ingest_user_engfiles(Refs) :-
                          file_errors(fail),
                          expand(true) ]),
     exists_directory(UserConfigDir), !,
-    directory_files(UserConfigDir, Files),
+    safe_directory_files(UserConfigDir, Files),
     ingest_files(informational, UserConfigDir, Files, Refs).
 ingest_user_engfiles([]).
 
