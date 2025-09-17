@@ -21,12 +21,18 @@
                     %% classification_marks/1,
                     engfile_dir/1,
                     has_engfiles/2,
+                    is_successful/1,
                     assert_eng/2,
                     assert_eng/3
                   ]).
 
 :- use_module(library(apply)).
 :- use_module(library(lists)).
+
+is_successful(0).
+is_successful(sts(0, _)).
+is_successful([S|SS]) :- is_successful(S), is_successful(SS).
+is_successful([]).
 
 flip(O,A,B) :- call(O, B, A).
 
