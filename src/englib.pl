@@ -15,6 +15,7 @@
                     ensure_file_loc/1,
                     ensure_context_subdir/2,
                     exists_context_subdir/2,
+                    context_topdir/2,
                     format_str/3,
                     format_lines/2,
                     write_strings/2,
@@ -169,6 +170,7 @@ exists_context_subdir(context(_, TopDir), SubDir) :-
     format(atom(D), '~w/~w', [ TopDir, SubDir ]),
     exists_directory(D).
 
+context_topdir(context(_, TopDir), TopDir).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -101,7 +101,8 @@ vctl_help(Info) :-
 |
 |}.
 
-vctl_help("status", "show status of local directory (workspace).").
+vctl_help("status", "show status of the project (workspace).").
+vctl_help("local_status", "show local-only status of workspace.").
 vctl_help("push", "push local changes upstream.").
 vctl_help("pull", "pull changes from upstream to local.").
 vctl_help("subproj", "display sub-projects (dependencies).") :-
@@ -114,9 +115,13 @@ vctl_help("subproj remove", "remove a local copy of a dependency.") :-
 vctl_help_internal("build_status", "show CI build status").
 
 vctl_cmd(Context, [status|Args], [MainSts|SubSts]) :-
-    vctl_subcmd(Context, vctl_status, Args, SubSts),
+    vctl_subcmd(Context, vctl_status, [full|Args], SubSts),
     vcs_tool(Context, VCTool), !,
-    vctl_status(Context, VCTool, Args, MainSts), !.
+    vctl_status(Context, VCTool, [full|Args], MainSts), !.
+vctl_cmd(Context, [local_status|Args], [MainSts|SubSts]) :-
+    vctl_subcmd(Context, vctl_status, [local|Args], SubSts),
+    vcs_tool(Context, VCTool), !,
+    vctl_status(Context, VCTool, [local|Args], MainSts), !.
 vctl_cmd(Context, [push|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     vctl_push(Context, VCTool, Args, Sts), !.
@@ -303,46 +308,71 @@ prolog:message(using_pat(H)) --> [ "Using PAT to access ~w" - [ H ] ].
 % ----------------------------------------------------------------------
 %% VCTL status command
 
-vctl_status(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
+vctl_status(Context, git(VCSDir), [Scope|_Args], Sts) :-
     !,
+    context_topdir(Context, TopDir),
     vctl_subproj_preface(TopDir, Preface),
     writeln(Preface),
-    do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
-            [ 'git -C {VCSDir} status -s',
-              'git -C {VCSDir} fetch --dry-run origin -q'
-            ],
-            [], TopDir, Sts).
+    vctl_git_status(Context, VCSDir, Scope, Sts).
 vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
     !,
     vctl_status(Context, git(VCSDir), Args, Sts),
     vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), Args, _).
-
-vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+vctl_status(Context, darcs(VCSDir), [Scope|_Args], Sts) :-
     !,
-    darcs_pull_args(VCSDir, ExtraArgs),
-    format(atom(PullCmd), 'darcs pull --repodir=~w -q --dry-run ~w',
-           [VCSDir, ExtraArgs]),
-    do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
-            ['darcs whatsnew --repodir={VCSDir} -l || true'],  % returns 1 if no unrecorded changes
-            [], TopDir, Sts),
-    % The remote checks are executed separately so that (a) the local changes
-    % are still reported even if the remote is inaccessible and (b) local changes
-    % determine the result value of this opration.
-    do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
-            [ PullCmd,
-              'darcs push --repodir={VCSDir} -q --dry-run'
-            ],
-            [], TopDir, _).
-
+    context_topdir(Context, TopDir),
+    vctl_subproj_preface(TopDir, Preface),
+    writeln(Preface),
+    vctl_darcs_status(Context, VCSDir, Scope, Sts).
 vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     !,
     vctl_status(Context, GitTool, Args, GSts),
     vctl_status(Context, darcs(DarcsDir), Args, DSts),
     sum_list([DSts, GSts], Sts).
-
-vctl_status(_Context, Tool, _Args, 1) :-
+vctl_status(_, Tool, _, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
+
+vctl_git_status(context(EngDir, TopDir), VCSDir, local, Sts) :-
+    do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
+            [ 'git -C {VCSDir} status -s'
+            ],
+            [], TopDir, Sts).
+vctl_git_status(context(EngDir, TopDir), VCSDir, full, Sts) :-
+    do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
+            [ 'git -C {VCSDir} status -s',
+              'git -C {VCSDir} fetch --dry-run origin -q'
+            ],
+            [], TopDir, Sts).
+vctl_git_status(_, _, Scope, sts(status, 1)) :-
+    print_message(error, invalid_scope(Scope)).
+
+vctl_darcs_status(Context, VCSDir, local, Sts) :-
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
+            ['darcs whatsnew --repodir={VCSDir} -l || true'],  % returns 1 if no unrecorded changes
+            [], TopDir, Sts).
+vctl_darcs_status(Context, VCSDir, full, Sts) :-
+    vctl_darcs_status(Context, VCSDir, local, Sts),
+    % The remote checks are executed separately so that (a) the local changes
+    % are still reported even if the remote is inaccessible and (b) local changes
+    % determine the result value of this opration.
+    context_topdir(Context, TopDir),
+    darcs_pull_args(VCSDir, ExtraArgs),
+    format(atom(PullCmd), 'darcs pull --repodir=~w -q --dry-run ~w',
+           [VCSDir, ExtraArgs]),
+    do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
+            [ PullCmd,
+              'darcs push --repodir={VCSDir} -q --dry-run'
+            ],
+            [], TopDir, _).
+vctl_darcs_status(_, _, [Scope|_Args], sts(status, 1)) :-
+    print_message(error, invalid_scope(Scope)).
+
+
+%% ------------------------------
+
+vctl_build_status(_, _, [local|_Args], 0) :- !.
 vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, 0) :-
     !,
     git_remote_head(Context, VCSDir, Fetch_SHA), % TODO if local git repo, doesn't get *current* remote head, just remote head from this revision!
@@ -377,6 +407,8 @@ show_bld_status_(RH, RP, F, S) :-
     ansi_format(F, '~w~t~10|', [S]),
     format('~w ~w build status', [RH, RP]),
     writeln('').
+
+%% --------------------
 
 git_remote_head(_, VCSDir, RmtHeadSHA) :-
     directory_file_path(VCSDir, ".git", GitDir),
@@ -863,3 +895,5 @@ prolog:message(subproj_not_cloned(DepName, TgtDir)) -->
     [ 'Subproject ~w is not currently locally cloned (into ~w)' - [ DepName, TgtDir ]].
 prolog:message(subproj_not_clean(DepName, TgtDir)) -->
     [ 'Local changes to subproject ~w in ~w; not removing!' - [ DepName, TgtDir ]].
+prolog:message(invalid_scope(Scope)) -->
+    [ 'Implementation error: unrecognized scope: ~w' - [ Scope ]].
