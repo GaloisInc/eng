@@ -323,11 +323,16 @@ vctl_status(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
     format(atom(PullCmd), 'darcs pull --repodir=~w -q --dry-run ~w',
            [VCSDir, ExtraArgs]),
     do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
+            ['darcs whatsnew --repodir={VCSDir} -l || true'],  % returns 1 if no unrecorded changes
+            [], TopDir, Sts),
+    % The remote checks are executed separately so that (a) the local changes
+    % are still reported even if the remote is inaccessible and (b) local changes
+    % determine the result value of this opration.
+    do_exec(context(EngDir, TopDir), 'vcs darcs status', [ 'VCSDir' = VCSDir ],
             [ PullCmd,
-              'darcs push --repodir={VCSDir} -q --dry-run',
-              'darcs whatsnew --repodir={VCSDir} -l || true'  % returns 1 if no unrecorded changes
+              'darcs push --repodir={VCSDir} -q --dry-run'
             ],
-            [], TopDir, Sts).
+            [], TopDir, _).
 
 vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     !,
