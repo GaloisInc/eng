@@ -19,6 +19,7 @@
                     format_str/3,
                     format_lines/2,
                     write_strings/2,
+                    is_success/1,
                     %% classification_marks/1,
                     engfile_dir/1,
                     has_engfiles/2,
@@ -144,7 +145,6 @@ write_strings(Indent, Lines) :-
     string_lines(Str, IndLines),
     writeln(Str).
 
-
 % ensure_file_loc ensures that the directory for the specified file path exists.
 ensure_file_loc(FilePath) :-
     directory_file_path(Dir, _, FilePath),
@@ -165,6 +165,13 @@ exists_context_subdir(context(_, TopDir), SubDir) :-
     exists_directory(D).
 
 context_topdir(context(_, TopDir), TopDir).
+
+
+is_success(0).
+is_success(sts(_, S)) :- is_success(S).
+is_success([]).
+is_success([S|SS]) :- is_success(S), is_success(SS).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

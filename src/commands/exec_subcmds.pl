@@ -42,7 +42,7 @@ exec_subcmd_help(Cmd, Info) :-
 |       subcmd =
 |         CMDNAME =
 |           DESCRIPTION =
-|             needs = CMDNAME TO RUN BEFORE THIS ONE
+|             needs = CMDNAME(s) TO RUN BEFORE THIS ONE
 |             {ExecSpecHelp}
 |
 | The "exec" value can contain Args in curly braces: this will be replaced with
@@ -94,12 +94,17 @@ exec_subcmd_each(Context, Cmd, SubCmd, Args, AllSts) :-
 
 
 exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, sts(SubCmd, Sts)) :-
-    eng:eng(Cmd, subcmd, SubCmd, Descr, needs, PreCmd),
+    eng:eng(Cmd, subcmd, SubCmd, Descr, needs, PreCmds),
+    split_string(PreCmds, " \n\t", " \t\n", PreCmdList),
+    member(PreCmd, PreCmdList),
     atom_string(PCmd, PreCmd),
     exec_subcmd_do(Context, Cmd, PCmd, Args, Sts),
-    ( Sts == 0, fail  %% PreCmd succeeded, move on to retry
-    ; \+ Sts == 0, !, true  %% PreCmd failed, don't try anything else.
-    ).
+    %% If the needed command was NOT successful, stop.  If it was successful,
+    %% this will fail and backtrack, either to the next needed command
+    %% (member(...) above) or to the next clause which runs the originally
+    %% requested command.
+    \+ is_success(Sts),
+    !.
 exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, sts(SubCmd, Sts)) :-
     subcmd_args_argmap(Args, ArgMap),
     exec_from_spec_at(Context, ArgMap, [Cmd, subcmd, SubCmd, Descr], Sts).
