@@ -48,6 +48,119 @@
  ~eng CMD~ to receive guidance.
  #+end_quote
 
+** What's it for?
+
+ The eng tool is used when you want to think like an "eng"ineer.
+
+ Imagine a situation where you encounter a brand new project.  One of your first
+ questions is "where is the documentation". While there is somewhat of a
+ convention of looking for a README that provides some assistance, you could
+ instead just enter ~$ eng doc~, which would tell you that there is a ~list~
+ sub-command, so then you could type ~$ eng doc list~ to see all the different
+ documentation available for the project.
+
+ The next thing you are likely to want to do is build the project.  Instead of
+ trying to figure out what build tool is used, and how to invoke it, just
+ type ~$ eng dev~.  The project can define a "build" subcommand (via
+ the ~_eng_~ subdirectory) that will handle invoking the build tool.  Maybe
+ there are a couple of different targets that could be built; ~$ eng dev~ will
+ show you those targets, and you can invoke each one.
+
+ What about testing the application?  In the output of ~$ eng dev~ you can
+ observe it reported subcommands for ~test~ and ~testlist~.  The ~$ eng dev
+ testlist~ will display a list of the testsna and ~$ eng dev test~ will run them
+ (the project-supplied ~_eng_~ configuration provides the actual commands that
+ ~eng~ will run to perform the tests).
+
+ When you think like an engineer, you want to "build" or "doc" or "test".  The
+ ~eng~ tool provides the *discoverable* high-level coordination commands to do
+ these things.
+
+ Note that ~eng~ will always echo the actual commands it is going to run to
+ stdout.  Nothing is hidden.  This allows you to cut and paste the commands to
+ modify them (adding or removing flags) or run them directly or in another
+ environment.  Using ~eng~ should not lock you in, using ~eng~ should feel like
+ you have a trusty assistant helping you get things done.
+
+** Why not use ____?
+
+ Why not use make or a task management tool or a shell script or ____?
+
+*** Simplicity
+
+ The ~eng~ tool is designed to be simple to use, and simple in what it does.  It
+ does not have lots of advanced features like internal scripting, dependency
+ rebuild checking, etc.  There are other tools that are better at those things
+ (e.g. make/cmake/ninja/meson/bazel/etc.  for dependency rebuild checking).
+ Instead, ~eng~ simply collects those commands and their project-specific
+ arguments into easy top-level operations.
+
+ This also means that ~eng~ has a large feature inertia.  When considering
+ whether to add a new feature to ~eng~
+
+*** Visibility
+
+ As mentioned above, ~eng~ always shows you what it does, so that you can run
+ variations of those operations directly.  It's your assistant with a good memory
+ of how to accomplish the main top-level tasks in the standard way.
+
+*** Discoverability
+
+ While there is a way to embed help information in GNUmake, that is specific to
+ GNUmake. Do you know how to embed that in your Makefile?  Do you know how to get
+ it when running make?
+
+ Do you know how to get help when running Meson?  When running bazel?  When
+ running ninja?  Or gradle? Or sbv? Or cargo? Or cabal? Or npm? Or gprbuild?
+ There are lots of build tools, some are general and some are specific to
+ language ecosystems, and sometimes a project even uses multiple of these.
+
+ So how do you figure out what you want to do?  With ~eng~, you can start by just
+ typing ~eng~.  Then add more to the ~eng~ command line based on the help ~eng~
+ provides until you end up being able to do what you wanted to do without trying
+ to read build configuration files.
+
+*** Single purpose
+
+ As noted above, some projects use multiple build tools. Or try to adapt their
+ build tool to do other things which don't really match the build tool's
+ capabilities.  And sometimes they supply scripts or other tools when they need
+ additional functionality that the build tool cannot do.
+
+ The ~eng~ tool's single purpose is to coordinate all the top-level activities.
+ If some of those are achieved via a build tool and some are via a script, that's
+ all specified in the ~_eng_~ configuration and ~eng~ provides a standard
+ top-level interface to those operations.
+
+*** Independence
+
+ The ~eng~ tool is not intended to *replace* any of the regular tools used by the
+ project.  It's designed to coordinate their use from a top-level.  Thus, it does
+ not conflict with other tools, and it does not try to do things it is not well
+ suited for.
+
+*** Standardized interaction
+
+ Using ~eng~ changes very little across projects.  Each project can have
+ project-specific subcommands, but these are discoverable and self-documenting.
+ If every project provided an ~eng~ configuration, then new users to a project
+ (as well as long-time developers) can start with running ~$ eng~ and have good
+ chance of being successful without devoting significant time to learning new
+ tools and new configurations and processes.
+
+ And hey, why limit ~eng~ usage to humans?  Now that ~eng~ knows how to
+ coordinate the high-level project tasks like building and testing, just setup
+ your CI to use ~eng~.
+ 
+*** Project-controlled Configurability
+
+ What ~eng~ is capable of doing is almost entirely specified by what the project
+ places into the configuration files in the ~_eng_~ directory.  This means that
+ it's the responsibility of the project team to provide useful functionality via
+ ~eng~, but the ~_eng_~ configuration is version controlled and can be
+ updated/enhanced by both project developers and users because it uses a very
+ simple text-based syntax and supports tracking changes to that configuration.
+ 
 ** Installing
 
  The only dependency for the ~eng~ tool is SWI Prolog.  The SWI Prolog tool can
