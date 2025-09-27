@@ -4,6 +4,8 @@
                     intercalate/3,
                     list_call/3,
                     show_type/2,
+                    debug/1,
+                    debug/2,
                     string_trim/2,
                     string_codes_ltrim/3,
                     string_codes_rtrim/3,
@@ -72,6 +74,9 @@ show_type(X, R) :- is_list(X), !,
 show_type(X, "atomic") :- atomic(X), !.
 show_type(X, "compound") :- compound(X), writeln(X), !.
 show_type(_, "other").
+
+debug(Msg) :- writeln(Msg).
+debug(Fmt, Args) :- format(Fmt, Args).
 
 string_trim(IS, OS) :-
     split_string(IS, "", "\t\s\n", [OS]).
