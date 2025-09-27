@@ -97,9 +97,8 @@ exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, sts(SubCmd, Sts)) :-
     eng:eng(Cmd, subcmd, SubCmd, Descr, needs, PreCmd),
     atom_string(PCmd, PreCmd),
     exec_subcmd_do(Context, Cmd, PCmd, Args, Sts),
-    ( is_successful(Sts)
-    ->  fail  %% PreCmd succeeded, move on to retry
-    ; !, true  %% PreCmd failed, don't try anything else.
+    ( Sts == 0, fail  %% PreCmd succeeded, move on to retry
+    ; \+ Sts == 0, !, true  %% PreCmd failed, don't try anything else.
     ).
 exec_subcmd_descr(Context, Cmd, SubCmd, Args, Descr, sts(SubCmd, Sts)) :-
     subcmd_args_argmap(Args, ArgMap),
