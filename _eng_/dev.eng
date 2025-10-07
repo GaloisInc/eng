@@ -1,5 +1,10 @@
 dev =
   subcmd =
+    bootstrap =
+      Bootstraps eng itself
+        needs = fret_fetch
+        exec = bash ./eng.sh dev build
+
     build =
       Builds the project from source =
         exec = swipl --goal=main -o eng -c src/top.pl
