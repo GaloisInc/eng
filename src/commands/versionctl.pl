@@ -136,8 +136,7 @@ vctl_cmd(Context, ['_',build_status|Args], [Sts|SubSts]) :-
 
 vctl_cmd(Context, [subproj], sts(subproj, 0)) :-
     vcs_tool(Context, VCTool),
-    setof((S,L), (eng:key(vctl, subproject, S),
-                  vctl_subproj_local_dir(S, L)), SL),
+    vctl_subprojects_and_lcldirs(SL),
     !,
     maplist(vctl_subproj_show(Context, VCTool), SL, SP),
     sum_list(SP, TSP),
@@ -148,10 +147,10 @@ vctl_cmd(context(Here, _), [subproj], unknown(subproj, no_subprojects(Here))).
 
 vctl_cmd(context(Here, _), [subproj,clone],
          unknown(subproj_clone, no_subprojects(Here))) :-
-    findall(S, eng:key(vctl, subproject, S), []),
+    vctl_subprojects([]),
     !.
 vctl_cmd(_, [subproj,clone], sts(subproj_clone, 1)) :-
-    setof(S, eng:key(vctl, subproject, S), SS),
+    vctl_subprojects(SS),
     writeln('Please specify one or more subprojects to clone:'),
     maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
     intercalate(OS, '\n', OSS),
@@ -168,9 +167,10 @@ vctl_cmd(Context, [subproj,clone|Args], Sts) :-
 
 vctl_cmd(context(Here, _), [subproj,remove],
          unknown(subproj_rmv, no_subprojects(Here))) :-
-    findall(S, eng:key(vctl, subproject, S), []), !.
+    vctl_subprojects([]), !.
 vctl_cmd(_, [subproj,remove], sts(subproj_rmv, 1)) :-
-    setof(S, D^(eng:key(vctl, subproject, S),
+    vctl_subprojects(SPS),
+    setof(S, D^(member(S, SPS),
                 vctl_subproj_local_dir(S, D),
                 exists_directory(D)
                ), SS),
@@ -562,6 +562,19 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 
 % ----------------------------------------------------------------------
 % vctl subproj helpers
+
+% Get the subprojects (if any), ordered so that dependencies appear before their
+% user
+vctl_subprojects(SubProjects) :-
+    setof(S, eng:key(vctl, subproject, S), SubProjects).
+
+vctl_subprojects_and_lcldirs(SubProjectsAndDirs) :-
+    vctl_subprojects(SP),
+    vsal(SP, SubProjectsAndDirs).
+vsal([], []).
+vsal([S|SS], [(S,D)|SPDS]) :- vctl_subproj_local_dir(S, D), !,
+                              vsal(SS, SPDS).
+vsal([_|SS], SPDS) :- vsal(SS, SPDS).
 
 % Get the preface to use for printing information about the named subproj
 vctl_subproj_preface(Name, Preface) :-
