@@ -15,6 +15,7 @@
                     get_dict_or/4,
                     ensure_dir/1,
                     ensure_file_loc/1,
+                    context_subdir/3,
                     ensure_context_subdir/2,
                     exists_context_subdir/2,
                     context_topdir/2,
@@ -161,12 +162,15 @@ ensure_dir(Dir) :- directory_file_path(Parent, _, Dir),
                    ensure_dir(Parent),
                    (exists_directory(Dir), !; make_directory(Dir)).
 
-ensure_context_subdir(context(_, TopDir), SubDir) :-
-    format(atom(D), '~w/~w', [ TopDir, SubDir ]),
+context_subdir(context(_, TopDir), SubDir, AbsPath) :-
+    format(atom(AbsPath), '~w/~w', [ TopDir, SubDir ]).
+
+ensure_context_subdir(Context, SubDir) :-
+    context_subdir(Context, SubDir, D),
     ensure_dir(D).
 
-exists_context_subdir(context(_, TopDir), SubDir) :-
-    format(atom(D), '~w/~w', [ TopDir, SubDir ]),
+exists_context_subdir(Context, SubDir) :-
+    context_subdir(Context, SubDir, D),
     exists_directory(D).
 
 context_topdir(context(_, TopDir), TopDir).
