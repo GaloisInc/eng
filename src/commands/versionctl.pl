@@ -855,19 +855,19 @@ darcs_clone(_, _, Sel, SelVal, _, 1) :-
 
 % ----------------------------------------------------------------------
 
-vctl_subproj_remove(Context, VCTool, DepName, CloneSts) :-
+vctl_subproj_remove(Context, VCTool, DepName, Sts) :-
     eng:key(vctl, subproject, DepName),
     !,
-    remove_subproj(Context, VCTool, DepName, CloneSts).
+    remove_subproj(Context, VCTool, DepName, Sts).
 vctl_subproj_remove(context(EngDir, _TopDir), _, DepName,
                     unknown(subproj_rmv, unknown_subproject(EngDir, DepName))).
 
-remove_subproj(context(EngDir, TopDir), VCTool, DepName, CloneSts) :-
+remove_subproj(context(EngDir, TopDir), VCTool, DepName, Sts) :-
     working_directory(OldDir, TopDir),
     vctl_subproj_local_dir(DepName, TgtDir),
     exists_directory(TgtDir),
     !,
-    remove_subproj_if_clean(context(EngDir, TopDir), VCTool, DepName, TgtDir, CloneSts),
+    remove_subproj_if_clean(context(EngDir, TopDir), VCTool, DepName, TgtDir, Sts),
     working_directory(_, OldDir).
 remove_subproj(_, _, DepName, sts(subproj_rmv, 0)) :-
     vctl_subproj_local_dir(DepName, TgtDir),
