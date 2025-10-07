@@ -656,7 +656,7 @@ timed_result(O, reachable, passed) :-
     call(output_kind2_result, Name, success, kind2_reachable(Time, Unit, Name)).
 
 falsifiable_result(O, MsgMode, Name, ErrMsg) :-
-    get_dict(counterExample, O, [CounterEx|OtherCounterEx]),
+    get_dict(counterExample, O, [CounterEx|_OtherCounterEx]),
     get_dict(streams, CounterEx, Streams),
     findall(N, (member(Stream, Streams), trace_input(Stream, N)), Inputs),
     findall(N, (member(Stream, Streams), trace_output(Stream, N)), Outputs),
