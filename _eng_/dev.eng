@@ -2,8 +2,8 @@ dev =
   subcmd =
     bootstrap =
       Bootstraps eng itself
-        needs = fret_fetch
-        exec = bash ./eng.sh dev build
+        needs = fret_fetch build
+        exec = echo eng bootstrapped and ready to use
 
     build =
       Builds the project from source =
