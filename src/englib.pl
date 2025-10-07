@@ -163,15 +163,13 @@ ensure_dir(Dir) :- directory_file_path(Parent, _, Dir),
                    (exists_directory(Dir), !; make_directory(Dir)).
 
 context_subdir(context(_, TopDir), SubDir, AbsPath) :-
-    format(atom(AbsPath), '~w/~w', [ TopDir, SubDir ]).
+    directory_file_path(TopDir, SubDir, AbsPath), !.
 
 ensure_context_subdir(Context, SubDir) :-
-    context_subdir(Context, SubDir, D),
-    ensure_dir(D).
+    context_subdir(Context, SubDir, D), !, ensure_dir(D).
 
 exists_context_subdir(Context, SubDir) :-
-    context_subdir(Context, SubDir, D),
-    exists_directory(D).
+    context_subdir(Context, SubDir, D), !, exists_directory(D).
 
 context_topdir(context(_, TopDir), TopDir).
 
