@@ -927,7 +927,7 @@ show_deps_subproj(Context, SubProj, sts(dependencies, 0)) :-
     findall(D, proj_dependency(Context, TgtDir, D), AllDeps),
     sort(AllDeps, Deps),
     length(Deps, NDeps),
-    format('Local Dependencies: ~w~nTotal = ~w~n', [Deps, NDeps]).
+    format('~w Local Dependencies: ~w~nTotal = ~w~n', [SubProj, Deps, NDeps]).
 
 proj_dependency(Context, ProjDir, SubProjName) :-
     exists_context_subdir(Context, ProjDir),
