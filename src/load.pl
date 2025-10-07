@@ -176,8 +176,8 @@ eng_cmd_help(Context, Cmd, HelpInfo) :-
 %
 % This must be called from somewhere within a tree; not finding an engfile
 % anywhere above the current point is an error.
-find_engfile_dir(Dir, EngDir) :-
-    find_engfile_tree(Dir, Tree),
+find_engfile_dir(EngfileDirPattern, EngDir) :-
+    find_engfile_tree(EngfileDirPattern, Tree),
     select_engfile_dir(Tree, EngDir).
 
 select_engfile_dir(engnode(_,SS), EngDir) :-
@@ -191,41 +191,41 @@ safe_directory_files(Dir, Files) :-
           error(syntax_error(illegal_multibyte_sequence), _),
           Files = []).
 
-find_engfile_tree(Dir, EngDirs) :-
-    absolute_file_name(Dir, AbsDir),
+find_engfile_tree(EngfileDirPattern, EngDirs) :-
+    absolute_file_name(EngfileDirPattern, AbsDir), % AbsDir is CWD+/_eng_
     file_directory_name(AbsDir, Main),
-    find_topmost_engfile_dir(Dir, Main, TopEng),
+    find_topmost_engfile_dir(EngfileDirPattern, Main, TopEng),
     file_directory_name(TopEng, TopDir),
-    find_engfile_dirs(Dir, TopDir, EngDirs),
+    find_engfile_dirs(EngfileDirPattern, TopDir, EngDirs),
     !.
-find_topmost_engfile_dir(Dir, InDir, Result) :-
+find_topmost_engfile_dir(EngfileDirPattern, InDir, Result) :-
     file_directory_name(InDir, ParentDir),
     \+ file_directory_name(ParentDir, ParentDir), % fail at root
-    find_topmost_engfile_dir(Dir, ParentDir, Result).
-find_topmost_engfile_dir(Dir, ParentDir, Result) :-
-    directory_file_path(ParentDir, Dir, Result),
+    find_topmost_engfile_dir(EngfileDirPattern, ParentDir, Result).
+find_topmost_engfile_dir(EngfileDirPattern, ParentDir, Result) :-
+    directory_file_path(ParentDir, EngfileDirPattern, Result),
     exists_directory(Result).
-find_engfile_dirs(TgtDir, Here, Tree) :-
+find_engfile_dirs(EngfileDirPattern, Here, Tree) :-
     safe_directory_files(Here, AllHere),
-    atom_string(ATgtDir, TgtDir),
+    atom_string(AEngfileDirPattern, EngfileDirPattern),
     findall(D, (member(E, AllHere),
-                \+ member(E, [ '.', '..', ATgtDir,
+                \+ member(E, [ '.', '..', AEngfileDirPattern,
                                '_darcs', '.git',
                                'dist-newstyle'
                              ]),
                 directory_file_path(Here, E, Subdir),
                 exists_directory(Subdir),
-                find_engfile_dirs(TgtDir, Subdir, D)), SubTreeEnts),
+                find_engfile_dirs(EngfileDirPattern, Subdir, D)), SubTreeEnts),
     normalize_subtrees(SubTreeEnts, SubTree),
     list_to_set(SubTree, SubTreeSet),
     (append(SubTreeSet, STree) ; STree = SubTreeSet),
-    find_engfile_here_subs(TgtDir, Here, STree, Tree).
-find_engfile_here_subs(TgtDir, Here, [], engleaf(EngDir)) :-
-    directory_file_path(Here, TgtDir, EngDir),
+    find_engfile_here_subs(EngfileDirPattern, Here, STree, Tree).
+find_engfile_here_subs(EngfileDirPattern, Here, [], engleaf(EngDir)) :-
+    directory_file_path(Here, EngfileDirPattern, EngDir),
     exists_directory(EngDir),
     !.
-find_engfile_here_subs(TgtDir, Here, Subs, engnode(EngDir, Subs)) :-
-    directory_file_path(Here, TgtDir, EngDir),
+find_engfile_here_subs(EngfileDirPattern, Here, Subs, engnode(EngDir, Subs)) :-
+    directory_file_path(Here, EngfileDirPattern, EngDir),
     exists_directory(EngDir),
     !.
 find_engfile_here_subs(_, _, Subs, Subs) :- !.
@@ -239,8 +239,8 @@ normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 ingest_engfiles(context(EngDir, TopDir), Refs) :-
     ingest_engfiles(context(EngDir, TopDir), Refs, informational).
 ingest_engfiles(context(EngDir, TopDir), Refs, Verbosity) :-
-    engfile_dir(Dir),
-    find_engfile_dir(Dir, EngDir),
+    engfile_dir(EngfileDirPattern),
+    find_engfile_dir(EngfileDirPattern, EngDir),
     file_directory_name(EngDir, TopDir),
     safe_directory_files(EngDir, Files),
     ingest_files(Verbosity, EngDir, Files, Refs).
