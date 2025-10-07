@@ -7,6 +7,7 @@
 
 :- use_module(library(ansi_term)).
 :- use_module(library(filesex)).
+:- use_module(library(dcg/basics)).
 :- use_module(library(strings)).
 :- use_module(library(http/http_client)).
 :- use_module(library(http/http_json)).
@@ -113,6 +114,7 @@ vctl_help("subproj remove", "remove a local copy of a dependency.") :-
     eng:key(vctl, subproject).
 
 vctl_help_internal("build_status", "show CI build status").
+vctl_help_internal("dependencies", "show project dependencies").
 
 vctl_cmd(Context, [status|Args], [MainSts|SubSts]) :-
     vctl_subcmd(Context, vctl_status, [full|Args], SubSts),
@@ -133,6 +135,14 @@ vctl_cmd(Context, ['_',build_status|Args], [Sts|SubSts]) :-
     vctl_subcmd(Context, vctl_build_status, Args, SubSts),
     vcs_tool(Context, VCTool), !,
     vctl_build_status(Context, VCTool, Args, Sts).
+
+vctl_cmd(_Context, ['_',dependencies],
+         sts(dependencies, please_specify_subproject('to show dependencies for'))).
+vctl_cmd(Context, ['_',dependencies,SubProj|_], Sts) :-
+    eng:key(vctl, subproject, SubProj)
+    -> show_deps_subproj(SubProj, Sts)
+    ; Context = context(EngDir, _),
+      Sts = unknown(dependencies, unknown_subproject(EngDir, SubProj)).
 
 vctl_cmd(Context, [subproj], sts(subproj, 0)) :-
     vcs_tool(Context, VCTool),
@@ -168,16 +178,12 @@ vctl_cmd(Context, [subproj,clone|Args], Sts) :-
 vctl_cmd(context(Here, _), [subproj,remove],
          unknown(subproj_rmv, no_subprojects(Here))) :-
     vctl_subprojects([]), !.
-vctl_cmd(_, [subproj,remove], sts(subproj_rmv, 1)) :-
-    vctl_subprojects(SPS),
-    setof(S, D^(member(S, SPS),
-                vctl_subproj_local_dir(S, D),
-                exists_directory(D)
-               ), SS),
+vctl_cmd(_, [subproj,remove], sts(subproj_rmv, sts(subproj_rmv, 1))) :-
+    vctl_local_subprojects(SS),
     (SS == []
     -> writeln('No subprojects locally cloned; nothing to remove.')
     ; writeln('Please specify one or more subprojects to remove:'),
-      maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
+      maplist([(S,_),O]>>format(atom(O), '  * ~w', [S]), SS, OS),
       intercalate(OS, '\n', OSS),
       writeln(OSS),
       writeln('  * ALL')
@@ -566,8 +572,17 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 % Get the subprojects (if any), ordered so that dependencies appear before their
 % user
 vctl_subprojects(SubProjects) :-
-    setof(S, eng:key(vctl, subproject, S), SubProjects).
+    setof(S, eng:key(vctl, subproject, S), SPS),
+    predsort(depsort, SPS, SubProjects).
+    %% SubProjects = SPS.
 
+depsort('>', P1, P2) :- vctl_subproj_local_dir(P1, LclDir),
+                        proj_dependency(LclDir, P2), !.
+depsort('<', _P1, _P2).  % Called from setof output, so there are no duplicates
+
+
+% Get the subprojects and the local directory (whether it exists or not).
+% Ordered as per vctl_subprojects.
 vctl_subprojects_and_lcldirs(SubProjectsAndDirs) :-
     vctl_subprojects(SP),
     vsal(SP, SubProjectsAndDirs).
@@ -575,6 +590,18 @@ vsal([], []).
 vsal([S|SS], [(S,D)|SPDS]) :- vctl_subproj_local_dir(S, D), !,
                               vsal(SS, SPDS).
 vsal([_|SS], SPDS) :- vsal(SS, SPDS).
+
+% Get the subprojects and the local directory, eliding entries that do not have a
+% local directory.  Ordered as per vctl_subprojects.
+vctl_local_subprojects(SubProjects) :-
+    vctl_subprojects(SP),
+    vls(SP, SubProjects).
+vls([], []).
+vls([S|SS], [(S,D)|SPDS]) :- vctl_subproj_local_dir(S, D),
+                             exists_directory(D),
+                             !,
+                             vls(SS, SPDS).
+vls([_|SS], SPDS) :- vls(SS, SPDS).
 
 % Get the preface to use for printing information about the named subproj
 vctl_subproj_preface(Name, Preface) :-
@@ -889,11 +916,58 @@ remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, sts(subproj_rmv, 0)) :
 
 % ----------------------------------------------------------------------
 
+show_deps_subproj(SubProj, sts(dependencies, subproj_not_cloned(SubProj, TgtDir))) :-
+    vctl_subproj_local_dir(SubProj, TgtDir),
+    \+ exists_directory(TgtDir).
+show_deps_subproj(SubProj, sts(dependencies, 0)) :-
+    vctl_subproj_local_dir(SubProj, TgtDir),
+    exists_directory(TgtDir),
+    findall(D, proj_dependency(TgtDir, D), AllDeps),
+    sort(AllDeps, Deps),
+    length(Deps, NDeps),
+    format('Local Dependencies: ~w~nTotal = ~w~n', [Deps, NDeps]).
+
+proj_dependency(ProjDir, SubProjName) :-
+    exists_directory(ProjDir),
+    directory_member(ProjDir, CabalFile, [extensions(['cabal'])]),
+    cabal_dependency(ProjDir, CabalFile, SubProjName).
+
+cabal_dependency(_ProjDir, CabalFile, SubProjName) :-
+    read_file_to_codes(CabalFile, CabalInfo, []),
+    eng:key(vctl, subproject, SubProjName),
+    vctl_subproj_local_dir(SubProjName, D),
+    exists_directory(D),
+    atom_string(SubProjName, SPN),
+    string_codes(SPN, Dep),
+    phrase(cabal_build_dependency(Dep), CabalInfo, _).
+
+cabal_build_dependency(Dep) --> preceeding(_),
+                                subphrase("build-depends"),
+                                build_dep(Dep),
+                                (subphrase(_) ; eol).
+
+subphrase(Name) --> "\n", whites,
+                    string_without(":", S),
+                    {string_codes(S, Name)},
+                    ":".
+
+build_dep(Dep) --> whites, string_without(": ,<>=^", Dep), string(_).
+build_dep(Dep) --> string(_), ",", whites, string_without(": ,<>=^", Dep), string(_).
+build_dep(Dep) --> string(_), ",", "\n", whites, string_without(": ,<>=^", Dep), string(_).
+
+
+preceeding(Stuff) --> string(Stuff).
+following(Stuff) --> string(Stuff).
+
+% ----------------------------------------------------------------------
+
 prolog:message(unknown_vcs_tool(Tool)) -->
     [ 'Unknown VCS tool: ~w.  Unable to perform action' - [ Tool ] ].
 prolog:message(vcs_tool_undefined(TopDir)) -->
     [ 'Unable to determine the VCS tool to use (e.g. git, darcs) in ~w'-[TopDir]
     ].
+prolog:message(please_specify_subproject(For)) -->
+    [ 'Please specify a subproject ~w.' - [For] ].
 prolog:message(unknown_subproject(EngDir, ProjName)) -->
     [ 'VCTL sub-project "~w" not defined in ~w files.' - [ ProjName, EngDir ] ].
 prolog:message(clone_target_exists(TgtDir, FromLoc)) -->
