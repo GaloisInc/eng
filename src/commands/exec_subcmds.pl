@@ -130,12 +130,19 @@ exec_from_spec_at(Context, ArgMap, RootPath, Result) :-
 
 exec_from_spec_at(Context, ArgMap, RootPath, ExecCmds, Result) :-
     append(RootPath, ['env vars'], EnvPath),
-    findall(V, list_call(eng:eng, EnvPath, V), VS),
+    exec_env_vars(EnvPath, VS),
     exec_from_spec_at_dir(RootPath, ExecDir),
     maplist(atom_string, RootPath, SP),
     intercalate(SP, ".", Ref),
     exec_with_shell_wrapper(Context, RootPath, ExecCmds, ActualCmds),
     do_exec(Context, Ref, ArgMap, ActualCmds, VS, ExecDir, Result).
+
+exec_env_vars(EnvPath, VS) :-
+    findall((N,V), (list_call(eng:key, EnvPath, N),
+                    append(EnvPath, [N], NP),
+                    list_call(eng:eng, NP, VR),
+                    string_trim(VR, V)
+                   ), VS).
 
 exec_from_spec_at_dir(RootPath, ExecDir) :-
     append(RootPath, ['in dir'], DirPath),
