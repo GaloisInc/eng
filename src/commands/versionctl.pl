@@ -706,9 +706,20 @@ vctl_subproj_remote_repo(VCTool, Name, Remote) :-
     git_rmt_with_auth(VCTool, URL, Remote).
 vctl_subproj_remote_repo(darcs(_), Name, darcsremote(Rmt)) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
+    %% Looks like rmtsys:rmtpath ?
     split_string(Rmt, ":", "", Split),
     length(Split, SL),
     SL > 1,
+    %% Cannot query for remote _darcs dir, and may not have a local checkout, so
+    %% assume this is darcs.
+    !.
+vctl_subproj_remote_repo(darcs(_), Name, darcsremote(Rmt)) :-
+    eng:eng(vctl, subproject, Name, repo, Rmt),
+    split_string(Rmt, ":", "", Split),
+    length(Split, SL),
+    SL = 1,  %% Just a directory reference; is remote dir darcs?
+    directory_file_path(Rmt, "_darcs", RDir),
+    exists_directory(RDir),
     !.
 vctl_subproj_remote_repo(_VCTool, Name, miscremote(Rmt)) :-
     eng:eng(vctl, subproject, Name, repo, Rmt),
