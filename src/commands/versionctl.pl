@@ -637,6 +637,8 @@ vctl_subproj_local_dir(Name, LclDir) :-
 vctl_subproj_local_dir(Name, LclDir) :-
     eng:key(vctl, subproject, Name),
     directory_file_path(subproj, Name, LclDir), !.
+vctl_subproj_local_dir(Name, LclDir) :-
+    directory_file_path(subproj, Name, LclDir).
 
 vctl_subcmd(Context, Op, Args, SubSts) :-
     setof((S,D), (eng:key(vctl, subproject, S),
