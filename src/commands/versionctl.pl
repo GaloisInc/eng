@@ -619,7 +619,8 @@ vctl_subproj_context_has_engfiles(context(_, SPDir)) :-
 vctl_subproj_local_dir(Name, LclDir) :-
     eng:eng(vctl, subproject, Name, into, LclDir), !.
 vctl_subproj_local_dir(Name, LclDir) :-
-    format(atom(LclDir), 'subproj/~w', [Name]).
+    eng:key(vctl, subproject, Name),
+    directory_file_path(subproj, Name, LclDir), !.
 
 vctl_subcmd(Context, Op, Args, SubSts) :-
     setof((S,D), (eng:key(vctl, subproject, S),
