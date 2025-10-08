@@ -955,7 +955,7 @@ subphrase(Name) --> "\n", whites,
                     ":".
 
 build_dep(Dep) --> whites, string_without(": ,<>=^", Dep), string(_).
-build_dep(Dep) --> string(_), ",", whites, string_without(": ,<>=^", Dep), string(_).
+build_dep(Dep) --> string(_), ",", blanks, string_without(": ,<>=^", Dep), string(_).
 build_dep(Dep) --> string(_), ",", "\n", whites, string_without(": ,<>=^", Dep), string(_).
 
 
