@@ -124,10 +124,12 @@ vctl_cmd(Context, [local_status|Args], [MainSts|SubSts]) :-
     vctl_subcmd(Context, vctl_status, [local|Args], SubSts),
     vcs_tool(Context, VCTool), !,
     vctl_status(Context, VCTool, [local|Args], MainSts), !.
-vctl_cmd(Context, [push|Args], Sts) :-
+vctl_cmd(Context, [push|Args], [Sts|SubSts]) :-
+    vctl_subcmd(Context, vctl_push, [Args], SubSts),
     vcs_tool(Context, VCTool), !,
     vctl_push(Context, VCTool, Args, Sts), !.
-vctl_cmd(Context, [pull|Args], Sts) :-
+vctl_cmd(Context, [pull|Args], [Sts|SubSts]) :-
+    vctl_subcmd(Context, vctl_pull, [Args], SubSts),
     vcs_tool(Context, VCTool), !,
     vctl_pull(Context, VCTool, Args, Sts), !.
 
