@@ -26,7 +26,9 @@ system_focus("Systems Engineering").
 system_help(Info) :-
     engfile_dir(EngDirV),
     setof(F, X^Y^spec_output_type(F, X, Y), FS),
-    intercalate(["ALL"|FS], " | ", Formats),
+    setof(O, X^spec_output_type(O, X), OS),
+    append(FS, OS, Fmts),
+    intercalate(["ALL"|Fmts], " | ", Formats),
     [EngDir, OutFormats] = [ EngDirV, Formats ],
     Info = {|string(EngDir, OutFormats)||
 | Perform a SYSTEMS engineering task.
@@ -610,6 +612,8 @@ spec_output_type("json", "JSON", write_lando_json).
 spec_output_type("markdown", "Markdown", write_lando_markdown).
 spec_output_type("fret", "FRET", write_lando_fret).
 spec_output_type("fret-summary", "FRET Summary", write_lando_fret_summary).
+spec_output_type("fret_kind2", "Kind2 validation analysis inputs").
+spec_output_type("test_traces", "Kind2 model validation traces").
 
 
 wrote_file_messages(_, _, []).
