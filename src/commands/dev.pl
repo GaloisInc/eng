@@ -39,6 +39,7 @@ dev_help(Info) :-
 |         TESTNAME =
 |           type = TESTTYPE
 |           runner = TESTRUNNER
+            [verifies = REQUIREMENT]
 |           ARG = ARG FOR TESTTYPE FOR THIS TEST
 |       testrunner =
 |         TESTRUNNER =
@@ -68,6 +69,11 @@ dev_help(Info) :-
 | The handling of "exec", "in dir", and "env vars" settings for a testrunner
 | are handled similarly to the normal subcmd exec; see that help description
 | for more information.
+|
+| If the "verifies" is specified for the test, this will be correlated to Lando
+| system FRET requirements.  If there are *any* "verifies" specifications and
+| there are any FRET requirements that have no verifying test then the
+| "eng system verify" operation will fail.
 |}.
 
 dev_help(SubCmd, Help) :- subcmd_help(SubCmd, Help).
@@ -129,7 +135,11 @@ list_test(T) :-
     eng:key(dev, subcmd, test, testcase, T),
     eng:eng(dev, subcmd, test, testcase, T, type, TestType),
     eng:eng(dev, subcmd, test, testcase, T, runner, TestRunner),
-    format('___ ~w __ ~w ~`_t ~w ___~77|~n', [TestType, T, TestRunner]).
+    (eng:eng(dev, subcmd, test, testcase, T, verifies, R)
+    -> format_str(Req, "[~w]", [R])
+    ; Req = ""
+    ),
+    format('___ ~w __ ~w ~w ~`_t ~w ___~77|~n', [TestType, T, Req, TestRunner]).
 
 
 run_tests(Context, Args, Cnt, NumFailures) :-
@@ -207,9 +217,13 @@ exec_test_runner(_, _, TestName, 1) :-
 
 
 report_result(TestName, TestFailed) :-
+    (eng:eng(dev, subcmd, test, testcase, TestName, verifies, R)
+    -> format_str(Req, "[~w]", [R])
+    ; Req = ""
+    ),
     ( TestFailed = 0, !,
-      format('____ ~w Test ~`_t passed ____~77|~n', [TestName])
-    ; format('____ ~w Test ~`_t FAILED ~`#t FAILED ____~77|~n', [TestName])
+      format('____ ~w ~w Test ~`_t passed ____~77|~n', [TestName, Req])
+    ; format('____ ~w ~w Test ~`_t FAILED ~`#t FAILED ____~77|~n', [TestName, Req])
     ).
 
 

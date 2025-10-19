@@ -71,6 +71,7 @@ system_help(Info) :-
 system_help(list, "List project's system specifications").
 system_help(validate, "Check validity of system specifications").
 system_help(gen, "Generate system specification outputs (e.g. lando to JSON)").
+system_help(verify, "Verify implementation has tests for all requirements").
 
 system_known_specification_types([ "lando" ]).
 
@@ -82,6 +83,12 @@ system_cmd(Context, ['validate', 'ALL'], Result) :-
     process_system_specs(Context, validate_system_spec, Result), !.
 system_cmd(Context, ['validate'|Specs], Result) :-
     process_system_specs(Context, validate_system_spec, Specs, Result), !.
+
+system_cmd(_, ['verify'], specify_ssl_id) :- !.
+system_cmd(Context, ['verify', 'ALL'], Result) :-
+    process_system_specs(Context, verify_system_spec, Result), !.
+system_cmd(Context, ['verify'|Specs], Result) :-
+    process_system_specs(Context, verify_system_spec, Specs, Result), !.
 
 system_cmd(_, ['gen'], specify_ssl_id) :- !.
 system_cmd(Context, ['gen', 'ALL'], Result) :-
@@ -502,6 +509,54 @@ prolog:message(lando_validation_error(Spec, SpecFile, Err)) -->
 prolog :message(number_lando_validation_errors(Spec, SpecFile, Count)) -->
     [ 'Total of ~w validation Errors~n  [~w = ~w]~n' -
       [ Count, SpecFile, Spec ] ].
+
+
+% ----------------------------------------------------------------------
+
+verify_system_spec(Context, InputSpec, R) :-
+    with_spec_format_and_file(InputSpec, verify_spec(Context), R).
+
+verify_spec(Context, Spec, "lando", SpecFile, sts(Spec, R)) :-
+    parse_lando_file(SpecFile, SSL),
+    !,
+    verify_lando_fret(Context, Spec, SSL, R),
+    !.
+verify_spec(_, Spec, Format, SpecFile, sts(Spec, 1)) :-
+    print_message(error, invalid_parse(Format, Spec, SpecFile)).
+verify_spec(_, Spec, _, _, sts(Spec, 1)).
+
+verify_lando_fret(_Context, Spec, SSL, RR) :-
+    eng:key(dev, subcmd, test, testcase, _TestName, verifies),
+    % There is at least one "verifies" for tests, so require that all fret
+    % specifications are verified by a test.
+    !,
+    lando_to_fret(SSL, Reqs, _FretVars, _SrcRefs),
+    findall(R, (member(Req, Reqs),
+                get_dict('lando_req', Req, LR),
+                get_dict('req_name', LR, RN),
+                atom_string(RN, R),
+                eng:eng(dev, subcmd, test, testcase, _T, verifies, R)), RS),
+    findall(U, (member(UReq, Reqs),
+                get_dict('lando_req', UReq, ULR),
+                get_dict('req_name', ULR, UN),
+                atom_string(UN, U),
+                \+ member(U, RS)), US),
+    verify_report(Spec, US, RR).
+verify_lando_fret(_Context, Spec, _, sts(Spec, 0)) :-
+    print_message(informational, no_verification(Spec)).
+verify_report(Spec, [], sts(Spec, 0)) :-
+    print_message(info, all_requirements_verified_by_tests(Spec)).
+verify_report(Spec, Unvalidated, sts(Spec, N)) :-
+    length(Unvalidated, N),
+    print_message(error, requirements_not_verified_by_tests(Spec, N, Unvalidated)).
+
+prolog:message(all_requirements_verified_by_tests(Spec)) -->
+    [ 'All ~w requirements are verified by tests' - [ Spec ] ].
+prolog:message(requirements_not_verified_by_tests(Spec, N, Unvalidated)) -->
+    [ 'System specification ~w has ~w unverified requirements:~n  ~w' - [
+          Spec, N, Unvalidated ] ].
+prolog:message(no_verification(Spec)) -->
+    [ 'System specification ~w has NO defined verification tests.' - [Spec] ].
 
 
 % ----------------------------------------------------------------------
