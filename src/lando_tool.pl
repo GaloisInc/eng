@@ -129,7 +129,9 @@ fret_var_summary(Var, Out) :-
     get_dict(varname, Var, Name),
     get_dict(type, Var, Type),
     get_dict(usage, Var, Usage),
-    format_str(Out, '  ~w~t~10| ~w : ~w', [Usage, Name, Type]).
+    get_dict(desc, Var, Desc),
+    string_firstline(Desc, Intro),
+    format_str(Out, '  ~w~t~8| ~w : ~w ~t - ~w~79|', [Usage, Name, Type, Intro]).
 constructors(constr(C,V,_,I), (T,V,C)) :- get_dict(type, I, T).
 constr_info(V, I, O) :-
     get_dict(constructors, V, Constrs),

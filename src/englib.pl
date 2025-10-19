@@ -11,6 +11,7 @@
                     string_codes_rtrim/3,
                     string_rpad/4,
                     string_contains/2,
+                    string_firstline/2,
                     subst/4,
                     get_dict_or/4,
                     ensure_dir/1,
@@ -131,6 +132,9 @@ subst(ThisStr, ThatStr, InpStr, OutStr) :-
 string_contains(Str, Part) :-
     string_concat(_, Mid, Str),
     string_concat(Part, _, Mid), !.
+
+string_firstline(Str, FirstLine) :-
+    split_string(Str, "\n", " \t", [FirstLine|_]).
 
 
 get_dict_or(Key, Dict, _, Val) :- get_dict(Key, Dict, Val), !.
