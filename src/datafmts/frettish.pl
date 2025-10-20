@@ -590,7 +590,7 @@ qcond1_true_(Q,E, _{ qualifier_word:Q,
                    }).
 
 qcond1_false_(Q,E, _{ qualifier_word:Q,
-                      regular_condition: fretish(not(E))
+                      regular_condition: fretish(op(not(E), boolean))
                     }).
 
 qcond2_(Env, C0, C, OutEnv) --> tok(and), qcond2_and_(Env, C0, C, OutEnv).
