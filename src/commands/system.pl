@@ -531,30 +531,35 @@ verify_lando_fret(_Context, Spec, SSL, RR) :-
     % specifications are verified by a test.
     !,
     lando_to_fret(SSL, Reqs, _FretVars, _SrcRefs),
+    length(Reqs, NReqs),
     findall(R, (member(Req, Reqs),
                 get_dict('lando_req', Req, LR),
-                get_dict('req_name', LR, RN),
-                atom_string(RN, R),
-                eng:eng(dev, subcmd, test, testcase, _T, verifies, R)), RS),
+                get_dict('req_name', LR, R),
+                atom_string(R, RS),
+                eng:eng(dev, subcmd, test, testcase, _T, verifies, RV),
+                split_string(RV, ",", " \t", RVS),
+                member(RS, RVS)
+               ), RS),
     findall(U, (member(UReq, Reqs),
                 get_dict('lando_req', UReq, ULR),
-                get_dict('req_name', ULR, UN),
-                atom_string(UN, U),
-                \+ member(U, RS)), US),
-    verify_report(Spec, US, RR).
+                get_dict('req_name', ULR, U),
+                \+ member(U, RS)
+               ), US),
+    verify_report(Spec, NReqs, US, RR).
 verify_lando_fret(_Context, Spec, _, sts(Spec, 0)) :-
     print_message(informational, no_verification(Spec)).
-verify_report(Spec, [], sts(Spec, 0)) :-
+verify_report(Spec, _, [], sts(Spec, 0)) :-
     print_message(info, all_requirements_verified_by_tests(Spec)).
-verify_report(Spec, Unvalidated, sts(Spec, N)) :-
+verify_report(Spec, NReqs, Unvalidated, sts(Spec, N)) :-
     length(Unvalidated, N),
-    print_message(error, requirements_not_verified_by_tests(Spec, N, Unvalidated)).
+    print_message(error, requirements_not_verified_by_tests(Spec, NReqs, N,
+                                                            Unvalidated)).
 
 prolog:message(all_requirements_verified_by_tests(Spec)) -->
     [ 'All ~w requirements are verified by tests' - [ Spec ] ].
-prolog:message(requirements_not_verified_by_tests(Spec, N, Unvalidated)) -->
-    [ 'System specification ~w has ~w unverified requirements:~n  ~w' - [
-          Spec, N, Unvalidated ] ].
+prolog:message(requirements_not_verified_by_tests(Spec, T, N, Unvalidated)) -->
+    [ 'System specification ~w has ~w unverified requirements of ~w:~n  ~w' - [
+          Spec, N, T, Unvalidated ] ].
 prolog:message(no_verification(Spec)) -->
     [ 'System specification ~w has NO defined verification tests.' - [Spec] ].
 

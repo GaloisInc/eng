@@ -39,7 +39,7 @@ dev_help(Info) :-
 |         TESTNAME =
 |           type = TESTTYPE
 |           runner = TESTRUNNER
-            [verifies = REQUIREMENT]
+|           [verifies = REQUIREMENT [, REQUIREMENT ...]]
 |           ARG = ARG FOR TESTTYPE FOR THIS TEST
 |       testrunner =
 |         TESTRUNNER =
@@ -70,10 +70,10 @@ dev_help(Info) :-
 | are handled similarly to the normal subcmd exec; see that help description
 | for more information.
 |
-| If the "verifies" is specified for the test, this will be correlated to Lando
-| system FRET requirements.  If there are *any* "verifies" specifications and
-| there are any FRET requirements that have no verifying test then the
-| "eng system verify" operation will fail.
+| If the "verifies" is specified for the test, this will be correlated to comma-
+| separated Lando system FRET requirements.  If there are *any* "verifies"
+| specifications and there are any FRET requirements that have no verifying
+| test then the "eng system verify" operation will fail.
 |}.
 
 dev_help(SubCmd, Help) :- subcmd_help(SubCmd, Help).
