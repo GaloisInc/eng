@@ -422,7 +422,8 @@ is_req_var(VName, Reqs) :-
     member(VName, RVNames).
 
 normalize_kind2_var(Inp, Out) :-
-    subst('-', '_', Inp, Out).
+    subst('-', '_', Inp, I2),
+    subst(' ', '_', I2, Out).
 
 match_req(Spec1, Spec1) :- !.
 match_req(Spec1, Spec2) :- atom_string(Spec2, Spec1), !.
