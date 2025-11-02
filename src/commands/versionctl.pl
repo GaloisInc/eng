@@ -661,15 +661,17 @@ vctl_subcmd_each(Context, Op, Args, [(S,D)|SDS], [sts(S,Sts)|SubSts]) :-
     vctl_subcmd_each(Context, Op, Args, SDS, SubSts).
 
 vctl_changes(Context, git(VCSDir)) :-
-    do_exec(Context, 'vcs git changes?', [],
+    do_exec(Context, 'vcs git local changes?', [],
             capture([ "git","-C", VCSDir, "status", "-s" ]),
-            curdir, [], Out),
+            [], curdir, Out),
     Out \= [].
 vctl_changes(Context, git(VCSDir, _)) :-
     do_exec(Context, 'vcs git unpushed?', ['VCSDir' = VCSDir],
             capture([ git, "-C", VCSDir, "rev-list", "@{upstream}..HEAD" ]),
             [], curdir, Out),
-    Out \= [].
+    (Out \= []
+    ; vctl_changes(Context, git(VCSDir))
+    ).
 vctl_changes(Context, darcs(VCSDir)) :-
     catch(do_exec(Context, 'vcs darcs changes?', [],
                   capture(["darcs", "status", "-s", "-q"]),
