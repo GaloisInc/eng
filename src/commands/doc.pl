@@ -45,21 +45,21 @@ doc_help(lando, "Run Lando requirements engineering operations").
 doc_cmd(_, [list|_Args], 0) :- writeln('Known documents:'), show_doc(_) ; true.
 
 doc_cmd(_, [info], specify_doc_id) :- !.
-doc_cmd(_, [info,Doc|_Args], 0) :- doc_info(Doc), !.
-doc_cmd(_, [info,Doc|_Args], doc_not_found(Doc)) :- !.
+doc_cmd(_, [info,Doc|_Args], sts(Doc, 0)) :- doc_info(Doc), !.
+doc_cmd(_, [info,Doc|_Args], unknown(Doc, doc_not_found(Doc))) :- !.
 
 doc_cmd(_, [show], specify_doc_id) :- !.
-doc_cmd(Context, [show,Doc|_Args], Sts) :-
+doc_cmd(Context, [show,Doc|_Args], sts(Doc, Sts)) :-
     eng:eng(doc, Doc, location, Loc),
     !,
     directory_file_path(DocDir, DocFile, Loc),
     format(atom(InDir), "{TopDir}/~w", DocDir),
     format(atom(Cmd), 'less ~w~n', DocFile),
     do_exec(Context, "Document display", {}, [Cmd], [], InDir, Sts).
-doc_cmd(_, [show,Doc|_Args], no_doc_loc(Doc)) :-
+doc_cmd(_, [show,Doc|_Args], sts(Doc, no_doc_loc(Doc))) :-
     eng:key(doc, Doc),
     !.
-doc_cmd(_, [show,Doc|_Args], doc_not_found(Doc)) :- !.
+doc_cmd(_, [show,Doc|_Args], unknown(Doc, doc_not_found(Doc))) :- !.
 
 doc_cmd(_, [lando|_], 0) :- !.  % No error when invoked with context; does nothing
 
