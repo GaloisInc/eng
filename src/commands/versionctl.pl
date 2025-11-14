@@ -355,6 +355,7 @@ vctl_git_status(context(EngDir, TopDir), VCSDir, full, Sts) :-
             ],
             [], TopDir, Sts).
 vctl_git_status(_, _, Scope, sts(status, 1)) :-
+    \+ member(Scope, [ local, full ]),
     print_message(error, invalid_scope(Scope)).
 
 vctl_darcs_status(Context, VCSDir, local, Sts) :-
@@ -377,6 +378,7 @@ vctl_darcs_status(Context, VCSDir, full, Sts) :-
             ],
             [], TopDir, _).
 vctl_darcs_status(_, _, [Scope|_Args], sts(status, 1)) :-
+    \+ member(Scope, [ local, full ]),
     print_message(error, invalid_scope(Scope)).
 
 
