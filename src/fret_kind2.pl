@@ -455,7 +455,7 @@ validate(Context, Kind2File, OutDirectory, Args, LustreFile, ResultFile, Status)
     exec_with_shell_wrapper(
         Context,
         [system],
-        [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 60 {InpFile} > {JSONFile}"
+        [ "kind2 -json {Kind2Args} --output_dir {OutDir} --timeout 600 {InpFile} > {JSONFile}"
           % --lus_strict
         ],
         ActualCmds),
