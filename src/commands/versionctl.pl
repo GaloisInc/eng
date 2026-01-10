@@ -863,7 +863,7 @@ vctl_clone(context(EngDir, TopDir), gitremote(URL, _), Rev, TgtDir, 0) :-
     do_exec(context(EngDir, TopDir), 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = Rev ],
             [ 'git clone {RepoAddr} {TgtDir}',
-              'git checkout -C {TgtDir} {Ref}'
+              'git -C {TgtDir} checkout {Ref}'
             ],
             [], TopDir, 0), !.
 vctl_clone(context(EngDir, TopDir), gitremote_ssh(URL), head, TgtDir, 0) :-
@@ -875,7 +875,7 @@ vctl_clone(context(EngDir, TopDir), gitremote_ssh(URL), Rev, TgtDir, 0) :-
     do_exec(context(EngDir, TopDir), 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = URL, 'Ref' = Rev ],
             [ 'git clone {RepoAddr} {TgtDir}',
-              'git checkout -C {TgtDir} {Ref}'
+              'git -C {TgtDir} checkout {Ref}'
             ],
             [], TopDir, 0), !.
 vctl_clone(_, Repo, _, TgtDir, 1) :-
