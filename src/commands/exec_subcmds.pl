@@ -10,6 +10,7 @@
 :- use_module(library(lists)).
 :- use_module(library(strings)).
 :- use_module(library(yall)).
+:- use_module(library(dcg/basics)).
 :- use_module('../englib').
 
 % This module does not define a command directly, but provides definitions to
@@ -263,7 +264,9 @@ exec_bin(E) --> { eng:eng('exec bin', Cmd, E),
                   atom_string(Cmd,CmdS),
                   string_codes(CmdS, CmdCodes)
                 },
-                CmdCodes, " ".
+                CmdCodes, endword.
+endword --> " ".
+endword --> eos.
 
 prep_args(ArgMap, TE, TECmd) :-
     catch(interpolate_string(TE, TECmd, ArgMap, []),
