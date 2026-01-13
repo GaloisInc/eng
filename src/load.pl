@@ -232,7 +232,7 @@ find_engfile_here_subs(_, _, Subs, Subs) :- !.
 
 normalize_subtrees([], []).
 normalize_subtrees([[]|ES], OS) :- !, normalize_subtrees(ES, OS).
-normalize_subtrees([[E]|ES], [E|OS]) :- !, normalize_subtrees(ES, OS).
+normalize_subtrees([[E]|ES], [OS]) :- !, normalize_subtrees([E|ES], OS).
 normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 
 
