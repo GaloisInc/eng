@@ -166,7 +166,11 @@ show_msgs([M|Msgs], GEMs) :-
     print_message(error, M),
     show_msgs(Msgs, GEMs).
 show_endmsgs([]).
-show_endmsgs([end_msg(N, M)|GEMs]) :-
+show_endmsgs(EndMsgs) :-
+    format('----Summary----~n'),
+    show_endmsgs_(EndMsgs).
+show_endmsgs_([]).
+show_endmsgs_([end_msg(N, M)|GEMs]) :-
     partition(same_endmsg(M), GEMs, SameMsg, OtherMsg),
     collect_names([end_msg(N,M)|SameMsg], NS),
     print_message(information, endmsgs(M, NS)),
