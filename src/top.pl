@@ -212,16 +212,15 @@ show_help :-
     writeln(Info).
 
 prolog:message(endmsgs(Msg, NameList)) -->
-    { Width = 80,
-      length(NameList, NumNames),
-      format(atom(Hdr), '~w/~w: ', [Msg, NumNames])
+    {
+        Width = 80,
+        length(NameList, NumNames),
+        format(atom(Hdr), '~w/~w: ', [Msg, NumNames])
     },
     [ Hdr ],
     {
-      string_length(Hdr, HLen),
-      format(atom(IndentFmt), '~~t~~~d|', [HLen]),
-      format(atom(Indent), IndentFmt, []),
-      pretty_intercalate(NameList, ", ", Width, Indent, Names)
+        clone_string_repchars(Hdr, ' ', Indent),
+        pretty_intercalate(NameList, ", ", Width, Indent, Names)
     },
     [ Names ].
 prolog:message(run_cmd_in_context(Cmd, [], Context)) -->

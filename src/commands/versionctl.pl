@@ -103,7 +103,10 @@ vctl_help(Info) :-
 |}.
 
 vctl_help("status", "show status of the project (workspace).").
-vctl_help("local_status", "show local-only status of workspace.").
+vctl_help("local_status", ["show local-only status of workspace.",
+                           "Only shows status of locally cloned repositories",
+                           "without relating that status to their remote."
+                          ]).
 vctl_help("push", "push local changes upstream.").
 vctl_help("pull", "pull changes from upstream to local.").
 vctl_help("subproj", "display sub-projects (dependencies).") :-

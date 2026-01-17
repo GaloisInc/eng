@@ -3,6 +3,7 @@
                     append_nub/3,
                     intercalate/3,
                     pretty_intercalate/5,
+                    clone_string_repchars/3,
                     list_call/3,
                     show_type/2,
                     debug/1,
@@ -99,6 +100,10 @@ to_string(A, S) :- atom(A), !, atom_string(A, S).
 to_string(S, S) :- string(S), !.
 to_string(A, S) :- format(atom(S), '~w', [A]).
 
+clone_string_repchars(Str, Char, Out) :-
+    string_length(Str, L),
+    format(atom(IFmt), '~~`~wt~~~d|', [Char, L]),
+    format(atom(Out), IFmt, []).
 
 prolog:message(unknown_type(Where, What)) -->
     [ 'Unknown type provided to ~w: ~w~n' - [ Where, What ] ].

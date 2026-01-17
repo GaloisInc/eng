@@ -12,13 +12,8 @@ help_cmd([], 1) :-
     writeln(CmdInfo).
 
 
-help_cmd([On,'_'|_], 0) :-
-    !,
-    known_internal_subcommand_info(On, Info),
-    help_cmd_internal(On, Info).
-
 % Command-specific help.
-help_cmd([On|_], 0) :-
+help_cmd([On], 0) :-
     eng_cmd_help(On, HelpInfo),
     !,
     format('Help for "~w":~n~n~w~n', [ On, HelpInfo ]),
@@ -32,6 +27,22 @@ help_cmd([On|_], 0) :-
        intercalate(Info, "\n", OutStr),
        writeln(OutStr))
     ),
+    writeln("").
+help_cmd([On,'_',OnSub|_], 0) :-
+    atom_string(OnSub, OnSubS),
+    show_subcmd_focus(On, OnSubS, "_help_internal", full, Infos),
+    !,
+    maplist(writeln, Infos),
+    writeln("").
+help_cmd([On,'_'|_], 0) :-
+    !,
+    known_internal_subcommand_info(On, Info),
+    help_cmd_internal(On, Info).
+help_cmd([On,OnSub|_], 0) :-
+    atom_string(OnSub, OnSubS),
+    show_subcmd_focus(On, OnSubS, "_help", full, Infos),
+    !,
+    maplist(writeln, Infos),
     writeln("").
 help_cmd([C|_], 1) :-
     print_message(error, no_help_or_unk_command(C)).

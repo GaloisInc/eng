@@ -7,6 +7,7 @@
                   known_subcommand_help/1,
                   known_subcommand_info/2,
                   known_internal_subcommand_info/2,
+                  show_subcmd_focus/5,
                   call_eng_cmd/4,
                   call_eng_cmd/3,
                   eng_cmd_help/2,
@@ -80,13 +81,13 @@ show_cmd_focus(with_subcommands, cmdfocus(Cmd, CmdFocus), [OutCmd|OutSub]) :-
     known_subcommand_info(OutSub, Cmd).
 
 known_subcommand_info(Info, Cmd) :-
-    findall(I, show_subcmd_focus(Cmd, _, "_help", I), SInfo),
+    findall(I, show_subcmd_focus(Cmd, _, "_help", summary, I), SInfo),
     append(SInfo, SI),
     list_to_set(SI, Lines),
     sort(Lines, Info).
 
 known_internal_subcommand_info(Cmd, Info) :-
-    findall(I, show_subcmd_focus(Cmd, _, "_help_internal", I), SInfo),
+    findall(I, show_subcmd_focus(Cmd, _, "_help_internal", summary, I), SInfo),
     append(SInfo, SI),
     list_to_set(SI, Lines),
     sort(Lines, Info).
@@ -103,22 +104,32 @@ known_subcommands(Cmd, SubCmds) :-
     ; SubCmds = []
     ).
 
-show_subcmd_focus(Cmd, SubCmd, CmdType, [OutStr]) :-
-    get_subcmd_focus(Cmd, SubCmd, CmdType, OutStr).
-show_subcmd_focus(Cmd, SubCmd, CmdType, OutStr) :-
+show_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, OutStrs) :-
     ingest_engfiles(_Context, Parsed, silent),
     findall(R, (member(P, Parsed), assert_eqil(P, R)), Refs),
-    findall(O, get_subcmd_focus(Cmd, SubCmd, CmdType, O), OutStr),
+    findall(O, get_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, O), OutStrs),
     erase_refs(Refs).
-get_subcmd_focus(Cmd, SubCmd, CmdType, OutStr) :-
+get_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, OutStr) :-
     atom_string(Cmd, CmdS),
     string_concat(CmdS, CmdType, CmdH),
     atom_string(CmdHPred, CmdH),
     catch(call(CmdHPred, SubCmd, H), _Err, fail),
+    postproc_subcmd_focus(SubCmd, OutputMode, H, OutStr).
+postproc_subcmd_focus(SubCmd, summary, H, OutStr) :-
     (is_list(H), H = [CmdHelp|_]
     ; \+ is_list(H), CmdHelp = H
     ),
     format(atom(OutStr), '     ~w ~`.t~24+ ~w~72|', [ SubCmd, CmdHelp ]).
+postproc_subcmd_focus(SubCmd, OutputMode, H, OutStr) :-
+    \+ OutputMode = summary,
+    (is_list(H), H = [CmdSummary|CmdHelp]
+    ; \+ is_list(H), CmdSummary = H, CmdHelp = []
+    ),
+    format(atom(Hdr), '  ~w - ', [SubCmd]),
+    clone_string_repchars(Hdr, ' ', Indent),
+    string_concat("\n", Indent, Twixt),
+    string_concat(Hdr, CmdSummary, Line1),
+    intercalate([Line1|CmdHelp], Twixt, OutStr).
 
 call_eng_cmd(Cmd, [], Msg) :-
     % If Cmd was not given arguments and this is a command that expects a
