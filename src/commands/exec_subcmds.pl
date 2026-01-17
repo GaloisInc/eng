@@ -324,22 +324,38 @@ dir_shell(Context, Ref, FullExec, InDir, ExecSts) :-
 dir_runproc(_, _, Exe, Args, curdir, StdOut) :-
     !,
     exe_lookup(Exe, ExePath),
-    %% format('Run ~w as ~w with ~w~n', [Exe, ExePath, Args]),
+    debug(exec, run_exec(Exe, ExePath, Args), []),
     setup_call_cleanup(
-        process_create(ExePath, Args, [stdout(pipe(Out))]),
+        process_create(ExePath, Args, [stdout(pipe(Out)),
+                                       process(PID)]),
         read_lines(Out, StdOut),
-        close(Out)).
+        (safe_close(Out), process_wait(PID, Sts))),
+    % according to the docs, process_create is not supposed to continue if the
+    % process failed, but evidence shows otherwise, so here we use process_wait
+    % to get the final status and below we ensure failure does not progress.
+    !,
+    Sts = exit(0).
 dir_runproc(Context, _Ref, Exe, Args, InDir, StdOut) :-
     context_topdir(Context, TopDir),
     context_engdir(Context, EngDir),
     prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], InDir, SubstDir),
     string_trim(SubstDir, TgtDir),
     exe_lookup(Exe, ExePath),
-    %% format('Run ~w (~w) with ~w in ~w~n', [Exe, ExePath, Args, TgtDir]),
+    debug(exec, run_exec_in_dir(Exe, ExePath, Args, TgtDir), []),
     setup_call_cleanup(
-        process_create(ExePath, Args, [stdout(pipe(Out)), cwd(TgtDir)]),
+        process_create(ExePath, Args, [stdout(pipe(Out)), cwd(TgtDir),
+                                       process(PID)]),
         read_lines(Out, StdOut),
-        close(Out)).
+        (safe_close(Out), process_wait(PID, Sts))),
+    % according to the docs, process_create is not supposed to continue if the
+    % process failed, but evidence shows otherwise, so here we use process_wait
+    % to get the final status and below we ensure failure does not progress.
+    !,
+    Sts = exit(0).
+
+
+% Used because sometimes close itself can throw an exception
+safe_close(Stream) :- catch(close(Stream), _, true).
 
 read_lines(Out, Lines) :-
     read_line_to_codes(Out, Line1),
@@ -353,6 +369,10 @@ read_lines(Codes, Out, [Line|Lines]) :-
 
 %% ----------------------------------------------------------------------
 
+prolog:message(run_exec(Exe, ExePath, Args)) -->
+    [ 'Run ~w as ~w with ~w~n' - [Exe, ExePath, Args] ].
+prolog:message(run_exec_in_dir(Exe, ExePath, Args, Dir)) -->
+    [ 'Run ~w (~w) with ~w in ~w~n' - [Exe, ExePath, Args, Dir] ].
 prolog:message(invalid_directory(Ref, InDir)) -->
     [ 'Requested exec target directory ~w does not exist when running ~w' -
       [ InDir, Ref ] ].
