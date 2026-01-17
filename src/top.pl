@@ -173,8 +173,8 @@ show_endmsgs_([]).
 show_endmsgs_([end_msg(N, M)|GEMs]) :-
     partition(same_endmsg(M), GEMs, SameMsg, OtherMsg),
     collect_names([end_msg(N,M)|SameMsg], NS),
-    print_message(information, endmsgs(M, NS)),
-    show_endmsgs(OtherMsg).
+    print_message(info, endmsgs(M, NS)),
+    show_endmsgs_(OtherMsg).
 same_endmsg(M, end_msg(_, M)).
 
 collect_names([], []).
@@ -212,11 +212,18 @@ show_help :-
     writeln(Info).
 
 prolog:message(endmsgs(Msg, NameList)) -->
-    { intercalate(NameList, ", ", Names),
-      length(NameList, NumNames)
-
+    { Width = 80,
+      length(NameList, NumNames),
+      format(atom(Hdr), '~w/~w: ', [Msg, NumNames])
     },
-    [ '~w/~w: ~w' - [ Msg, NumNames, Names ] ].
+    [ Hdr ],
+    {
+      string_length(Hdr, HLen),
+      format(atom(IndentFmt), '~~t~~~d|', [HLen]),
+      format(atom(Indent), IndentFmt, []),
+      pretty_intercalate(NameList, ", ", Width, Indent, Names)
+    },
+    [ Names ].
 prolog:message(run_cmd_in_context(Cmd, [], Context)) -->
     { context_topdir(Context, TopDir) },
     % NABLA 2207 ∇

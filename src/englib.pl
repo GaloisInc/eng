@@ -2,6 +2,7 @@
                     flip/3,
                     append_nub/3,
                     intercalate/3,
+                    pretty_intercalate/5,
                     list_call/3,
                     show_type/2,
                     debug/1,
@@ -52,6 +53,8 @@ append_nub([], ES, ES).
 append_nub([N|NS], ES, R) :-
     append_nub(NS, ES, OS), (member(N, OS) -> R = OS ; R = [N|OS]).
 
+% intercalate(List, Sep, Result) sets Result string to the List strings with Sep
+% separators.
 intercalate([], _, "").
 intercalate([E], _, E) :- string(E), !.
 intercalate([E], _, ES) :- atom(E), !, atom_string(E, ES).
@@ -63,6 +66,39 @@ intercalate([E|ES], S, R) :- intercalate(ES, S, RS),
                                RE = S
                              ),
                              string_concat(RE, RS, R).
+
+% pretty_intercalate will normally use Sep, but if Sep+NextItem would exceed an
+% integral of Width then it uses LongSep instead.  If LongSep is a newline plus
+% indentation, this can be used to output nicely formatted multi-line output with
+% an initial header.
+pretty_intercalate(List, Sep, Width, LongSep, String) :-
+    string_length(LongSep, StartWidth),
+    pretty_intercalate(List, Sep, Width, LongSep, StartWidth, [_|OutStrs]),
+    % n.b. first element above ignored because it is either Sep or LongSep
+    intercalate(OutStrs, "", String).
+
+pretty_intercalate([], _, _, _, _, [""]).
+pretty_intercalate([E|ES], Sep, Width, LongSep, CurWidth, Out) :-
+    to_string(E, S),
+    string_length(S, L),
+    string_length(Sep, SL),
+    NewWidth = CurWidth + L + SL,
+    pretty_intercalate(S, L, Sep, Width, LongSep, NewWidth, ES, Out).
+
+pretty_intercalate(S, L, Sep, Width, LongSep, NewWidth, ES, Out) :-
+    NewWidth > Width,
+    !,
+    string_length(LongSep, W),
+    NW = W + L,
+    pretty_intercalate(ES, Sep, Width, LongSep, NW, SubStrs),
+    Out = ["~n", LongSep, S|SubStrs].
+pretty_intercalate(S, _, Sep, Width, LongSep, NewWidth, ES, [Sep, S|SubStrs]) :-
+    pretty_intercalate(ES, Sep, Width, LongSep, NewWidth, SubStrs).
+
+to_string(A, S) :- atom(A), !, atom_string(A, S).
+to_string(S, S) :- string(S), !.
+to_string(A, S) :- format(atom(S), '~w', [A]).
+
 
 prolog:message(unknown_type(Where, What)) -->
     [ 'Unknown type provided to ~w: ~w~n' - [ Where, What ] ].
