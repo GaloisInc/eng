@@ -342,7 +342,7 @@ vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     !,
     vctl_status(Context, GitTool, Args, GSts),
     vctl_status(Context, darcs(DarcsDir), Args, DSts),
-    sum_list([DSts, GSts], Sts).
+    Sts = [DSts, GSts].
 vctl_status(_, Tool, _, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
@@ -593,7 +593,7 @@ vctl_pull(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     !,
     dgsync(Context, GitTool, GSts),
     vctl_pull(Context, darcs(DarcsDir), Args, DSts),
-    sum_list([DSts, GSts], Sts).
+    Sts = [DSts, GSts].
 
 vctl_pull(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
