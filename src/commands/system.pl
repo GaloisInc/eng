@@ -101,13 +101,13 @@ system_cmd(_, [Cmd|_], invalid_subcmd(system, Cmd)).
 % ----------------------------------------------------------------------
 
 process_system_specs(Context, Op, Result) :-
-    Context = context(_, TopDir),
+    context_topdir(Context, TopDir),
     working_directory(_, TopDir),
     (setof(S, eng:key(system, spec, S), Specs); Specs = []),
     maplist(call(Op, Context), Specs, Result).
 
 process_system_specs(Context, Op, Specs, Result) :-
-    Context = context(_, TopDir),
+    context_topdir(Context, TopDir),
     working_directory(_, TopDir),
     findall(R, (member(Spec, Specs), call(Op, Context, Spec, R)), Result).
 

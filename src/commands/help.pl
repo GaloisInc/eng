@@ -40,7 +40,7 @@ help_cmd(_, 0).
 help_cmd(Context, [On|_], 0) :-
     eng_cmd_help(Context, On, Info),
     !,
-    Context = context(_, TopDir),
+    context_topdir(Context, TopDir),
     format('[~w] ~`-t~40|~n~n~w~n', [TopDir, Info]).
 help_cmd(_, _, 0).
 

@@ -20,6 +20,7 @@
                     ensure_context_subdir/2,
                     exists_context_subdir/2,
                     context_topdir/2,
+                    context_engdir/2,
                     format_str/3,
                     format_lines/2,
                     write_strings/2,
@@ -175,7 +176,10 @@ ensure_context_subdir(Context, SubDir) :-
 exists_context_subdir(Context, SubDir) :-
     context_subdir(Context, SubDir, D), !, exists_directory(D).
 
+% Extractors for fields of context, which is initialized by ingest_engfiles in
+% load.pl
 context_topdir(context(_, TopDir), TopDir).
+context_engdir(context(EngDir, _), EngDir).
 
 
 is_success(0).

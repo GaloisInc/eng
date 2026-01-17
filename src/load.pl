@@ -243,9 +243,9 @@ normalize_subtrees([[E]|ES], [OS]) :- !, normalize_subtrees([E|ES], OS).
 normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 
 
-ingest_engfiles(context(EngDir, TopDir), Parsed) :-
-    ingest_engfiles(context(EngDir, TopDir), Parsed, informational).
-ingest_engfiles(context(EngDir, TopDir), Parsed, Verbosity) :-
+ingest_engfiles(Context, Parsed) :-
+    ingest_engfiles(Context, Parsed, informational).
+ingest_engfiles(context(EngDir, TopDir), Parsed, Verbosity) :-  % <- where context gets set!
     engfile_dir(EngfileDirPattern),
     find_engfile_dir(EngfileDirPattern, EngDir),
     file_directory_name(EngDir, TopDir),
@@ -309,10 +309,13 @@ prolog:message(eqil_nesting_too_deep(File)) -->
     [ 'Could not express ~w: maximum key nesting level depth exceeded ' - [File] ].
 prolog:message(no_defined_subcmds(Cmd)) -->
     [ 'No currently user-defined "~w" sub-commands' - [ Cmd ] ].
-prolog:message(invalid_subcmd(Cmd, context(EngDir, TopDir), SubCmd)) -->
+prolog:message(invalid_subcmd(Cmd, Context, SubCmd)) -->
+    {
+        context_topdir(Context, TopDir)
+    },
     [ 'Invalid "~w" sub-command in ~w: ~w~n' - [ Cmd, TopDir, SubCmd ] ],
     {
-        ingest_engfiles(context(EngDir, TopDir), Parsed, silent),
+        ingest_engfiles(Context, Parsed, silent),
         assert_eqil(Parsed, Refs),
         known_subcommands(Cmd, CS),
         erase_refs(Refs)

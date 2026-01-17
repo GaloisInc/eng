@@ -295,16 +295,20 @@ global_set_env_vars(Context) :-
     findall((N, V), eng:eng('exec env vars', N, V), GlobalEnvVars),
     set_env_vars_(Context, GlobalEnvVars).
 set_env_vars_(_, []).
-set_env_vars_(context(EngDir, TopDir), [(VarName, VarVal)|EnvVars]) :-
+set_env_vars_(Context, [(VarName, VarVal)|EnvVars]) :-
+    context_topdir(Context, TopDir),
+    context_engdir(Context, EngDir),
     prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], VarVal, SubstVarVal),
     string_trim(SubstVarVal, SetVarVal),
     setenv(VarName, SetVarVal),
-    set_env_vars_(context(EngDir, TopDir), EnvVars).
+    set_env_vars_(Context, EnvVars).
 
 %% ----------------------------------------------------------------------
 
 dir_shell(_, _, FullExec, curdir, ExecSts) :- shell(FullExec, ExecSts).
-dir_shell(context(EngDir, TopDir), Ref, FullExec, InDir, ExecSts) :-
+dir_shell(Context, Ref, FullExec, InDir, ExecSts) :-
+    context_topdir(Context, TopDir),
+    context_engdir(Context, EngDir),
     prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], InDir, SubstDir),
     string_trim(SubstDir, TgtDir),
     (exists_directory(TgtDir), !,
@@ -325,7 +329,9 @@ dir_runproc(_, _, Exe, Args, curdir, StdOut) :-
         process_create(ExePath, Args, [stdout(pipe(Out))]),
         read_lines(Out, StdOut),
         close(Out)).
-dir_runproc(context(EngDir, TopDir), _Ref, Exe, Args, InDir, StdOut) :-
+dir_runproc(Context, _Ref, Exe, Args, InDir, StdOut) :-
+    context_topdir(Context, TopDir),
+    context_engdir(Context, EngDir),
     prep_args(['EngDir' = EngDir, 'TopDir' = TopDir ], InDir, SubstDir),
     string_trim(SubstDir, TgtDir),
     exe_lookup(Exe, ExePath),

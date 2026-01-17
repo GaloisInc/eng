@@ -143,7 +143,7 @@ vctl_cmd(_Context, ['_',dependencies],
 vctl_cmd(Context, ['_',dependencies,SubProj|_], Sts) :-
     eng:key(vctl, subproject, SubProj)
     -> show_deps_subproj(Context, SubProj, Sts)
-    ; Context = context(EngDir, _),
+    ; context_engdir(Context, EngDir),
       Sts = unknown(dependencies, unknown_subproject(EngDir, SubProj)).
 
 vctl_cmd(Context, [subproj], sts(subproj, 0)) :-
@@ -155,7 +155,8 @@ vctl_cmd(Context, [subproj], sts(subproj, 0)) :-
     length(SL, NSL),
     format('Subprojects: ~w known, ~w present locally~n', [ NSL, TSP ]),
     !.
-vctl_cmd(context(Here, _), [subproj], unknown(subproj, no_subprojects(Here))).
+vctl_cmd(Context, [subproj], unknown(subproj, no_subprojects(Here))) :-
+    context_engdir(Context, Here).
 
 vctl_cmd(Context, [subproj,clone],
          unknown(subproj_clone, no_subprojects(Here))) :-
@@ -199,8 +200,8 @@ vctl_cmd(Context, [subproj,remove|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     findall(E, (member(N, Args), vctl_subproj_remove(Context, VCTool, N, E)), Sts).
 
-vctl_cmd(context(_, TopDir), [Cmd|_], vcs_tool_undefined(TopDir)) :-
-    member(Cmd, [ status, push ]), !.
+vctl_cmd(Context, [Cmd|_], vcs_tool_undefined(TopDir)) :-
+    member(Cmd, [ status, push ]), !, context_topdir(Context, TopDir).
 vctl_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, vctl, Cmd, Args, Sts).
 vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
@@ -217,29 +218,32 @@ vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
 %   darcs(DIR)                  % DIR contains the _darcs directory
 %   darcs(DIR, git(..))         % Like above, but with the git backing dir (for dgsync)
 %
-vcs_tool(context(C, TopDir), T) :- vcs_tool_in(context(C, TopDir), TopDir, T).
+vcs_tool(Context, T) :-
+    context_topdir(Context, TopDir),
+    vcs_tool_in(Context, TopDir, T).
 
 vcs_tool_in(Context, InDir, Tool) :- vcs_tool_git(Context, InDir, Tool).
 vcs_tool_in(Context, InDir, Tool) :- vcs_tool_darcs(Context, InDir, Tool).
 
-vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
+vcs_tool_git(Context, InDir, git(InDir, forge(URL, Auth))) :-
     directory_file_path(InDir, ".git", VCSDir),
     exists_directory(VCSDir),
-    vcs_tool_git_with_remote(TopDir, InDir, URL, Auth).
+    vcs_tool_git_with_remote(Context, InDir, URL, Auth).
 
-vcs_tool_git(context(_, TopDir), InDir, git(InDir, forge(URL, Auth))) :-
+vcs_tool_git(Context, InDir, git(InDir, forge(URL, Auth))) :-
     directory_file_path(InDir, ".git", VCSFile),
     exists_file(VCSFile),
     read_file_to_string(VCSFile, VCSContents, []),
     string_concat("gitdir: ", _, VCSContents),
-    vcs_tool_git_with_remote(TopDir, InDir, URL, Auth).
+    vcs_tool_git_with_remote(Context, InDir, URL, Auth).
 
 vcs_tool_git(_Context, InDir, git(InDir)) :-
     directory_file_path(InDir, ".git", VCSDir),
     exists_directory(VCSDir).
 
-vcs_tool_git_with_remote(TopDir, InDir, URL, Auth) :-
-    do_exec(context(_, TopDir), 'vcs git remote origin',
+vcs_tool_git_with_remote(Context, InDir, URL, Auth) :-
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs git remote origin',
             [ 'VCSDir' = InDir ],
             capture(["git", "-C", "{VCSDir}", "remote", "get-url", "origin"]),
             [], TopDir, [GitForgeURL|_]),
@@ -343,13 +347,15 @@ vctl_status(_, Tool, _, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
 
-vctl_git_status(context(EngDir, TopDir), VCSDir, local, Sts) :-
-    do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
-            [ 'git -C {VCSDir} status -s'
-            ],
+vctl_git_status(Context, VCSDir, local, Sts) :-
+    context_topdir(Context, TopDir),
+    % This one is for the human
+    do_exec(Context, 'vcs git status', [ 'VCSDir' = VCSDir ],
+            [ 'git -C {VCSDir} status -s'],
             [], TopDir, Sts).
-vctl_git_status(context(EngDir, TopDir), VCSDir, full, Sts) :-
-    do_exec(context(EngDir, TopDir), 'vcs git status', [ 'VCSDir' = VCSDir ],
+vctl_git_status(Context, VCSDir, full, Sts) :-
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs git status', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} status -s',
               'git -C {VCSDir} fetch --dry-run origin -q'
             ],
@@ -522,9 +528,10 @@ darcs_pull_args(_, "").
 
 % ----------------------------------------------------------------------
 
-vctl_push(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
+vctl_push(Context, git(VCSDir), _Args, Sts) :-
     !,
-    do_exec(context(EngDir, TopDir), 'vcs git push', [ 'VCSDir' = VCSDir ],
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs git push', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} push origin'
             ],
             [], TopDir, Sts).
@@ -532,9 +539,10 @@ vctl_push(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
     !,
     vctl_push(Context, git(VCSDir), Args, Sts).
 
-vctl_push(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+vctl_push(Context, darcs(VCSDir), _Args, Sts) :-
     !,
-    do_exec(context(EngDir, TopDir), 'vcs darcs push', [ 'VCSDir' = VCSDir ],
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs darcs push', [ 'VCSDir' = VCSDir ],
             [ 'darcs push --repodir={VCSDir}'
             ],
             [], TopDir, Sts).
@@ -561,9 +569,10 @@ dgsync(Context, indir(VCSDir), Sts) :-
 
 % ----------------------------------------------------------------------
 
-vctl_pull(context(EngDir, TopDir), git(VCSDir), _Args, Sts) :-
+vctl_pull(Context, git(VCSDir), _Args, Sts) :-
     !,
-    do_exec(context(EngDir, TopDir), 'vcs git pull', [ 'VCSDir' = VCSDir ],
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs git pull', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} pull origin'
             ],
             [], TopDir, Sts).
@@ -571,12 +580,13 @@ vctl_pull(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
     !,
     vctl_pull(Context, git(VCSDir), Args, Sts).
 
-vctl_pull(context(EngDir, TopDir), darcs(VCSDir), _Args, Sts) :-
+vctl_pull(Context, darcs(VCSDir), _Args, Sts) :-
     !,
+    context_topdir(Context, TopDir),
     darcs_pull_args(VCSDir, ExtraArgs),
     format(atom(PullCmd), 'darcs pull --repodir=~w -q ~w',
            [VCSDir, ExtraArgs]),
-    do_exec(context(EngDir, TopDir), 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
+    do_exec(Context, 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
             [ PullCmd ], [], TopDir, Sts).
 
 vctl_pull(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
@@ -630,10 +640,13 @@ vls(Context, [_|SS], SPDS) :- vls(Context, SS, SPDS).
 vctl_subproj_preface(Name, Preface) :-
     format(atom(Preface), '#____ ~w :: ', [Name]).
 
-vctl_subproj_context(context(EngDir, TopDir), SubProjDir, context(EngDir, SPDir)) :-
+vctl_subproj_context(Context, SubProjDir, context(EngDir, SPDir)) :-
+    context_topdir(Context, TopDir),
+    context_engdir(Context, EngDir),
     directory_file_path(TopDir, SubProjDir, SPDir).
 
-vctl_subproj_context_has_engfiles(context(_, SPDir)) :-
+vctl_subproj_context_has_engfiles(Context) :-
+    context_topdir(Context, SPDir),
     has_engfiles(SPDir, _).
 
 vctl_subproj_local_dir(Name, LclDir) :-
@@ -813,8 +826,9 @@ vctl_subproj_clone(Context, VCTool, DepName, CloneSts) :-
     file_directory_name(TgtDir, TgtParentDir),
     ensure_context_subdir(Context, TgtParentDir),
     vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, CloneSts).
-vctl_subproj_clone(context(EngDir, _TopDir), _, DepName,
-                   unknown(subproj_clone, unknown_subproject(EngDir, DepName))).
+vctl_subproj_clone(Context, _, DepName,
+                   unknown(subproj_clone, unknown_subproject(EngDir, DepName))) :-
+        context_engdir(Context, EngDir).
 
 vctl_subproj_clone_into(Context, VCTool, _DepName, TgtDir, sts(subproj_clone, 0)) :-
     exists_context_subdir(Context, TgtDir),
@@ -834,14 +848,16 @@ vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, Clo
 prolog:message(clone_tgt_already_exists(TgtDir)) -->
     [ 'Clone target ~w already exists' - [TgtDir] ].
 
-vctl_post_clone(context(_, TopDir), VCTool, _TgtDir) :-
+vctl_post_clone(Context, VCTool, _TgtDir) :-
+    context_topdir(Context, TopDir),
     eng:eng(vctl, 'post clone', OpStr), !,
     atom_string(Op, OpStr),
     call(Op, VCTool, TopDir).
 vctl_post_clone(_, _, _).
 
-vctl_clone(context(EngDir, TopDir), darcsremote(Repo), head, TgtDir, 0) :-
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+vctl_clone(Context, darcsremote(Repo), head, TgtDir, 0) :-
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo ],
             [ 'darcs clone {RepoAddr} {TgtDir}' ],
             [], TopDir, 0), !.
@@ -852,27 +868,31 @@ vctl_clone(Context, darcsremote(Repo), Rev, TgtDir, Sts) :-
 vctl_clone(Context, darcsremote(Repo), Rev, TgtDir, Sts) :-
     !,
     darcs_clone(Context, Repo, "match", Rev, TgtDir, Sts).
-vctl_clone(context(EngDir, TopDir), gitremote(URL, _), head, TgtDir, 0) :-
+vctl_clone(Context, gitremote(URL, _), head, TgtDir, 0) :-
     parse_url(Repo, URL),
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo ],
             [ 'git clone {RepoAddr} {TgtDir}' ],
             [], TopDir, 0), !.
-vctl_clone(context(EngDir, TopDir), gitremote(URL, _), Rev, TgtDir, 0) :-
+vctl_clone(Context, gitremote(URL, _), Rev, TgtDir, 0) :-
     parse_url(Repo, URL),
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = Rev ],
             [ 'git clone {RepoAddr} {TgtDir}',
               'git -C {TgtDir} checkout {Ref}'
             ],
             [], TopDir, 0), !.
-vctl_clone(context(EngDir, TopDir), gitremote_ssh(URL), head, TgtDir, 0) :-
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+vctl_clone(Context, gitremote_ssh(URL), head, TgtDir, 0) :-
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = URL ],
             [ 'git clone {RepoAddr} {TgtDir}' ],
             [], TopDir, 0), !.
-vctl_clone(context(EngDir, TopDir), gitremote_ssh(URL), Rev, TgtDir, 0) :-
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+vctl_clone(Context, gitremote_ssh(URL), Rev, TgtDir, 0) :-
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = URL, 'Ref' = Rev ],
             [ 'git clone {RepoAddr} {TgtDir}',
               'git -C {TgtDir} checkout {Ref}'
@@ -882,37 +902,42 @@ vctl_clone(_, Repo, _, TgtDir, 1) :-
     print_message(error, cannot_clone(Repo, TgtDir)).
 
 
-darcs_clone(context(EngDir, TopDir), Repo, "tag", SelVal, TgtDir, Sts) :-
+darcs_clone(Context, Repo, "tag", SelVal, TgtDir, Sts) :-
     !,
     format(atom(X), '-t ~w', [SelVal]),
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
             [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
             [], TopDir, Sts).
-darcs_clone(context(EngDir, TopDir), Repo, "hash", SelVal, TgtDir, Sts) :-
+darcs_clone(Context, Repo, "hash", SelVal, TgtDir, Sts) :-
     !,
     format(atom(X), '--to-hash=~w', [SelVal]),
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
             [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
             [], TopDir, Sts).
-darcs_clone(context(EngDir, TopDir), Repo, "patch", SelVal, TgtDir, Sts) :-
+darcs_clone(Context, Repo, "patch", SelVal, TgtDir, Sts) :-
     !,
     format(atom(X), '--to-patch=~w', [SelVal]),
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
             [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
             [], TopDir, Sts).
-darcs_clone(context(EngDir, TopDir), Repo, "match", head, TgtDir, Sts) :-
+darcs_clone(Context, Repo, "match", head, TgtDir, Sts) :-
     !,
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo ],
             [ 'darcs clone {RepoAddr} {TgtDir}' ],
             [], TopDir, Sts).
-darcs_clone(context(EngDir, TopDir), Repo, "match", SelVal, TgtDir, Sts) :-
+darcs_clone(Context, Repo, "match", SelVal, TgtDir, Sts) :-
     !,
     format(atom(X), '--to-match=~w', [SelVal]),
-    do_exec(context(EngDir, TopDir), 'vcs clone',
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'vcs clone',
             [ 'TgtDir' = TgtDir, 'RepoAddr' = Repo, 'Ref' = X ],
             [ 'darcs clone {Ref} {RepoAddr} {TgtDir}' ],
             [], TopDir, Sts).
@@ -925,15 +950,17 @@ vctl_subproj_remove(Context, VCTool, DepName, Sts) :-
     eng:key(vctl, subproject, DepName),
     !,
     remove_subproj(Context, VCTool, DepName, Sts).
-vctl_subproj_remove(context(EngDir, _TopDir), _, DepName,
-                    unknown(subproj_rmv, unknown_subproject(EngDir, DepName))).
+vctl_subproj_remove(Context, _, DepName,
+                    unknown(subproj_rmv, unknown_subproject(EngDir, DepName))) :-
+    context_engdir(Context, EngDir).
 
-remove_subproj(context(EngDir, TopDir), VCTool, DepName, Sts) :-
+remove_subproj(Context, VCTool, DepName, Sts) :-
+    context_topdir(Context, TopDir),
     working_directory(OldDir, TopDir),
     vctl_subproj_local_dir(DepName, TgtDir),
     exists_directory(TgtDir),
     !,
-    remove_subproj_if_clean(context(EngDir, TopDir), VCTool, DepName, TgtDir, Sts),
+    remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, Sts),
     working_directory(_, OldDir).
 remove_subproj(_, _, DepName, sts(subproj_rmv, 0)) :-
     vctl_subproj_local_dir(DepName, TgtDir),
