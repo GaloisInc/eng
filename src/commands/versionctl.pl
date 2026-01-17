@@ -1,5 +1,7 @@
 :- module(vctl, [ vctl_cmd/3, vctl_focus/1, vctl_help/1, vctl_help/2,
                   vctl_help_internal/2,
+                  sort_subprojects/3,
+                  sort_subprojects/4,
                   % These are internal helpers for other modules to use:
                   vctl_subproj_local_dir/2,
                   vctl_subproj_remote_repo/3
@@ -648,13 +650,50 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 % user
 vctl_subprojects(Context, SubProjects) :-
     setof(S, eng:key(vctl, subproject, S), SPS),
-    predsort(dependency_sort(Context), SPS, SubProjects).
-    %% SubProjects = SPS.
+    sort_subprojects(Context, SPS, SubProjects).
 
-dependency_sort(Context, '>', P1, P2) :- vctl_subproj_local_dir(P1, LclDir),
-                                         proj_dependency(Context, LclDir, P2), !.
-dependency_sort(_, '=', P1, P1) :- !.
-dependency_sort(_, '<', _, _).  % Called from setof output, so there are no duplicates
+direct(X, X).
+
+sort_subprojects(Context, SPS, SubProjects) :-
+    sort_subprojects(Context, SPS, SubProjects, direct).
+
+sort_subprojects(Context, SubProjects, SortedSubProjects, EntryToName) :-
+    sort_subprojs(Context, EntryToName, SubProjects, [], [], SortedSubProjects).
+sort_subprojs(Context, EntryToName, [S|SS], DepSort, Other, SortedSubProjects) :-
+    call(EntryToName, S, SName),
+    vctl_subproj_local_dir(SName, SDir),
+    exists_context_subdir(Context, SDir),
+    !,
+    insert_dep_subproj(Context, EntryToName, S, DepSort, DepSortWithS),
+    sort_subprojs(Context, EntryToName, SS, DepSortWithS, Other, SortedSubProjects).
+sort_subprojs(Context, EntryToName, [S|SS], DepSort, Other, SortedSubProjects) :-
+    sort_subprojs(Context, EntryToName, SS, DepSort, [S|Other], SortedSubProjects).
+sort_subprojs(Context, EntryToName, [], DepSort, [R|Rem], SortedSubProjects) :-
+    insert_subprojs_alpha(EntryToName, DepSort, R, DepSortWithR),
+    sort_subprojs(Context, EntryToName, [], DepSortWithR, Rem, SortedSubProjects).
+sort_subprojs(_, _, [], DepSort, [], DepSort).
+insert_dep_subproj(_, _, S, [], [S]).
+insert_dep_subproj(_, _, S, [S|DepSort], [S|DepSort]).
+insert_dep_subproj(Context, EntryToName, S, [D|DepSort], [S,D|DepSort]) :-
+    call(EntryToName, D, DName),
+    vctl_subproj_local_dir(DName, DSub),
+    context_subdir(Context, DSub, DDir),
+    call(EntryToName, S, SName),
+    proj_dependency(Context, DDir, SName),
+    !.
+insert_dep_subproj(Context, EntryToName, S, [D|DepSort], [D|DepSortWithS]) :-
+    insert_dep_subproj(Context, EntryToName, S, DepSort, DepSortWithS).
+insert_subprojs_alpha(_, [], S, [S]).
+insert_subprojs_alpha(EntryToName, [D|Deps], S, [D|DepsWithS]) :-
+    call(EntryToName, D, DName),
+    call(EntryToName, S, SName),
+    compare('<', DName, SName),
+    insert_subprojs_alpha(EntryToName, Deps, S, DepsWithS).
+insert_subprojs_alpha(EntryToName, [D|Deps], S, Deps) :-
+    call(EntryToName, D, DName),
+    call(EntryToName, S, SName),
+    compare('=', DName, SName).
+insert_subprojs_alpha(_, Deps, S, [S|Deps]).
 
 
 % Get the subprojects and the local directory (whether it exists or not).
