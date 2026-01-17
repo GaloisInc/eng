@@ -328,10 +328,10 @@ vctl_status(Context, git(VCSDir), [Scope|_Args], Sts) :-
     vctl_subproj_preface(TopDir, Preface),
     writeln(Preface),
     vctl_git_status(Context, VCSDir, Scope, Sts).
-vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, Sts) :-
+vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, [Sts, BldSts]) :-
     !,
     vctl_status(Context, git(VCSDir), Args, Sts),
-    vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), Args, _).
+    vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), Args, BldSts).
 vctl_status(Context, darcs(VCSDir), [Scope|_Args], Sts) :-
     !,
     context_topdir(Context, TopDir),
@@ -424,7 +424,7 @@ vctl_darcs_status(_, _, [Scope|_Args], sts(status, 1)) :-
 %% ------------------------------
 
 vctl_build_status(_, _, [local|_Args], 0) :- !.
-vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, 0) :-
+vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, Sts) :-
     !,
     git_remote_head(Context, VCSDir, Fetch_SHA), % TODO if local git repo, doesn't get *current* remote head, just remote head from this revision!
     git_build_status_url(URL, Fetch_SHA, StatusURL),
@@ -443,7 +443,8 @@ vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, 0) :-
     ),
     member(host(RH), URL),
     member(path(RP), URL),
-    show_bld_status(RH, RP, BldStatus).
+    show_bld_status(RH, RP, BldStatus),
+    bld_endmsg(Context, BldStatus, Sts).
 vctl_build_status(Context, darcs(_, Parent), Args, Sts) :-
     !, vctl_build_status(Context, Parent, Args, Sts).
 vctl_build_status(_Context, _VCSTool, _Args, 0) :-
@@ -458,6 +459,12 @@ show_bld_status_(RH, RP, F, S) :-
     ansi_format(F, '~w~t~10|', [S]),
     format('~w ~w build status', [RH, RP]),
     writeln('').
+
+bld_endmsg(_, "success", 0).
+bld_endmsg(_, "no CI", 0).
+bld_endmsg(Context, BldSts, end_msg(R, M)) :-
+    context_reltip(Context, R),
+    format(atom(M), 'build ~w', [BldSts]).
 
 %% --------------------
 
