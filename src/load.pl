@@ -177,8 +177,8 @@ eng_cmd_help(Context, Cmd, HelpInfo) :-
 %
 % This must be called from somewhere within a tree; not finding an engfile
 % anywhere above the current point is an error.
-find_engfile_dir(EngfileDirPattern, EngDir) :-
-    find_engfile_tree(EngfileDirPattern, Tree),
+find_engfile_dir(EngfileDirPattern, TipTopDir, EngDir) :-
+    find_engfile_tree(EngfileDirPattern, TipTopDir, Tree),
     select_engfile_dir(Tree, EngDir).
 
 select_engfile_dir(engnode(_,SS), EngDir) :-
@@ -192,7 +192,7 @@ safe_directory_files(Dir, Files) :-
           error(syntax_error(illegal_multibyte_sequence), _),
           Files = []).
 
-find_engfile_tree(EngfileDirPattern, EngDirs) :-
+find_engfile_tree(EngfileDirPattern, TopDir, EngDirs) :-
     absolute_file_name(EngfileDirPattern, AbsDir), % AbsDir is CWD+/_eng_
     file_directory_name(AbsDir, Main),
     find_topmost_engfile_dir(EngfileDirPattern, Main, TopEng),
@@ -245,10 +245,14 @@ normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 
 ingest_engfiles(Context, Parsed) :-
     ingest_engfiles(Context, Parsed, informational).
-ingest_engfiles(context(EngDir, TopDir), Parsed, Verbosity) :-  % <- where context gets set!
+ingest_engfiles(context(EngDir, TopDir, RelTip), Parsed, Verbosity) :-  % <- where context gets set!
     engfile_dir(EngfileDirPattern),
-    find_engfile_dir(EngfileDirPattern, EngDir),
+    find_engfile_dir(EngfileDirPattern, TipTopDir, EngDir),
     file_directory_name(EngDir, TopDir),
+    ( TipTopDir = TopDir
+    -> RelTip = '<here>'
+    ; directory_file_path(TipTopDir, RelTip, TopDir)
+    ),
     safe_directory_files(EngDir, Files),
     ingest_files(Verbosity, EngDir, Files, Parsed).
 

@@ -640,7 +640,8 @@ vls(Context, [_|SS], SPDS) :- vls(Context, SS, SPDS).
 vctl_subproj_preface(Name, Preface) :-
     format(atom(Preface), '#____ ~w :: ', [Name]).
 
-vctl_subproj_context(Context, SubProjDir, context(EngDir, SPDir)) :-
+vctl_subproj_context(Context, SubProjDir,
+                     context(EngDir, SPDir, SubProjDir)) :-
     context_topdir(Context, TopDir),
     context_engdir(Context, EngDir),
     directory_file_path(TopDir, SubProjDir, SPDir).

@@ -21,6 +21,7 @@
                     exists_context_subdir/2,
                     context_topdir/2,
                     context_engdir/2,
+                    context_reltip/2,
                     format_str/3,
                     format_lines/2,
                     write_strings/2,
@@ -167,7 +168,7 @@ ensure_dir(Dir) :- directory_file_path(Parent, _, Dir),
                    ensure_dir(Parent),
                    (exists_directory(Dir), !; make_directory(Dir)).
 
-context_subdir(context(_, TopDir), SubDir, AbsPath) :-
+context_subdir(context(_, TopDir, _), SubDir, AbsPath) :-
     directory_file_path(TopDir, SubDir, AbsPath), !.
 
 ensure_context_subdir(Context, SubDir) :-
@@ -178,8 +179,9 @@ exists_context_subdir(Context, SubDir) :-
 
 % Extractors for fields of context, which is initialized by ingest_engfiles in
 % load.pl
-context_topdir(context(_, TopDir), TopDir).
-context_engdir(context(EngDir, _), EngDir).
+context_topdir(context(_, TopDir, _), TopDir).
+context_engdir(context(EngDir, _, _), EngDir).
+context_reltip(context(_, _, RelTip), RelTip).
 
 
 is_success(0).
