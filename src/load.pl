@@ -196,7 +196,7 @@ find_engfile_tree(EngfileDirPattern, EngDirs) :-
     file_directory_name(AbsDir, Main),
     find_topmost_engfile_dir(EngfileDirPattern, Main, TopEng),
     file_directory_name(TopEng, TopDir),
-    find_engfile_dirs(EngfileDirPattern, TopDir, EngDirs),
+    find_engfile_dirs(EngfileDirPattern, TopDir, TopDir, EngDirs),
     !.
 find_topmost_engfile_dir(EngfileDirPattern, InDir, Result) :-
     file_directory_name(InDir, ParentDir),
@@ -205,7 +205,7 @@ find_topmost_engfile_dir(EngfileDirPattern, InDir, Result) :-
 find_topmost_engfile_dir(EngfileDirPattern, ParentDir, Result) :-
     directory_file_path(ParentDir, EngfileDirPattern, Result),
     exists_directory(Result).
-find_engfile_dirs(EngfileDirPattern, Here, Tree) :-
+find_engfile_dirs(EngfileDirPattern, TopDir, Here, Tree) :-
     safe_directory_files(Here, AllHere),
     atom_string(AEngfileDirPattern, EngfileDirPattern),
     findall(D, (member(E, AllHere),
@@ -215,7 +215,8 @@ find_engfile_dirs(EngfileDirPattern, Here, Tree) :-
                              ]),
                 directory_file_path(Here, E, Subdir),
                 exists_directory(Subdir),
-                find_engfile_dirs(EngfileDirPattern, Subdir, D)), SubTreeEnts),
+                \+ is_subdir_of(TopDir, Subdir),
+                find_engfile_dirs(EngfileDirPattern, TopDir, Subdir, D)), SubTreeEnts),
     normalize_subtrees(SubTreeEnts, SubTree),
     list_to_set(SubTree, SubTreeSet),
     (append(SubTreeSet, STree) ; STree = SubTreeSet),
@@ -229,6 +230,11 @@ find_engfile_here_subs(EngfileDirPattern, Here, Subs, engnode(EngDir, Subs)) :-
     exists_directory(EngDir),
     !.
 find_engfile_here_subs(_, _, Subs, Subs) :- !.
+
+is_subdir_of(TopDir, SubDir) :-
+    absolute_file_name(SubDir, SubAbs),
+    absolute_file_name(TopDir, TopAbs),
+    append(TopAbs, _SubRel, SubAbs).
 
 normalize_subtrees([], []).
 normalize_subtrees([[]|ES], OS) :- !, normalize_subtrees(ES, OS).
