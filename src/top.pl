@@ -86,7 +86,7 @@ run_each_eng_cmd(Cmd, CmdArgs) :-
 % *all* operations for *all* Names succeeds, or--when single_success_ok is
 % true--one operation for every name succeeds.
 %
-postproc(AllSts, Sts) :- postproc_(AllSts, [], -1, Sts).
+postproc(AllSts, ExitCode) :- postproc_(AllSts, [], -1, ExitCode).
 % ...end of status list
 postproc_([], [], -1, 0) :- !.  % nothing ran
 postproc_([], [], 0, 0) :- !.  % successful and no msgs
@@ -103,8 +103,8 @@ postproc_([unknown(N, M)|ES], Msgs, SumSts, Sts) :-
     postproc_unk_(N, [M], ES, Msgs, UpdMsgs, RES),
     postproc_(RES, UpdMsgs, SumSts, Sts).
 postproc_([sts(N, X)|ES], Msgs, SumSts, Sts) :-
-    postproc_unk_(N, sts, ES, Msgs, UpdMsgs, RES),
-    postproc_([X|RES], UpdMsgs, SumSts, Sts).
+    postproc_sts_(N, ES, RES),
+    postproc_([X|RES], Msgs, SumSts, Sts).
 postproc_([E|ES], Msgs, SumSts, Sts) :-
     number(E),
     SSts is E + max(0, SumSts),
@@ -119,18 +119,15 @@ postproc_([Msg|ES], Msgs, SumSts, Sts) :-
 
 % Found unknown(N, Msg), so scan Other for sts(N, X) and if found, remove all
 % unknown(N, Msg) from Rem, otherwise convert them all to sts(N, Msg).
-postproc_unk_(_, sts, [], Msgs, Msgs, []).  % reached end, had sts, return msgs
 postproc_unk_(_, NMsgs, [], Msgs, OutMsgs, []) :-
     % reached end, no sts found, unknowns for N are are msgs now
     append([NMsgs, Msgs], OutMsgs).
-postproc_unk_(N, sts, [unknown(N, _)|Other], Msgs, OutMsgs, Rem) :-
-    % found a sts, drop this unknown
-    postproc_unk_(N, sts, Other, Msgs, OutMsgs, Rem).
 postproc_unk_(N, NMsgs, [unknown(N, M)|Other], Msgs, OutMsgs, Rem) :-
+    % another unknown for this same name: accumulate their messages
     postproc_unk_(N, [M|NMsgs], Other, Msgs, OutMsgs, Rem).
-postproc_unk_(N, _, [sts(N, S)|Other], Msgs, OutMsgs, [sts(N, S)|Rem]) :-
+postproc_unk_(N, _, [sts(N, S)|Other], Msgs, Msgs, [sts(N, S)|Rem]) :-
     % found a sts, drop all unknown by setting UMsgs to sts
-    postproc_unk_(N, sts, Other, Msgs, OutMsgs, Rem).
+    postproc_sts_(N, Other, Rem).
 postproc_unk_(N, NMsgs, [L|Other], Msgs, OutMsgs, Rem) :-
     is_list(L),
     append(L, Other, Flat),
@@ -138,6 +135,11 @@ postproc_unk_(N, NMsgs, [L|Other], Msgs, OutMsgs, Rem) :-
 postproc_unk_(N, NMsgs, [OtherSts|Other], Msgs, OutMsgs, [OtherSts|Rem]) :-
     \+ is_list(OtherSts),
     postproc_unk_(N, NMsgs, Other, Msgs, OutMsgs, Rem).
+
+% Found sts(N, S), so drop all unknown(N, Msg)
+postproc_sts_(_, [], []).
+postproc_sts_(N, [unknown(N, _)|ES], RES) :- !, postproc_sts(N, ES, RES).
+postproc_sts_(N, [E|ES], [E|RES]) :- postproc_sts_(N, ES, RES).
 
 
 show_msgs([]).
