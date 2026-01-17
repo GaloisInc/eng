@@ -75,8 +75,7 @@ system_help(verify, "Verify implementation has tests for all requirements").
 
 system_known_specification_types([ "lando" ]).
 
-system_cmd(_, ['list'|_], 0) :-
-    writeln('Known system specifications:'), show_system_specs(_); true.
+system_cmd(_, ['list'|_], 0) :- show_system_specs(_); true.
 
 system_cmd(_, ['validate'], specify_ssl_id) :- !.
 system_cmd(Context, ['validate', 'ALL'], Result) :-

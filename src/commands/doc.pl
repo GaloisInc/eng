@@ -42,7 +42,7 @@ doc_help(lando, "Run Lando requirements engineering operations").
 
 %% ----------------------------------------
 
-doc_cmd(_, [list|_Args], 0) :- writeln('Known documents:'), show_doc(_) ; true.
+doc_cmd(_, [list|_Args], 0) :- show_doc(_) ; true.
 
 doc_cmd(_, [info], specify_doc_id) :- !.
 doc_cmd(_, [info,Doc|_Args], sts(Doc, 0)) :- doc_info(Doc), !.
