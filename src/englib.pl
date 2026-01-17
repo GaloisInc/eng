@@ -183,6 +183,7 @@ context_engdir(context(EngDir, _), EngDir).
 
 
 is_success(0).
+is_success(end_msg(_)).
 is_success(sts(_, S)) :- is_success(S).
 is_success([]).
 is_success([S|SS]) :- is_success(S), is_success(SS).

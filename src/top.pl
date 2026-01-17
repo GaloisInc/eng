@@ -69,9 +69,14 @@ run_each_eng_cmd(Cmd, CmdArgs) :-
 %
 % * a message to be displayed with print_message (error severity)
 %
-% * a sts(Name, message) value [see below for Name handling]
+% * a sts(Name, Message) value [see below for Name handling], assumed to be an
+%   error (non-zero value).
 %
-% * an unknown(Name, message) value [see below for Name handling]
+% * a sts(Name, end_msg(Message)) value [see below for Name handlng], with an
+%   assumed success (zero) value, and a message to be displayed at the end;
+%   sub-eng's with the same message may be combined.
+%
+% * an unknown(Name, Message) value [see below for Name handling]
 %
 % * a list to be processed recursively.
 %
@@ -102,6 +107,10 @@ postproc_([], Msgs, SumSts, Sts) :-
 postproc_([unknown(N, M)|ES], Msgs, SumSts, Sts) :-
     postproc_unk_(N, [M], ES, Msgs, UpdMsgs, RES),
     postproc_(RES, UpdMsgs, SumSts, Sts).
+postproc_([sts(N, end_msg(M))|ES], Msgs, SumSts, Sts) :-
+    !,
+    postproc_sts_(N, ES, RES),
+    postproc_(RES, [end_msg(N, M)|Msgs], SumSts, Sts).
 postproc_([sts(N, X)|ES], Msgs, SumSts, Sts) :-
     postproc_sts_(N, ES, RES),
     postproc_([X|RES], Msgs, SumSts, Sts).
@@ -142,14 +151,30 @@ postproc_sts_(N, [unknown(N, _)|ES], RES) :- !, postproc_sts(N, ES, RES).
 postproc_sts_(N, [E|ES], [E|RES]) :- postproc_sts_(N, ES, RES).
 
 
-show_msgs([]).
-show_msgs([help(M)|Msgs]) :-
+show_msgs(Msgs) :-
+    show_msgs(Msgs, Ends),
+    show_endmsgs(Ends).
+show_msgs([], []).
+show_msgs([help(M)|Msgs], GEMs) :-
     !,
     writeln(M),
-    show_msgs(Msgs).
-show_msgs([M|Msgs]) :-
+    show_msgs(Msgs, GEMs).
+show_msgs([end_msg(N, M)|Msgs], [end_msg(N, M)|GEMs]) :-
+    !,
+    show_msgs(Msgs, GEMs).
+show_msgs([M|Msgs], GEMs) :-
     print_message(error, M),
-    show_msgs(Msgs).
+    show_msgs(Msgs, GEMs).
+show_endmsgs([]).
+show_endmsgs([end_msg(N, M)|GEMs]) :-
+    partition(same_endmsg(M), GEMs, SameMsg, OtherMsg),
+    collect_names([end_msg(N,M)|SameMsg], NS),
+    print_message(information, endmsgs(M, NS)),
+    show_endmsgs(OtherMsg).
+same_endmsg(M, end_msg(_, M)).
+
+collect_names([], []).
+collect_names([end_msg(N, _)|GEMs], [N|NS]) :- collect_names(GEMs, NS).
 
 run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
     % Runs all commands that do not take a Context.  This is essentially invoked
@@ -182,6 +207,12 @@ show_help :-
     known_command_info(Info),
     writeln(Info).
 
+prolog:message(endmsgs(Msg, NameList)) -->
+    { intercalate(NameList, ", ", Names),
+      length(NameList, NumNames)
+
+    },
+    [ '~w/~w: ~w' - [ Msg, NumNames, Names ] ].
 prolog:message(run_cmd_in_context(Cmd, [], Context)) -->
     { context_topdir(Context, TopDir) },
     % NABLA 2207 ∇
