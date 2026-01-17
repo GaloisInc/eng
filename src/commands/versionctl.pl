@@ -352,7 +352,11 @@ vctl_git_status(Context, VCSDir, local, Sts) :-
     % This one is for the human
     do_exec(Context, 'vcs git status', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} status -s'],
-            [], TopDir, Sts).
+            [], TopDir, ExecSts),
+    (is_success(ExecSts)
+    -> vctl_git_status_finalmsg(Context, VCSDir, local, ExecSts, Sts)
+    ; Sts = ExecSts
+    ).
 vctl_git_status(Context, VCSDir, full, Sts) :-
     context_topdir(Context, TopDir),
     do_exec(Context, 'vcs git status', [ 'VCSDir' = VCSDir ],
@@ -364,11 +368,40 @@ vctl_git_status(_, _, Scope, sts(status, 1)) :-
     \+ member(Scope, [ local, full ]),
     print_message(error, invalid_scope(Scope)).
 
+vctl_git_status_finalmsg(Context, VCSDir, local, ExecSts, Sts) :-
+    context_topdir(Context, TopDir),
+    % this one is for the machine
+    do_exec(Context, 'vcs git endsts', [ 'VCSDir' = VCSDir ],
+            capture(["git", "-C", "{VCSDir}", "diff", "--quiet"]),
+            [], TopDir, _)
+    -> (do_exec(Context, 'vcs git endsts', [ 'VCSDir' = VCSDir ],
+                capture(["git", "-C", "{VCSDir}", "diff", "--quiet", "--cached"]),
+                [], TopDir, _)
+       -> Sts = 0   % there were no changes
+       ; context_reltip(Context, RelTip),
+         Sts = [sts(RelTip, end_msg('local changes')), ExecSts]
+       )
+    ; context_reltip(Context, RelTip),
+      Sts = [sts(RelTip, end_msg('local changes')), ExecSts].
+
+
 vctl_darcs_status(Context, VCSDir, local, Sts) :-
     context_topdir(Context, TopDir),
     do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
-            ['darcs whatsnew --repodir={VCSDir} -l || true'],  % returns 1 if no unrecorded changes
-            [], TopDir, Sts).
+            "darcs whatsnew --repodir={VCSDir} -l || if [ $? -eq 1 ] ; then true; fi",  % returns 1 if no unrecorded changes
+            [], TopDir, ExecSts),
+    (do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
+             capture(["darcs", "whatsnew", "--repodir={VCSDir}", "-l"]),
+             [], TopDir, _)
+    -> (context_reltip(Context, RelTip),
+        Sts = [sts(RelTip, end_msg('local changes')), ExecSts]
+       )
+    ; % completed with error: either no changes or a different problem (e.g. no
+      % such dir).  Since we already ran an unadorned darcs command that would
+      % have caught such errors, assume here we want to indicate there were no
+      % changes
+      Sts = ExecSts
+    ).
 vctl_darcs_status(Context, VCSDir, full, Sts) :-
     vctl_darcs_status(Context, VCSDir, local, Sts),
     % The remote checks are executed separately so that (a) the local changes
