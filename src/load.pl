@@ -106,7 +106,8 @@ known_subcommands(Cmd, SubCmds) :-
 show_subcmd_focus(Cmd, SubCmd, CmdType, [OutStr]) :-
     get_subcmd_focus(Cmd, SubCmd, CmdType, OutStr).
 show_subcmd_focus(Cmd, SubCmd, CmdType, OutStr) :-
-    ingest_engfiles(_Context, Refs, silent),
+    ingest_engfiles(_Context, Parsed, silent),
+    findall(R, (member(P, Parsed), assert_eqil(P, R)), Refs),
     findall(O, get_subcmd_focus(Cmd, SubCmd, CmdType, O), OutStr),
     erase_refs(Refs).
 get_subcmd_focus(Cmd, SubCmd, CmdType, OutStr) :-
@@ -242,14 +243,14 @@ normalize_subtrees([[E]|ES], [OS]) :- !, normalize_subtrees([E|ES], OS).
 normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 
 
-ingest_engfiles(context(EngDir, TopDir), Refs) :-
-    ingest_engfiles(context(EngDir, TopDir), Refs, informational).
-ingest_engfiles(context(EngDir, TopDir), Refs, Verbosity) :-
+ingest_engfiles(context(EngDir, TopDir), Parsed) :-
+    ingest_engfiles(context(EngDir, TopDir), Parsed, informational).
+ingest_engfiles(context(EngDir, TopDir), Parsed, Verbosity) :-
     engfile_dir(EngfileDirPattern),
     find_engfile_dir(EngfileDirPattern, EngDir),
     file_directory_name(EngDir, TopDir),
     safe_directory_files(EngDir, Files),
-    ingest_files(Verbosity, EngDir, Files, Refs).
+    ingest_files(Verbosity, EngDir, Files, Parsed).
 
 ingest_user_engfiles(Refs) :-
     absolute_file_name("~/.config/eng", UserConfigDir,
@@ -259,18 +260,19 @@ ingest_user_engfiles(Refs) :-
                          expand(true) ]),
     exists_directory(UserConfigDir), !,
     safe_directory_files(UserConfigDir, Files),
-    ingest_files(informational, UserConfigDir, Files, Refs).
+    ingest_files(informational, UserConfigDir, Files, Parsed),
+    assert_eqil(Parsed, Refs).
 ingest_user_engfiles([]).
 
-ingest_files(Verbosity, Dir, Files, Refs) :-
-    findall(R, ingest_files(Verbosity, Dir, Files, each, R), AllRefs),
-    append(AllRefs, Refs).
-ingest_files(Verbosity, Dir, Files, each, Refs) :-
+ingest_files(Verbosity, Dir, Files, Parsed) :-
+    findall(R, ingest_files(Verbosity, Dir, Files, each, R), AllParses),
+    append(AllParses, Parsed).
+ingest_files(Verbosity, Dir, Files, each, Parsed) :-
     member(File, Files),
     directory_file_path(Dir, File, FilePath),
-    ingest_file(Verbosity, FilePath, Refs).
+    ingest_file(Verbosity, FilePath, Parsed).
 
-ingest_file(Verbosity, File, Refs) :-
+ingest_file(Verbosity, File, ParseResult) :-
     % Process files with an .eng extension that aren't hidden files (start with a
     % period).
     file_name_extension(_, ".eng", File),
@@ -281,13 +283,11 @@ ingest_file(Verbosity, File, Refs) :-
     print_message(Verbosity, reading_eng_file(File)),
     parse_eng_eqil(File, Contents, Parsed),
     ( normalize_eqil(Parsed, Normalized), !,
-      reprocess_eng_file(File, Normalized, Refs)
-    ; (assert_eqil(Parsed, Refs), !
-      ; print_message(error, eqil_nesting_too_deep(File)), Refs = []
-      )
+      reprocess_eng_file(File, Normalized, ParseResult)
+    ; ParseResult = Parsed
     ).
 
-reprocess_eng_file(File, Updated_EQIL, Refs) :-
+reprocess_eng_file(File, Updated_EQIL, Parsed) :-
     !,
     emit_eqil(Updated_EQIL, OutText),
     string_concat(File, ".new", NewFile),
@@ -296,10 +296,7 @@ reprocess_eng_file(File, Updated_EQIL, Refs) :-
     close(Out),
     rename_file(NewFile, File),
     print_message(informational, rewrote_eng_file(File)), !,
-    parse_eng_eqil(File, OutText, Parsed),
-    ( assert_eqil(Parsed, Refs), !
-    ; print_message(error, eqil_nesting_too_deep(File)), Refs = []
-    ).
+    parse_eng_eqil(File, OutText, Parsed).
 
 erase_refs([]).
 erase_refs([E|ES]) :- erase(E), erase_refs(ES).
@@ -315,7 +312,8 @@ prolog:message(no_defined_subcmds(Cmd)) -->
 prolog:message(invalid_subcmd(Cmd, context(EngDir, TopDir), SubCmd)) -->
     [ 'Invalid "~w" sub-command in ~w: ~w~n' - [ Cmd, TopDir, SubCmd ] ],
     {
-        ingest_engfiles(context(EngDir, TopDir), Refs, silent),
+        ingest_engfiles(context(EngDir, TopDir), Parsed, silent),
+        assert_eqil(Parsed, Refs),
         known_subcommands(Cmd, CS),
         erase_refs(Refs)
     },

@@ -1,4 +1,6 @@
 :- use_module(load).
+:- use_module('src/datafmts/eqil').
+:- use_module('src/englib').
 
 main :- load_eng, run_eng_cmd
         ; show_help, halt(0).
@@ -154,11 +156,18 @@ run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
     % they would then be invoked multiple times for each Context.
     call_eng_cmd(Cmd, CmdArgs, Sts).
 run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
-    ingest_engfiles(Context, Refs), % backtraces here for each set of possible
-                                    % ingestions (sub-projects), creating a
-                                    % Context for each.
-    call_eng_cmd(Context, Cmd, CmdArgs, Sts),
-    erase_refs(Refs).
+    findall((Context, Parsed), ingest_engfiles(Context, Parsed), AllConPars),
+    length(AllConPars, NumCons),
+    run_eng_cmd_each_(Cmd, CmdArgs, NumCons, AllConPars, Sts).
+run_eng_cmd_each_(_, _, _, [], []).
+run_eng_cmd_each_(Cmd, CmdArgs, N, [(Context, Parsed)|CPS], [S|SS]) :-
+    (N = 1, ! ;
+     print_message(informational, run_cmd_in_context(Cmd, CmdArgs, Context))
+    ),
+    assert_eqil(Parsed, Refs),
+    call_eng_cmd(Context, Cmd, CmdArgs, S),
+    erase_refs(Refs),
+    run_eng_cmd_each_(Cmd, CmdArgs, N, CPS, SS).
 
 show_help(NoCmd) :-
     print_message(error, cmd_not_found(NoCmd)),
@@ -166,10 +175,18 @@ show_help(NoCmd) :-
     halt(1).
 
 show_help :-
-    findall(C, ingest_engfiles(C, _), _), % for assert_engfile side-effects
+    findall(Refs, (ingest_engfiles(_, P), assert_eqil(P, Refs)), _AllRefs),
     format('Known eng commands:~n'),
     known_command_info(Info),
     writeln(Info).
+
+prolog:message(run_cmd_in_context(Cmd, [], Context)) -->
+    { context_topdir(Context, TopDir) },
+    % NABLA 2207 ∇
+    [ '∇∇∇∇∇∇∇∇ ~w ~w :' - [ TopDir, Cmd ] ].
+prolog:message(run_cmd_in_context(Cmd, [A|_], Context)) -->
+    { context_topdir(Context, TopDir) },
+    [ '∇∇∇∇∇∇∇∇ ~w ~w ~w :' - [ TopDir, Cmd, A ] ].
 
 prolog:message(cmd_not_found(Cmd))  -->
     [ 'Sorry, command "~w" does not exist or is implemented erroneously.'-[Cmd] ].
