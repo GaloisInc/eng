@@ -1,7 +1,6 @@
 :- module(vctl, [ vctl_cmd/3, vctl_focus/1, vctl_help/1, vctl_help/2,
                   vctl_help_internal/2,
-                  sort_subprojects/3,
-                  sort_subprojects/4,
+                  sort_subprojects/2,
                   % These are internal helpers for other modules to use:
                   vctl_subproj_local_dir/2,
                   vctl_subproj_remote_repo/3
@@ -14,6 +13,7 @@
 :- use_module(library(http/http_client)).
 :- use_module(library(http/http_json)).
 :- use_module(library(ssl)).
+:- use_module(library(thread)).
 :- use_module(library(url)).
 :- use_module(library(yall)).
 :- use_module('../englib').
@@ -163,19 +163,9 @@ vctl_cmd(Context, [subproj], sts(subproj, 0)) :-
 vctl_cmd(Context, [subproj], unknown(subproj, no_subprojects(Here))) :-
     context_engdir(Context, Here).
 
-vctl_cmd(Context, [subproj,clone],
-         unknown(subproj_clone, no_subprojects(Here))) :-
-    context_topdir(Context, Here),
-    vctl_subprojects(Context, []),
-    !.
-vctl_cmd(Context, [subproj,clone], sts(subproj_clone, 1)) :-
-    vctl_subprojects(Context, SS),
-    length(SS, NSS),
-    format('Please specify one or more subprojects to clone of ~d:~n', [NSS]),
-    maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
-    intercalate(OS, '\n', OSS),
-    writeln(OSS),
-    writeln('  * ALL'), !.
+vctl_cmd(Context, [subproj,clone], Sts) :-
+    vctl_subprojects(Context, SS),  % <- this is expensive, do it only once
+    vctl_subproj_cloner_(Context, SS, Sts).
 vctl_cmd(Context, [subproj,clone,'ALL'], Sts) :-
     vcs_tool(Context, VCTool),
     !,
@@ -185,20 +175,9 @@ vctl_cmd(Context, [subproj,clone|Args], Sts) :-
     !,
     findall(E, (member(N, Args), vctl_subproj_clone(Context, VCTool, N, E)), Sts).
 
-vctl_cmd(Context, [subproj,remove],
-         unknown(subproj_rmv, no_subprojects(Here))) :-
-    context_topdir(Context, Here),
-    vctl_subprojects(Context, []), !.
-vctl_cmd(Context, [subproj,remove], sts(subproj_rmv, sts(subproj_rmv, 1))) :-
-    vctl_local_subprojects(Context, SS),
-    (SS == []
-    -> writeln('No subprojects locally cloned; nothing to remove.')
-    ; writeln('Please specify one or more subprojects to remove:'),
-      maplist([(S,_),O]>>format(atom(O), '  * ~w', [S]), SS, OS),
-      intercalate(OS, '\n', OSS),
-      writeln(OSS),
-      writeln('  * ALL')
-    ), !.
+vctl_cmd(Context, [subproj,remove], Sts) :-
+    vctl_subprojects(Context, SubProjs), % <- this is expensive, do it only once
+    vctl_subproj_remover_(Context, SubProjs, Sts).
 vctl_cmd(Context, [subproj,remove,'ALL'], Sts) :-
     vcs_tool(Context, VCTool), !,
     findall(E, (vctl_subproj_remove(Context, VCTool, _, E)), Sts), !.
@@ -212,6 +191,30 @@ vctl_cmd(Context, [Cmd|Args], Sts) :-
     exec_subcmd_do(Context, vctl, Cmd, Args, Sts).
 vctl_cmd(Context, [Cmd|_], invalid_subcmd(vctl, Context, Cmd)).
 
+
+vctl_subproj_cloner_(Context, [], unknown(subproj_clone, no_subprojects(Here))) :-
+    context_topdir(Context, Here), !.
+vctl_subproj_cloner_(_Context, SS, sts(subproj_clone, 1)) :-
+    length(SS, NSS),
+    format('Please specify one or more subprojects to clone of ~d:~n', [NSS]),
+    maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
+    intercalate(OS, '\n', OSS),
+    writeln(OSS),
+    writeln('  * ALL'), !.
+
+
+vctl_subproj_remover_(Context, [], unknown(subproj_rmv, no_subprojects(Here))) :-
+    context_topdir(Context, Here), !.
+vctl_subproj_remover_(Context, SubProjs, sts(subproj_rmv, sts(subproj_rmv, 1))) :-
+    vctl_local_subprojects(Context, SubProjs, SS),
+    (SS == []
+    -> writeln('No subprojects locally cloned; nothing to remove.')
+    ; writeln('Please specify one or more subprojects to remove:'),
+      maplist([(S,_),O]>>format(atom(O), '  * ~w', [S]), SS, OS),
+      intercalate(OS, '\n', OSS),
+      writeln(OSS),
+      writeln('  * ALL')
+    ), !.
 
 % ----------------------------------------------------------------------
 %% Determine the VCS tool used for this project working directory.
@@ -651,56 +654,56 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 % user
 vctl_subprojects(Context, SubProjects) :-
     setof(S, eng:key(vctl, subproject, S), SPS),
-    sort_subprojects(Context, SPS, SubProjects).
+    concurrent_maplist(get_projdeps(Context), SPS, SPDS),
+    sort_subprojects(SPDS, SortedSubProjects),
+    !,
+    concurrent_maplist(getname, SortedSubProjects, SubProjects).
 
-direct(X, X).
+get_projdeps(Context, SName, subproj_and_depcheck(SName, Checker)) :-
+    vctl_subproj_local_dir(SName, SSub),
+    context_subdir(Context, SSub, SDir),
+    get_dependency_checker(Context, SDir, Checker).
+get_projdeps(_, SName, subproj_no_depcheck(SName)).
+
+getname(subproj_and_depcheck(N, _), N).
+getname(subproj_no_depcheck(N), N).
 
 % /3 (primary)
-sort_subprojects(Context, SPS, SubProjects) :-
-    sort_subprojects(Context, SPS, SubProjects, direct).
+sort_subprojects(SPS, SubProjects) :-
+    sort_subprojects(SPS, SubProjects, getname).
 
 % /4 (helper: launch)
-sort_subprojects(Context, SubProjects, SortedSubProjects, EntryToName) :-
-    sort_subprojs(Context, EntryToName, SubProjects, [], [], SortedSubProjects).
+sort_subprojects(SubProjects, SortedSubProjects, EntryToName) :-
+    sort_subprojs(EntryToName, SubProjects, [], [], SortedSubProjects).
 
 % /6 (helper: worker)
-sort_subprojs(Context, EntryToName, [S|SS], DepSort, Other, SortedSubProjects) :-
-    % fill or postpone: if we have local information for subproj S, we can
-    % determine its dependencies and insert it in the proper place in DepSort;
-    % otherwise, we postpone it to add it later.
-    call(EntryToName, S, SName),
-    vctl_subproj_local_dir(SName, SDir),
-    (exists_context_subdir(Context, SDir)
-    -> (insert_dep_subproj(Context, EntryToName, S, DepSort, DepSortWithS),
-        UpdOther = Other
-       )
-    ; (DepSortWithS = DepSort,
-       UpdOther = [S|Other]
-      )
-    ),
-    sort_subprojs(Context, EntryToName, SS, DepSortWithS, UpdOther, SortedSubProjects).
-sort_subprojs(_Context, EntryToName, [], DepSort, Rem, SortedSubProjects) :-
+sort_subprojs(N, [subproj_no_depcheck(S)|SS], DS, Other, R) :-
+    % No dependency checker: defer to end where this S will just be added
+    % alphabetically.
+    sort_subprojs(N, SS, DS, [subproj_no_depcheck(S)|Other], R).
+sort_subprojs(ToName, [SC|SS], DepSort, Other, Ret) :-
+    % Insert this SC = subproj_and_depcheck(S,C) in dependency order
+    insert_dep_subproj(ToName, SC, DepSort, DepSortWithS),
+    sort_subprojs(ToName, SS, DepSortWithS, Other, Ret).
+sort_subprojs(ToName, [], DepSort, Rem, SortedSubProjects) :-
     % drain: all the primary entries have been processed, so now process the
     % postponed entries (which have no subdir and thus we cannot determine
     % dependencies) by adding them in simple alphabetical order without otherwise
     % perturbing the order so-far.
-    foldl(insert_subprojs_alpha(EntryToName), Rem, DepSort, SortedSubProjects).
-sort_subprojs(_, _, [], DepSort, [], DepSort).  % done
+    foldl(insert_subprojs_alpha(ToName), Rem, DepSort, SortedSubProjects).
+sort_subprojs(_, [], DepSort, [], DepSort).  % done
 
 % Insert the entry *after* all of its dependencies in the list... actually, this
 % scans the list and at the first entry in the list that is a dependency of S, S
 % is added to the list just before that dependency element.
-insert_dep_subproj(_, _, S, [], [S]).
-insert_dep_subproj(_, _, S, [S|DepSort], [S|DepSort]).
-insert_dep_subproj(Context, EntryToName, S, [D|DepSort], [S,D|DepSort]) :-
-    call(EntryToName, D, DName),
-    vctl_subproj_local_dir(DName, DSub),
-    context_subdir(Context, DSub, DDir),
-    call(EntryToName, S, SName),
-    proj_dependency(Context, DDir, SName),
-    !.
-insert_dep_subproj(Context, EntryToName, S, [D|DepSort], [D|DepSortWithS]) :-
-    insert_dep_subproj(Context, EntryToName, S, DepSort, DepSortWithS).
+insert_dep_subproj(_, SC, [], [SC]).
+insert_dep_subproj(ToName, SC, [DC|DepSort], [SC,DC|DepSort]) :-
+    call(ToName, SC, SName),
+    DC = subproj_and_depcheck(_, DDepCheck),
+    call(DDepCheck, SName),
+    !.  % yes, SC is a dependency of DC, so it needs to come before DC
+insert_dep_subproj(ToName, SC, [DC|DepSort], [DC|SubDepSort]) :-
+    insert_dep_subproj(ToName, SC, DepSort, SubDepSort).
 
 % Insert the entry in alphabetical order
 insert_subprojs_alpha(_, S, [], [S]). % reached the end, add it there
@@ -730,9 +733,8 @@ vsal([_|SS], SPDS) :- vsal(SS, SPDS).
 
 % Get the subprojects and the local directory, eliding entries that do not have a
 % local directory.  Ordered as per vctl_subprojects.
-vctl_local_subprojects(Context, SubProjects) :-
-    vctl_subprojects(Context, SP),
-    vls(Context, SP, SubProjects).
+vctl_local_subprojects(Context, SubProjects, LocalSubProjects) :-
+    vls(Context, SubProjects, LocalSubProjects).
 vls(_, [], []).
 vls(Context, [S|SS], [(S,D)|SPDS]) :- vctl_subproj_local_dir(S, D),
                                       exists_context_subdir(Context, D),
@@ -1092,25 +1094,25 @@ show_deps_subproj(Context, SubProj, sts(dependencies, subproj_not_cloned(SubProj
     \+ exists_context_subdir(Context, TgtDir).
 show_deps_subproj(Context, SubProj, sts(dependencies, 0)) :-
     vctl_subproj_local_dir(SubProj, TgtDir),
-    findall(D, proj_dependency(Context, TgtDir, D), AllDeps),
+    get_dependency_checker(Context, TgtDir, DepChecker),
+    findall(D, call(DepChecker, D), AllDeps),
     sort(AllDeps, Deps),
     length(Deps, NDeps),
     format('~w Local Dependencies: ~w~nTotal = ~w~n', [SubProj, Deps, NDeps]).
 
-proj_dependency(Context, ProjDir, SubProjName) :-
+get_dependency_checker(Context, ProjDir, DepChecker) :-
     exists_context_subdir(Context, ProjDir),
     context_subdir(Context, ProjDir, D),
     directory_member(D, CabalFile, [extensions(['cabal'])]),
-    cabal_dependency(Context, D, CabalFile, SubProjName).
+    cabal_dependency_checker(CabalFile, DepChecker).
 
-cabal_dependency(Context, _ProjDir, CabalFile, SubProjName) :-
+cabal_dependency_checker(CabalFile, DepChecker) :-
     read_file_to_codes(CabalFile, CabalInfo, []),
-    eng:key(vctl, subproject, SubProjName),
-    vctl_subproj_local_dir(SubProjName, D),
-    exists_context_subdir(Context, D),
-    atom_string(SubProjName, SPN),
-    string_codes(SPN, Dep),
-    phrase(cabal_build_dependency(Dep), CabalInfo, _).
+    DepChecker = ({CabalInfo}/[SubProjName] >>
+                  (eng:key(vctl, subproject, SubProjName),
+                   atom_string(SubProjName, SPN),
+                   string_codes(SPN, Dep),
+                   phrase(cabal_build_dependency(Dep), CabalInfo, _))).
 
 cabal_build_dependency(Dep) --> preceeding(_),
                                 subphrase("build-depends"),
