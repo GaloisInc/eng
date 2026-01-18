@@ -170,7 +170,8 @@ vctl_cmd(Context, [subproj,clone],
     !.
 vctl_cmd(Context, [subproj,clone], sts(subproj_clone, 1)) :-
     vctl_subprojects(Context, SS),
-    writeln('Please specify one or more subprojects to clone:'),
+    length(SS, NSS),
+    format('Please specify one or more subprojects to clone of ~d:~n', [NSS]),
     maplist([S,O]>>format(atom(O), '  * ~w', [S]), SS, OS),
     intercalate(OS, '\n', OSS),
     writeln(OSS),
@@ -654,24 +655,41 @@ vctl_subprojects(Context, SubProjects) :-
 
 direct(X, X).
 
+% /3 (primary)
 sort_subprojects(Context, SPS, SubProjects) :-
     sort_subprojects(Context, SPS, SubProjects, direct).
 
+% /4 (helper: launch)
 sort_subprojects(Context, SubProjects, SortedSubProjects, EntryToName) :-
     sort_subprojs(Context, EntryToName, SubProjects, [], [], SortedSubProjects).
+
+% /6 (helper: worker)
 sort_subprojs(Context, EntryToName, [S|SS], DepSort, Other, SortedSubProjects) :-
+    % fill or postpone: if we have local information for subproj S, we can
+    % determine its dependencies and insert it in the proper place in DepSort;
+    % otherwise, we postpone it to add it later.
     call(EntryToName, S, SName),
     vctl_subproj_local_dir(SName, SDir),
-    exists_context_subdir(Context, SDir),
-    !,
-    insert_dep_subproj(Context, EntryToName, S, DepSort, DepSortWithS),
-    sort_subprojs(Context, EntryToName, SS, DepSortWithS, Other, SortedSubProjects).
-sort_subprojs(Context, EntryToName, [S|SS], DepSort, Other, SortedSubProjects) :-
-    sort_subprojs(Context, EntryToName, SS, DepSort, [S|Other], SortedSubProjects).
-sort_subprojs(Context, EntryToName, [], DepSort, [R|Rem], SortedSubProjects) :-
-    insert_subprojs_alpha(EntryToName, DepSort, R, DepSortWithR),
-    sort_subprojs(Context, EntryToName, [], DepSortWithR, Rem, SortedSubProjects).
-sort_subprojs(_, _, [], DepSort, [], DepSort).
+    (exists_context_subdir(Context, SDir)
+    -> (insert_dep_subproj(Context, EntryToName, S, DepSort, DepSortWithS),
+        UpdOther = Other
+       )
+    ; (DepSortWithS = DepSort,
+       UpdOther = [S|Other]
+      )
+    ),
+    sort_subprojs(Context, EntryToName, SS, DepSortWithS, UpdOther, SortedSubProjects).
+sort_subprojs(_Context, EntryToName, [], DepSort, Rem, SortedSubProjects) :-
+    % drain: all the primary entries have been processed, so now process the
+    % postponed entries (which have no subdir and thus we cannot determine
+    % dependencies) by adding them in simple alphabetical order without otherwise
+    % perturbing the order so-far.
+    foldl(insert_subprojs_alpha(EntryToName), Rem, DepSort, SortedSubProjects).
+sort_subprojs(_, _, [], DepSort, [], DepSort).  % done
+
+% Insert the entry *after* all of its dependencies in the list... actually, this
+% scans the list and at the first entry in the list that is a dependency of S, S
+% is added to the list just before that dependency element.
 insert_dep_subproj(_, _, S, [], [S]).
 insert_dep_subproj(_, _, S, [S|DepSort], [S|DepSort]).
 insert_dep_subproj(Context, EntryToName, S, [D|DepSort], [S,D|DepSort]) :-
@@ -683,17 +701,21 @@ insert_dep_subproj(Context, EntryToName, S, [D|DepSort], [S,D|DepSort]) :-
     !.
 insert_dep_subproj(Context, EntryToName, S, [D|DepSort], [D|DepSortWithS]) :-
     insert_dep_subproj(Context, EntryToName, S, DepSort, DepSortWithS).
-insert_subprojs_alpha(_, [], S, [S]).
-insert_subprojs_alpha(EntryToName, [D|Deps], S, [D|DepsWithS]) :-
+
+% Insert the entry in alphabetical order
+insert_subprojs_alpha(_, S, [], [S]). % reached the end, add it there
+insert_subprojs_alpha(EntryToName, S, [D|Deps], [D|DepsWithS]) :-
     call(EntryToName, D, DName),
     call(EntryToName, S, SName),
     compare('<', DName, SName),
-    insert_subprojs_alpha(EntryToName, Deps, S, DepsWithS).
-insert_subprojs_alpha(EntryToName, [D|Deps], S, Deps) :-
+    % keep looking
+    insert_subprojs_alpha(EntryToName, S, Deps, DepsWithS).
+insert_subprojs_alpha(EntryToName, S, [D|Deps], Deps) :-
     call(EntryToName, D, DName),
     call(EntryToName, S, SName),
+    % duplicate? drop
     compare('=', DName, SName).
-insert_subprojs_alpha(_, Deps, S, [S|Deps]).
+insert_subprojs_alpha(_, S, Deps, [S|Deps]).  % found the spot to insert
 
 
 % Get the subprojects and the local directory (whether it exists or not).
