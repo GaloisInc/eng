@@ -153,7 +153,8 @@ postproc_sts_(N, [E|ES], [E|RES]) :- postproc_sts_(N, ES, RES).
 
 
 show_msgs(Msgs) :-
-    show_msgs(Msgs, Ends),
+    sort(Msgs, SMsgs),
+    show_msgs(SMsgs, Ends),
     show_endmsgs(Ends).
 show_msgs([], []).
 show_msgs([help(M)|Msgs], GEMs) :-
