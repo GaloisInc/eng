@@ -14,6 +14,7 @@
 :- use_module(library(apply)).
 :- use_module(library(dcg/basics)).
 :- use_module('englib').
+:- use_module('datafmts/cabal').
 :- use_module(library(thread)).
 :- use_module(library(yall)).
 
@@ -99,34 +100,11 @@ insert_subprojs_alpha(_, S, Deps, [S|Deps]).  % found the spot to insert
 
 % ----------------------------------------------------------------------
 
-get_dependency_checker(Context, ProjDir, DepChecker) :-
+get_dependency_checker(Context, ProjDir, MyName, DepChecker) :-
     exists_context_subdir(Context, ProjDir),
     context_subdir(Context, ProjDir, D),
-    directory_member(D, CabalFile, [extensions(['cabal'])]),
-    cabal_dependency_checker(CabalFile, DepChecker).
+    % Find various things that we can use to determine dependencies
+    find_dependency_checker(Context, D, MyName, DepChecker).
 
-cabal_dependency_checker(CabalFile, DepChecker) :-
-    read_file_to_codes(CabalFile, CabalInfo, []),
-    DepChecker = ({CabalInfo}/[SubProjName] >>
-                  (eng:key(vctl, subproject, SubProjName),
-                   atom_string(SubProjName, SPN),
-                   string_codes(SPN, Dep),
-                   phrase(cabal_build_dependency(Dep), CabalInfo, _))).
-
-cabal_build_dependency(Dep) --> preceeding(_),
-                                subphrase("build-depends"),
-                                build_dep(Dep),
-                                (subphrase(_) ; eol).
-
-subphrase(Name) --> "\n", whites,
-                    string_without(":", S),
-                    {string_codes(S, Name)},
-                    ":".
-
-build_dep(Dep) --> whites, string_without(": ,<>=^", Dep), string(_).
-build_dep(Dep) --> string(_), ",", blanks, string_without(": ,<>=^", Dep), string(_).
-build_dep(Dep) --> string(_), ",", "\n", whites, string_without(": ,<>=^", Dep), string(_).
-
-
-preceeding(Stuff) --> string(Stuff).
-following(Stuff) --> string(Stuff).
+find_dependency_checker(_Context, D, MyName, DepChecker) :-
+    find_cabal_dependency_checker(D, MyName, DepChecker).

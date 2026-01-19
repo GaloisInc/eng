@@ -1012,7 +1012,7 @@ show_deps_subproj(Context, SubProj, sts(dependencies, subproj_not_cloned(SubProj
     \+ exists_context_subdir(Context, TgtDir).
 show_deps_subproj(Context, SubProj, sts(dependencies, 0)) :-
     vctl_subproj_local_dir(SubProj, TgtDir),
-    get_dependency_checker(Context, TgtDir, DepChecker),
+    get_dependency_checker(Context, TgtDir, _Name, DepChecker),
     findall(D, call(DepChecker, D), AllDeps),
     sort(AllDeps, Deps),
     length(Deps, NDeps),
