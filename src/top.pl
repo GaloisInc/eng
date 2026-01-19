@@ -1,6 +1,7 @@
 :- use_module(load).
 :- use_module('src/datafmts/eqil').
 :- use_module('src/englib').
+:- use_module('src/dependencies').
 
 main :- load_eng, run_eng_cmd
         ; show_help, halt(0).
@@ -188,8 +189,9 @@ run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
     call_eng_cmd(Cmd, CmdArgs, Sts).
 run_eng_cmd_each(Cmd, CmdArgs, Sts) :-
     findall((Context, Parsed), ingest_engfiles(Context, Parsed), AllConPars),
-    length(AllConPars, NumCons),
-    run_eng_cmd_each_(Cmd, CmdArgs, NumCons, AllConPars, Sts).
+    (ordered(AllConPars, SortedConPars), ! ; SortedConPars = AllConPars),
+    length(SortedConPars, NumCons),
+    run_eng_cmd_each_(Cmd, CmdArgs, NumCons, SortedConPars, Sts).
 run_eng_cmd_each_(_, _, _, [], []).
 run_eng_cmd_each_(Cmd, CmdArgs, N, [(Context, Parsed)|CPS], [S|SS]) :-
     (N = 1, ! ;
@@ -199,6 +201,51 @@ run_eng_cmd_each_(Cmd, CmdArgs, N, [(Context, Parsed)|CPS], [S|SS]) :-
     call_eng_cmd(Context, Cmd, CmdArgs, S),
     erase_refs(Refs),
     run_eng_cmd_each_(Cmd, CmdArgs, N, CPS, SS).
+
+
+% Use the sort_subprojects/3 in the dependency module to sort projects into the
+% deps-first order.  The vctl module uses the vctl.subproject EQIL input to do
+% this; here, we could assert the Parsed EQIL to do this (all of them?  just the
+% top level?), but we can effectively just sort based on the projects we've
+% discovered.  The difference is that vctl.subproject may have more entries, but
+% the EQIL (just) has the local entries; here we are only selecting the order of
+% the local entries to operate on, so it's fine to not know about the non-local
+% entries.
+ordered(ConPars, SortedConPars) :-
+    % First, find and remove the top-level project Context.  It will always come
+    % last after all the subprojects.  In addition, this needs to be able to
+    % locate all the subprojects relative to that top-level.
+    partition(is_top_conpar, ConPars, Top, Sub),
+    !,
+    ordered_(Top, Sub, SortedConPars),
+    !.
+ordered_([Top], Sub, SortedConPars) :-
+    top_conpar_context(Top, TopContext),
+    % Convert remaining into sometihg sort_subprojects can use
+    maplist(get_dep_checker(TopContext), Sub, SubAndCheckers),
+    EntryInfo = entry{ entMyDepName: getname, entDepChecker: getchecker },
+    % Sort into dependency or alphanumeric order
+    sort_subprojects(SubAndCheckers, SortedSubs, EntryInfo),
+    % Now restore the original entry values and append the top-most entry
+    restore_and_append(SortedSubs, Top, SortedConPars).
+ordered_(O, Sub, Sub) :-
+    print_message(error, invalid_top_conpar(O)).
+
+is_top_conpar(ConPar) :- top_conpar_context(ConPar, _).
+top_conpar_context((Context, _), Context) :- context_reltip(Context, '<here>').
+
+get_dep_checker(Context, (SubContext, SP),
+                pdi(SubContext, SP, MyName, DepChecker)) :-
+    context_reltip(SubContext, ConSubDir),
+    get_dependency_checker(Context, ConSubDir, MyName, DepChecker).
+
+getname(pdi(_, _, Name, _), Name).
+getchecker(pdi(_, _, _, Checker), Checker).
+
+restore_and_append([], L, [L]).
+restore_and_append([pdi(SC, SP, _, _)|PS], L, [(SC, SP)|SPS]) :-
+    restore_and_append(PS, L, SPS).
+
 
 show_help(NoCmd) :-
     print_message(error, cmd_not_found(NoCmd)),
