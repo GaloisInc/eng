@@ -409,20 +409,30 @@ vctl_darcs_status(Context, VCSDir, local, Sts) :-
       % changes
       Sts = ExecSts
     ).
-vctl_darcs_status(Context, VCSDir, full, Sts) :-
+vctl_darcs_status(Context, VCSDir, full, [Sts,PullSts,PushSts]) :-
     vctl_darcs_status(Context, VCSDir, local, Sts),
     % The remote checks are executed separately so that (a) the local changes
     % are still reported even if the remote is inaccessible and (b) local changes
     % determine the result value of this opration.
     context_topdir(Context, TopDir),
     darcs_pull_args(VCSDir, ExtraArgs),
-    format(atom(PullCmd), 'darcs pull --repodir=~w -q --dry-run ~w',
-           [VCSDir, ExtraArgs]),
+    append(["darcs", "pull", "--repodir={VCSDir}", "-q", "--dry-run"],
+           ExtraArgs, DarcsPullCmd),
+    do_exec(Context, 'vcs darcs pull dryrun', [ 'VCSDir' = VCSDir ],
+            capture(DarcsPullCmd), [], TopDir, PullOut),
+    format_lines("~w~n", PullOut),
+    ( PullOut = []
+    -> PullSts = 0
+    ; context_reltip(Context, R), PullSts = sts(R, end_msg("pull from remote"))
+    ),
     do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
-            [ PullCmd,
-              'darcs push --repodir={VCSDir} -q --dry-run'
-            ],
-            [], TopDir, _).
+            capture([ "darcs", "push", "--repodir={VCSDir}", "-q", "--dry-run"]),
+            [], TopDir, PushOut),
+    format_lines("~w~n", PushOut),
+    ( PushOut = []
+    -> PushSts = 0
+    ; context_reltip(Context, R), PushSts = sts(R, end_msg("push local changes"))
+    ).
 vctl_darcs_status(_, _, [Scope|_Args], sts(status, 1)) :-
     \+ member(Scope, [ local, full ]),
     print_message(error, invalid_scope(Scope)).
@@ -564,13 +574,12 @@ darcs_remote_repo(VCSDir, RepoAddr) :-
     read_file_to_string(DefRepoFile, DefRepoStr, []),
     string_trim(DefRepoStr, RepoAddr).
 
-darcs_pull_args(VCSDir, ExtraArgs) :-
+darcs_pull_args(VCSDir, ["--complement", DefRepo, ComplRepo]) :-
     eng:key(vctl, darcs, complement),
     !,
     darcs_remote_repo(VCSDir, DefRepo),
-    eng:eng(vctl, darcs, complement, ComplRepo),
-    format(atom(ExtraArgs), '--complement ~w ~w', [DefRepo, ComplRepo]).
-darcs_pull_args(_, "").
+    eng:eng(vctl, darcs, complement, ComplRepo).
+darcs_pull_args(_, []).
 
 
 % ----------------------------------------------------------------------
@@ -631,8 +640,9 @@ vctl_pull(Context, darcs(VCSDir), _Args, Sts) :-
     !,
     context_topdir(Context, TopDir),
     darcs_pull_args(VCSDir, ExtraArgs),
+    intercalate(ExtraArgs, " ", ExtraArgStr),
     format(atom(PullCmd), 'darcs pull --repodir=~w -q ~w',
-           [VCSDir, ExtraArgs]),
+           [VCSDir, ExtraArgStr]),
     do_exec(Context, 'vcs darcs pull', [ 'VCSDir' = VCSDir ],
             [ PullCmd ], [], TopDir, Sts).
 
