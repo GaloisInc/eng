@@ -1,7 +1,8 @@
 :- module(vctl, [ vctl_cmd/3, vctl_focus/1, vctl_help/1, vctl_help/2,
                   vctl_help_internal/2,
                   % These are internal helpers for other modules to use:
-                  vctl_subproj_remote_repo/3
+                  vctl_subproj_remote_repo/3,
+                  vctl_subproj_local_dir/2
                 ]).
 
 :- use_module(library(ansi_term)).
@@ -647,6 +648,35 @@ vctl_pull(_Context, Tool, _Args, 1) :-
 % ----------------------------------------------------------------------
 % vctl subproj helpers
 
+% Get the subprojects relative to the input Context (if any), ordered so that
+% dependencies appear before their user.
+vctl_subprojects(Context, SubProjects) :-
+    setof(S, eng:key(vctl, subproject, S), SPS),
+    concurrent_maplist(get_projdeps(Context), SPS, SPDS),
+    EInfo = entryinfo{ entMyDepName: vctl:get_sp_name,
+                       entDepChecker: vctl:get_sp_checker
+                     },
+    sort_subprojects(SPDS, SortedSubProjects, EInfo),
+    !,
+    % Now get back the plain entries from the enhanced sorted entries:
+    concurrent_maplist(get_sp_entry, SortedSubProjects, SubProjects),
+    true.
+
+get_projdeps(Context, SubProj, subproj_and_depcheck(SubProj, Name, Checker)) :-
+    vctl_subproj_local_dir(SubProj, SSub),
+    context_subdir(Context, SSub, SDir),
+    get_dependency_checker(Context, SDir, Name, Checker).
+get_projdeps(_, SubProj, subproj_no_depcheck(SubProj, Name)) :-
+    file_base_name(SubProj, Name).
+
+get_sp_name(subproj_and_depcheck(_, N, _), N).
+get_sp_name(subproj_no_depcheck(_, N), N).
+
+get_sp_checker(subproj_and_depcheck(_, _, C), C).
+
+get_sp_entry(subproj_and_depcheck(E,_,_), E).
+get_sp_entry(subproj_no_depcheck(E,_), E).
+
 % Get the subprojects and the local directory (whether it exists or not).
 % Ordered as per vctl_subprojects.
 vctl_subprojects_and_lcldirs(Context, SubProjectsAndDirs) :-
@@ -681,6 +711,16 @@ vctl_subproj_context(Context, SubProjDir,
 vctl_subproj_context_has_engfiles(Context) :-
     context_topdir(Context, SPDir),
     has_engfiles(SPDir, _).
+
+% Get the local directory to use for a subproject.
+vctl_subproj_local_dir(Name, LclDir) :-
+    eng:eng(vctl, subproject, Name, into, LclDir), !.
+vctl_subproj_local_dir(Name, LclDir) :-
+    eng:key(vctl, subproject, Name),
+    directory_file_path(subproj, Name, LclDir), !.
+vctl_subproj_local_dir(Name, LclDir) :-
+    directory_file_path(subproj, Name, LclDir).
+
 
 vctl_subcmd(Context, Op, Args, SubSts) :-
     setof((S,D), (eng:key(vctl, subproject, S),
@@ -1013,7 +1053,10 @@ show_deps_subproj(Context, SubProj, sts(dependencies, subproj_not_cloned(SubProj
 show_deps_subproj(Context, SubProj, sts(dependencies, 0)) :-
     vctl_subproj_local_dir(SubProj, TgtDir),
     get_dependency_checker(Context, TgtDir, _Name, DepChecker),
-    findall(D, call(DepChecker, D), AllDeps),
+    findall(D, (eng:key(vctl, subproject, SubProjName),
+                D = SubProjName,
+                call(DepChecker, D)
+               ), AllDeps),
     sort(AllDeps, Deps),
     length(Deps, NDeps),
     format('~w Local Dependencies: ~w~nTotal = ~w~n', [SubProj, Deps, NDeps]).
