@@ -1063,14 +1063,38 @@ show_deps_subproj(Context, SubProj, sts(dependencies, subproj_not_cloned(SubProj
 show_deps_subproj(Context, SubProj, sts(dependencies, 0)) :-
     vctl_subproj_local_dir(SubProj, TgtDir),
     get_dependency_checker(Context, TgtDir, _Name, DepChecker),
-    findall(D, (eng:key(vctl, subproject, SubProjName),
-                D = SubProjName,
-                call(DepChecker, D)
-               ), AllDeps),
-    sort(AllDeps, Deps),
+    findall(K, mk_subdep(Context, SubProj, DepChecker, K), KnownSubs),
+    sort_subprojects(KnownSubs, DepEntries,
+                     entry{ entMyDepName: vctl:checksub_name,
+                            entDepChecker: vctl:checksub_checker
+                          }),
+    !,
+    maplist(checksub_entry, DepEntries, Deps),
     length(Deps, NDeps),
     format('~w Local Dependencies: ~w~nTotal = ~w~n', [SubProj, Deps, NDeps]).
 
+mk_subdep(Context, E, C, R) :-
+    eng:key(vctl, subproject, K),
+    \+ K = E,
+    mk_subdep_(Context, C, K, R).
+mk_subdep_(Context, C, K, checksub(K, KN, KC)) :-
+    vctl_subproj_local_dir(K, KDir),
+    get_dependency_checker(Context, KDir, KN, KC),
+    call(C, KN),
+    !.
+mk_subdep_(_, C, E, plainsub(E)) :-
+    % This checks the dependency against the vctl_subproj name, not the internal
+    % name.  This isn't quite right, but since the subproj is not checked out to
+    % get the actual name, this is as close as we can come.
+    call(C, E).
+
+checksub_name(checksub(_, N, _), N).
+checksub_name(plainsub(N), N).
+
+checksub_checker(checksub(_, _, C), C).
+
+checksub_entry(checksub(E, _, _), E).
+checksub_entry(plainsub(E), E).
 
 % ----------------------------------------------------------------------
 
