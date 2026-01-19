@@ -61,6 +61,12 @@ vctl_help(Info) :-
 | the current working directory and needs no additional configuration.  At
 | present, eng supports git and darcs.
 |
+| The NAME should correspond to the dependency name of that subproject: some
+| operations check for and/or order by dependencies, and the dependencies are
+| against specific names.  If a subproject is locally cloned, the actual name
+| can be used, but if it is not local, checking must fall back on the NAME,
+| so they should be identical if possible.
+|
 | The darcs complement repo is optional. If the current project is using
 | darcs for version control, the provided repository paths will automatically
 | be supplied along with the --complement flag; this is useful for filtering
