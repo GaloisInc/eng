@@ -107,6 +107,7 @@ known_subcommands(Cmd, SubCmds) :-
 show_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, OutStrs) :-
     ingest_engfiles(_Context, Parsed, silent),
     findall(R, (member(P, Parsed), assert_eqil(P, R)), Refs),
+    !,
     findall(O, get_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, O), OutStrs),
     erase_refs(Refs).
 get_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, OutStr) :-
