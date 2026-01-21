@@ -174,7 +174,7 @@
 
     _Note_: use ~eng.bat~ instead of ~eng.sh~ under Windows.
 
- The secopnd step above creates an ~eng~ file, which is the executable file for
+ The second step above creates an ~eng~ file, which is the executable file for
  the tool.  You can copy this file to a location in your current ~PATH~
  (e.g. ~/usr/local/bin~, ~$HOME/bin~, etc.), or you can add the current directory
  to your ~PATH~.
