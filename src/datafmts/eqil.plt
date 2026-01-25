@@ -3104,11 +3104,12 @@ compare_ignore_leading_trailing_blanks(Inp1, Inp2) :-
 
 assertall(Got, Exp) :- assert_each_(0, Got, Exp).
 assert_each_(_, [], []).
-assert_each_(N, [], [_|_]) :- assertion(N == "Extra lines expected").
-assert_each_(N, [_|_], []) :- assertion(N == "Extra lines received").
+assert_each_(N, [], [_|_]) :- assertion(N == "Extra lines expected, actual is too short").
+assert_each_(N, [_|_], []) :- assertion(N == "Extra lines actually received").
 assert_each_(N, [G|Got], [G|Exp]) :- !, succ(N, P), assert_each_(P, Got, Exp).
 assert_each_(N, [G|Got], [E|Exp]) :-
-    assertion(N == (G == E)),
+    format(atom(M), 'at ~w got != exp::', [N]),
+    assertion(M == (G == E)),
     succ(N, P), assert_each_(P, Got, Exp).
 
 revert_assert_eng :-
