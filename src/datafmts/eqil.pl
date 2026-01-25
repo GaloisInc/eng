@@ -5,6 +5,8 @@
                 ]).
 
 :- use_module(library(apply)).
+:- use_module(library(clpfd)).
+:- use_module(library(dicts)).
 :- use_module(library(lists)).
 :- use_module(library(dcg/basics)).
 :- use_module(library(dcg/high_order)).
@@ -372,6 +374,11 @@ raw_val(val(_, V), V).
 %% Normalizes the parsed eqil.  If the input eqil is already normalized, this
 %% will fail; if this succeeds, the second parameter is the normalized eqil.
 %%
+%%   Normalization:
+%%     - blank key replacement
+%%   Other changes if normalized:
+%%     - key consolidation
+%%
 %% A normalized eqil may not be fully specified or fully consistent.  It is
 %% strongly recommended that a normalized eqil be re-written (via emit_eqil)
 %% and then re-parsed for a fully consistent specification.
@@ -381,11 +388,9 @@ raw_val(val(_, V), V).
 %%  1. Replace blank keys with "parent.N" where parent is the parent key name,
 %%     and N is a consecutive value.  NOTE: this key replacement ONLY occurs in
 %%     the key portions (at this key level and in sub-key chains), not in the
-%%     value portion of the parents.  To avoid an inconsistent eqil
-%%     representation, this also removes the parent specification in which those
-%%     keys would be part of the value.  This removal might also affect the
-%%     application depending on which key values it was consuming.  See the
-%%     rewriting noted above.
+%%     value portion of the parents.  Note that the immediate parents of the
+%%     assigned key where the assigned key and its siblings would appear in the
+%%     value portion is now *not* consistent with the explicit values.
 %%
 %%  2. Consolidate entries with the same parent.  For example:
 %%        key1 =
@@ -426,95 +431,102 @@ normalize_eqil(InpEqil, OutEqil) :-
     ; consolidate_keys(InpEqil, OutEqil, true)
     ).
 
+
+%% assign_blank_keys
+%
+% Finds all keys that are blank and replaces them with an auto-generated value.
+%
+% The input EQIL is fully nested, and ordered depth first. For the example input:
+%
+%   foo =
+%     =
+%       entry = first
+%     =
+%       entry = second
+%
+% The corresponding input EQIL will be:
+%
+%   [ eqil([key(0,foo),key(2,""),key(4,"entry")], [val(0,"first")]),
+%     eqil([key(0,foo),key(2,"")],                [val(0,""),val(4,"entry = first")]),
+%     eqil([key(0,foo),key(2,""),key(4,"entry")], [val(0, "second")]),
+%     eqil([key(0,foo),key(2,"")],                [val(0,""),val(4,"entry = second")]),
+%     eqil([key(0,foo)],                          [val(2,"="),val(4,"entry = first"),val(2,"="),val(4,"entry = second")])
+%   ]
+%
+% Notice how the third and fourth entries should have a *different* assigned key
+% than the first and second entries.
+
 assign_blank_keys(InpEqil, OutEqil) :-
-    rewrite_blank_keys(InpEqil, InpEqil, 1, NewEqil, _, RemoveKeys),
+    assign_blank_keys_(InpEqil, [], #{}, OutEqil).
+assign_blank_keys_([eqil(K,V)|InpEqil], SinceLastBlank, AssignIDs, NewEqil) :-
+    reverse(K, [key(I, "")|ParentKeys]),
     !,
-    \+ RemoveKeys == [],
-    remove_keys(NewEqil, RemoveKeys, OutEqil).
-assign_blank_keys([], []).
+    % Last element is a blank, so generate a new entry and replace the blank
+    % position in this entry and SinceLastBlank with the generated key.  Then
+    % continue on to handle the rest of InpEqil.
+    %
+    % First, determine the generated name based on the immediate parent key and a
+    % new assigned number.
+    (ParentKeys = [key(_, PKeyBase)|_], singularize(PKeyBase, KeyBase); KeyBase = "key"),
+    atom_string(KeyBaseA, KeyBase),
+    (get_dict(KeyBaseA, AssignIDs, PrevKeyNum) ; PrevKeyNum = 0),
+    succ(PrevKeyNum, KeyNum),
+    put_dict(KeyBaseA, AssignIDs, KeyNum, NewAssignIDs),
+    format(atom(NewKeyA), "~w_~w", [KeyBase, KeyNum]),
+    atom_string(NewKeyA, NewKey),
+    reverse([key(I, NewKey)|ParentKeys], NewK),
+    length(NewK, KI),
+    % Now substitute any blank entries in this key position in SinceLastBlank
+    rewriteKeysAt(KI, NewKey, SinceLastBlank, SinceLastBlankAssigned),
+    % Handle the rest of InpEqil
+    assign_blank_keys_(InpEqil, [eqil(NewK,V)|SinceLastBlankAssigned], NewAssignIDs, NewEqil).
+assign_blank_keys_([E|InpEqil], SinceLastBlank, AssignIDs, NewEqil) :-
+    % This is the fall through from the above, where we have encountered a
+    % non-null terminal key element. Nothing overall needs to be done with this
+    % element.
+    % n.b. SinceLastBlank is built up in reverse order
+    assign_blank_keys_(InpEqil, [E|SinceLastBlank], AssignIDs, NewEqil).
+assign_blank_keys_([], SinceLastBlank, AssignIDs, NewEqil) :-
+    \+ dict_size(AssignIDs, 0), % fail all of assign_blank_keys if no assignments were made
+    reverse(SinceLastBlank, NewEqil).
 
-rewrite_blank_keys(EQIL, [eqil([key(N,"")],V)|InpEqil], KeyVal,
-                   [Out|UpdEqil],
-                   [([key(N,"")],[K])|Replace],
-                   RemoveKeys) :-
+longerKeyLength(L, eqil(K,_)) :- length(K, KL), L #> KL.
+
+rewriteKeysAt(_, _, [], []).
+rewriteKeysAt(KeyIdx, NewKey, [eqil(K,V)|Sub], [eqil(NK,V)|Rewritten]) :-
+    keyAt(KeyIdx, K, key(_, "")),
     !,
-    % Top level key is blank and needs assignment
-    new_unique_key(EQIL, N, KeyVal, K, NextVal),
-    propagate_replacement([key(N,"")], [K], InpEqil, InpEQIL2),
-    rewrite_blank_keys(EQIL, InpEQIL2, NextVal, UpdEqil, NxtReplace, RemoveKeys),
-    apply_replacements(NxtReplace, eqil([K],V), Out, Replace).
-rewrite_blank_keys(EQIL, [eqil(K,V)|InpEqil], KeyVal,
-                   [Out|UpdEqil],
-                   [(K, NewKey)|Replace],
-                   [K|RmvKeys]) :-
-    reverse(K, [key(N, ""),key(NP,ParentKey)|KR]), !,
-    new_unique_key(EQIL, KR, N, key(NP,ParentKey), ParentKey, KeyVal, NewKey, NextVal),
-    propagate_replacement(K, NewKey, InpEqil, InpEQIL2),
-    rewrite_blank_keys(EQIL, InpEQIL2, NextVal, UpdEqil, NxtReplace, RmvKeys),
-    apply_replacements(NxtReplace, eqil(NewKey,V), Out, Replace).
-rewrite_blank_keys(EQIL, [Eqil|InpEqil], KeyVal, [Out|OutEqil], Replace, Remove) :-
-    rewrite_blank_keys(EQIL, InpEqil, KeyVal, OutEqil, NxtReplace, Remove),
-    apply_replacements(NxtReplace, Eqil, Out, Replace).
-rewrite_blank_keys(_, [], _, [], [], []).
+    replaceKeyAt(KeyIdx, NewKey, K, NK),
+    rewriteKeysAt(KeyIdx, NewKey, Sub, Rewritten).
+rewriteKeysAt(KeyIdx, NewKey, [E|Sub], [E|Rewritten]) :-
+    % n.b. Changed reverses the order of Sub, which is needed because Sub was
+    % built in reverse order.
+    rewriteKeysAt(KeyIdx, NewKey, Sub, Rewritten).
 
-new_unique_key(EQIL, KR, N, PKey, Pfx, Val, OutKey, OutVal) :-
-    succ(Val, NextVal),
-    atom_string(Val, KVS),
-    string_concat(Pfx, KVS, KS),
-    reverse([key(N,KS),PKey|KR], NewKey),
-    ( is_unique_key(EQIL, NewKey), !, OutVal = NextVal, OutKey = NewKey
-    ; new_unique_key(EQIL, KR, N, PKey, Pfx, NextVal, OutKey, OutVal)
-    ).
+% keyAt(2, [key(0,"k1"), key(2,"k2"), key(2,"k3")], key(2,"k2")).
+keyAt(Idx, FullKey, KeyAtIdx) :-
+    append(Prefix, _, FullKey),
+    length(Prefix, Idx),
+    reverse(Prefix, [KeyAtIdx|_]).
 
-new_unique_key(EQIL, N, Val, OutKey, OutVal) :-
-    succ(Val, NextVal),
-    atom_string(Val, KS),
-    NewKey = key(N,KS),
-    ( is_unique_key(EQIL, NewKey), !, OutVal = NextVal, OutKey = NewKey
-    ; new_unique_key(EQIL, N, NextVal, OutKey, OutVal)
-    ).
+replaceKeyAt(Idx, NewKey, OrigFullKey, NewFullKey) :-
+    append(Prefix, Suffix, OrigFullKey),
+    length(Prefix, Idx),
+    reverse(Prefix, [key(I,_)|PrefixR]),
+    reverse([key(I,NewKey)|PrefixR], NewPrefix),
+    append(NewPrefix, Suffix, NewFullKey).
 
-is_unique_key([], _).
-is_unique_key([eqil(K,_)|_], K) :- !, fail.
-is_unique_key([_|ES], K) :- is_unique_key(ES, K).
 
-% Moves forward through input EQIL, replacing OldKey with NewKey until reaching
-% the point where the EQIL key is shorter than OldKey, indicating the end of this
-% assignment block
-propagate_replacement(_, _, [], []) :- !.
-propagate_replacement(OldKey, _NewKey, [eqil(K,V)|EQIL], [eqil(K,V)|EQIL]) :-
-    length(OldKey, OKL),
-    length(K, KL),
-    KL =< OKL, !.
-propagate_replacement(OldKey, NewKey, [eqil(K,V)|EQIL], [eqil(NK,V)|SubEQIL]) :-
-    append(OldKey, M, K), !, append(NewKey, M, NK),
-    propagate_replacement(OldKey, NewKey, EQIL, SubEQIL).
-propagate_replacement(OldKey, NewKey, [eqil(K,V)|EQIL], [eqil(K,V)|SubEQIL]) :-
-    propagate_replacement(OldKey, NewKey, EQIL, SubEQIL).
+singularize(Name, SingularName) :- string_chars(Name, NL),
+                                   reverse(NL, RNL),
+                                   singularize_(RNL, RSNL),
+                                   reverse(RSNL, SNL),
+                                   string_chars(SingularName, SNL).
+singularize_([], []).
+singularize_([C], [C]).
+singularize_(['s'|W], W).
+singularize_(W,W).
 
-% Given a set of replacements, apply those applicable to this key, and discard
-% any replacements longer than this key (we've reached the boundary of this
-% assignment block).
-apply_replacements([], Entry, Entry, []).
-apply_replacements([(O,_)|RS], eqil(K,V), OutEqil, UpdatedRS) :-
-    length(O, OL),
-    length(K, KL),
-    KL =< OL, !,
-    apply_replacements(RS, eqil(K,V), OutEqil, UpdatedRS).
-apply_replacements([(O,N)|RS], eqil(K,V), OutEqil, [(O,N)|UpdatedRS]) :-
-    append(O, M, K), !, append(N, M, NK),
-    apply_replacements(RS, eqil(NK, V), OutEqil, UpdatedRS).
-apply_replacements([R|RS], E, OE, [R|ORS]) :-
-    apply_replacements(RS, E, OE, ORS).
-
-remove_keys([eqil(K,_)|InpEqil], RKeys, OutEqil) :-
-    append(K, _, RKey),
-    member(RKey, RKeys),
-    !,
-    remove_keys(InpEqil, RKeys, OutEqil).
-remove_keys([Eqil|InpEqil], RKeys, [Eqil|OutEqil]) :-
-    remove_keys(InpEqil, RKeys, OutEqil).
-remove_keys([], _, []).
 
 consolidate_keys([eqil(Key,Val)|InpEqil], [eqil(Key, JoinedVal)|REqil], Changed) :-
     join_keys(Key, Val, InpEqil, JoinedVal, RemainingEqil),

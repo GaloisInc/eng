@@ -347,7 +347,7 @@ test(multi_line_value_only, [nondet]) :-
 | key2 =
 |    This is =
 |        that is on three lines =
-|   key21 = and = this is the third.
+|   key2_1 = and = this is the third.
 | another key = another value
 |
 |},
@@ -376,13 +376,12 @@ test(multi_line_value_only, [nondet]) :-
         eqil([key(0, "key2"), key(3, "This is")],
              [val(0, "a multi-line value"),
               val(7, "that is on three lines =")]),
-        % Removed because key21 supplied below
-        %% eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
-        %%                         val(7, "that is on three lines ="),
-        %%                         val(2, "= and = this is the third.")]),
         eqil([key(0, "key2"),
-              key(2, "key21")],
+              key(2, "key2_1")],
              [val(0, "and = this is the third.")]),
+        eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
+                                val(7, "that is on three lines ="),
+                                val(2, "= and = this is the third.")]),
         eqil([key(0, "another key")], [val(0, "another value")])
     ],
     ReParsed = [
@@ -393,15 +392,15 @@ test(multi_line_value_only, [nondet]) :-
               key(7, "that is on three lines")],
              []),
         eqil([key(0, "key2"), key(3, "This is")],
-             [% val(0, "a multi-line value"),
+             [% val(0, "a multi-line value"),   % KWQ: support this on emission because it's a val0!
               val(7, "that is on three lines =")]),
         eqil([key(0, "key2"),
-              key(2, "key21")],
+              key(2, "key2_1")],
              [val(0, "and = this is the third.")]),
         % Re-parsing sees the new version of this
         eqil([key(0, "key2")], [val(3, "This is ="),
                                 val(7, "that is on three lines ="),
-                                val(2, "key21 = and = this is the third.")]),
+                                val(2, "key2_1 = and = this is the third.")]),
         eqil([key(0, "another key")], [val(0, "another value")])
     ],
     check(Inp, Parsed, Out, Normalized, ReParsed, Result),
@@ -410,11 +409,11 @@ test(multi_line_value_only, [nondet]) :-
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey21 = and = this is the third.")),
+    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey2_1 = and = this is the third.")),
     assertion(eng:key(key2, 'This is')),
     assertion(eng:eng(key2, 'This is', "that is on three lines =")),
-    assertion(eng:key(key2, 'key21')),
-    assertion(eng:eng(key2, 'key21', "and = this is the third.")),
+    assertion(eng:key(key2, 'key2_1')),
+    assertion(eng:eng(key2, 'key2_1', "and = this is the third.")),
     assertion(eng:key('another key')),
     assertion(eng:eng('another key', "another value")),
     findall(K, eng:key(K), KS),
@@ -445,7 +444,7 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
 | key2 =
 |    This is =
 |        that is on three lines =
-|   key21 = and = this is the third.
+|   key2_1 = and = this is the third.
 |     and the fourth
 |
 | another key = another value
@@ -483,17 +482,16 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
         eqil([key(0, "key2"), key(3, "This is")],
              [val(0, "a multi-line value"),
               val(7, "that is on three lines =")]),
-        %% eqil([key(0, "key2")], [val(0, ""),
-        %%                         val(3, "This is = a multi-line value"),
-        %%                         val(7, "that is on three lines ="),
-        %%                         val(2, "= and = this is the third."),
-        %%                         val(4, "and the fourth"),
-        %%                         val(0, "")]),
-        eqil([key(0, "key2"),
-              key(2, "key21")],
+        eqil([key(0, "key2"), key(2, "key2_1")],
              [val(0, "and = this is the third."),
               val(4, "and the fourth"),
               val(0, "")]),
+        eqil([key(0, "key2")], [val(0, ""),
+                                val(3, "This is = a multi-line value"),
+                                val(7, "that is on three lines ="),
+                                val(2, "= and = this is the third."),
+                                val(4, "and the fourth"),
+                                val(0, "")]),
         eqil([key(0, "another key")], [val(0, "another value")])
     ],
     % Adds the generated key value replacing the blank key and re-introduces the
@@ -507,14 +505,13 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
         eqil([key(0, "key2"), key(3, "This is")],
              [ % val(0, "a multi-line value"),
               val(7, "that is on three lines =")]),
-        eqil([key(0, "key2"),
-              key(2, "key21")],
+        eqil([key(0, "key2"), key(2, "key2_1")],
              [val(0, "and = this is the third."),
               val(4, "and the fourth"),
               val(0, "")]),
         eqil([key(0, "key2")], [val(3, "This is ="),
                                 val(7, "that is on three lines ="),
-                                val(2, "key21 = and = this is the third."),
+                                val(2, "key2_1 = and = this is the third."),
                                 val(4, "and the fourth"),
                                 val(0, "")]),
         eqil([key(0, "another key")], [val(0, "another value")])
@@ -525,12 +522,12 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey21 = and = this is the third.\nand the fourth")),
+    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey2_1 = and = this is the third.\nand the fourth")),
     assertion(eng:key(key2, 'This is')),
     assertion(eng:eng(key2, 'This is', "that is on three lines =")),
     assertion(eng:key(key2, 'This is', 'that is on three lines')),
-    assertion(eng:key(key2, 'key21')),
-    assertion(eng:eng(key2, 'key21', "and = this is the third.\nand the fourth")),
+    assertion(eng:key(key2, 'key2_1')),
+    assertion(eng:eng(key2, 'key2_1', "and = this is the third.\nand the fourth")),
     assertion(eng:key('another key')),
     assertion(eng:eng('another key', "another value")),
     findall(K, eng:key(K), KS),
@@ -640,7 +637,7 @@ test(nested_keyvals_with_blank_keys, [nondet]) :-
 |   subkey = subval1
 |   subkey2 = subval2
 | another key =
-|   another key1 = another value with a blank key
+|   another key_1 = another value with a blank key
 |},
     Parsed = [
         eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
@@ -662,10 +659,10 @@ test(nested_keyvals_with_blank_keys, [nondet]) :-
               val(2, "subkey2 = subval2")
              ]),
         eqil([key(0, "another key"),
-              key(2, "another key1")],
-             [val(0, "another value with a blank key")])
-        %% eqil([key(0, "another key")],
-        %%      [val(2, "= another value with a blank key")])
+              key(2, "another key_1")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "= another value with a blank key")])
     ],
     ReParsed = [
         eqil([key(0, "key"), key(2, "subkey")], [val(0, "subval1")]),
@@ -675,10 +672,10 @@ test(nested_keyvals_with_blank_keys, [nondet]) :-
               val(2, "subkey2 = subval2")
              ]),
         eqil([key(0, "another key"),
-              key(2, "another key1")],
+              key(2, "another key_1")],
              [val(0, "another value with a blank key")]),
         eqil([key(0, "another key")],
-             [val(2, "another key1 = another value with a blank key")])
+             [val(2, "another key_1 = another value with a blank key")])
     ],
     check(Inp, Parsed, Out, Normalized, ReParsed, Result),
     revert_assert_eng,
@@ -689,8 +686,8 @@ test(nested_keyvals_with_blank_keys, [nondet]) :-
     assertion(eng:key(key, subkey2)),
     assertion(eng:eng(key, subkey2, "subval2")),
     assertion(eng:key('another key')),
-    assertion(eng:key('another key', 'another key1')),
-    assertion(eng:eng('another key', 'another key1', "another value with a blank key")),
+    assertion(eng:key('another key', 'another key_1')),
+    assertion(eng:eng('another key', 'another key_1', "another value with a blank key")),
     findall(K, eng:key(K), KS),
     assertion(KS == [ key, 'another key' ]),
     %% findall((K,V), eng:eng(K,,V), KVS),
@@ -936,7 +933,7 @@ test(value_reconstruction_is_valid, [nondet]) :-
 |   exec =
 |     command --debug = true --inline=yes inpfile
 | another key =
-|   another key1 = another value with a blank key
+|   another key_1 = another value with a blank key
 |},
     Parsed = [
         eqil([key(0, "key"), key(2, "exec"), key(4, "command --debug")],
@@ -961,10 +958,10 @@ test(value_reconstruction_is_valid, [nondet]) :-
              [val(2, "exec ="),
               val(4, "command --debug=true --inline=yes inpfile")
              ]),
-        eqil([key(0, "another key"), key(2, "another key1")],
-             [val(0, "another value with a blank key")])
-        %% eqil([key(0, "another key")],
-        %%      [val(2, "= another value with a blank key")])
+        eqil([key(0, "another key"), key(2, "another key_1")],
+             [val(0, "another value with a blank key")]),
+        eqil([key(0, "another key")],
+             [val(2, "= another value with a blank key")])
     ],
     ReParsed = [
         eqil([key(0, "key"), key(2, "exec"), key(4, "command --debug")],
@@ -975,10 +972,10 @@ test(value_reconstruction_is_valid, [nondet]) :-
              [val(2, "exec ="),
               val(4, "command --debug = true --inline=yes inpfile")
              ]),
-        eqil([key(0, "another key"), key(2, "another key1")],
+        eqil([key(0, "another key"), key(2, "another key_1")],
              [val(0, "another value with a blank key")]),
         eqil([key(0, "another key")],
-             [val(2, "another key1 = another value with a blank key")])
+             [val(2, "another key_1 = another value with a blank key")])
     ],
     check(Inp, Parsed, Out, Normalized, ReParsed, Result),
     revert_assert_eng,
@@ -989,12 +986,12 @@ test(value_reconstruction_is_valid, [nondet]) :-
     assertion(eng:key(key, exec, 'command --debug')),
     assertion(eng:eng(key, exec, 'command --debug', "true --inline=yes inpfile")),
     assertion(eng:key('another key')),
-    assertion(eng:key('another key', 'another key1')),
-    assertion(eng:eng('another key', 'another key1', "another value with a blank key")),
+    assertion(eng:key('another key', 'another key_1')),
+    assertion(eng:eng('another key', 'another key_1', "another value with a blank key")),
     findall(K, eng:key(K), KS),
     assertion(KS == [ key, 'another key' ]),
     findall((K1,K2), eng:key(K1,K2), K2S),
-    assertion(K2S == [ (key,exec), ('another key','another key1') ]),
+    assertion(K2S == [ (key,exec), ('another key','another key_1') ]),
     findall((K1,K2,K3), eng:key(K1,K2,K3), K3S),
     assertion(K3S == [ (key,exec,'command --debug') ]),
     %% findall((K,V), eng:eng(K,,V), KVS),
@@ -1370,6 +1367,243 @@ test(block_values, [nondet]) :-
     revert_assert_eng.
 
 
+test(separate_blank_keys_with_subvalues, [nondet]) :-
+    Inp = {|string||
+| top =
+|   key =
+|     = first
+|         title = first
+|         id = 1
+|     = second
+|       title = second
+|       id = 2
+|     =
+|       title = third
+|       id = 3
+|       more =
+|         = some
+|         = yet
+|         = lots more
+|     =
+|       title = fourth
+|       id = 4
+|     = fifth
+|     = sixth
+|},
+      Out = {|string||
+| top =
+|   key =
+|     key_1 =
+|         title = first
+|         id = 1
+|     key_2 =
+|       title = second
+|       id = 2
+|     key_3 =
+|       title = third
+|       id = 3
+|       more =
+|         more_1 = some
+|         more_2 = yet
+|         more_3 = lots more
+|     key_4 =
+|       title = fourth
+|       id = 4
+|     key_5 = fifth
+|     key_6 = sixth
+|},
+    E0 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(8, "title")], [val(0, "first")]),
+    E1 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(8, "id")], [val(0, "1")]),
+    E2 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "first"),
+                                                           val(8, "title = first"), val(8, "id = 1")]),
+    E3 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "title")], [val(0, "second")]),
+    E4 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "id")], [val(0, "2")]),
+    E5 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "second"),
+                                                           val(6, "title = second"),
+                                                           val(6, "id = 2")]),
+    E6 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "title")], [val(0, "third")]),
+    E7 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "id")], [val(0, "3")]),
+    E8 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "more"), key(8, "")], [val(0, "some")]),
+    E9 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "more"), key(8, "")], [val(0, "yet")]),
+    E10 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "more"), key(8, "")], [val(0, "lots more")]),
+    E11 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "more")], [val(8, "= some"),
+                                                                            val(8, "= yet"),
+                                                                            val(8, "= lots more")]),
+    E12 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(6, "title = third"),
+                                                            val(6, "id = 3"),
+                                                            val(6, "more ="),
+                                                            val(8, "= some"),
+                                                            val(8, "= yet"),
+                                                            val(8, "= lots more")]),
+    E13 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "title")], [val(0, "fourth")]),
+    E14 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "id")], [val(0, "4")]),
+    E15 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(6, "title = fourth"),
+                                                            val(6, "id = 4")]),
+    E16 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "fifth")]),
+    E17 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "sixth")]),
+    E18 = eqil([key(0, "top"), key(2, "key")], [val(4, "= first"),
+                                                val(8, "title = first"),
+                                                val(8, "id = 1"),
+                                                val(4, "= second"),
+                                                val(6, "title = second"),
+                                                val(6, "id = 2"),
+                                                val(4, ""),
+                                                val(6, "title = third"),
+                                                val(6, "id = 3"),
+                                                val(6, "more ="),
+                                                val(8, "= some"),
+                                                val(8, "= yet"),
+                                                val(8, "= lots more"),
+                                                val(4, ""),
+                                                val(6, "title = fourth"),
+                                                val(6, "id = 4"),
+                                                val(4, "= fifth"),
+                                                val(4, "= sixth")]),
+    E19 = eqil([key(0, "top")], [val(2, "key ="),
+                                 val(4, "= first"),
+                                 val(8, "title = first"),
+                                 val(8, "id = 1"),
+                                 val(4, "= second"),
+                                 val(6, "title = second"),
+                                 val(6, "id = 2"),
+                                 val(4, ""),
+                                 val(6, "title = third"),
+                                 val(6, "id = 3"),
+                                 val(6, "more ="),
+                                 val(8, "= some"),
+                                 val(8, "= yet"),
+                                 val(8, "= lots more"),
+                                 val(4, ""),
+                                 val(6, "title = fourth"),
+                                 val(6, "id = 4"),
+                                 val(4, "= fifth"),
+                                 val(4, "= sixth")]),
+    Parsed = [E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14,
+              E15, E16, E17, E18, E19],
+    N0 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1"), key(8, "title")], [val(0, "first")]),
+    N1 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1"), key(8, "id")], [val(0, "1")]),
+    N2 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1")], [val(0, "first"),
+                                                                val(8, "title = first"),
+                                                                val(8, "id = 1")]),
+    N3 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2"), key(6, "title")], [val(0, "second")]),
+    N4 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2"), key(6, "id")], [val(0, "2")]),
+    N5 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2")], [val(0, "second"),
+                                                                val(6, "title = second"),
+                                                                val(6, "id = 2")]),
+    N6 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "title")], [val(0, "third")]),
+    N7 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "id")], [val(0, "3")]),
+    N8 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "more"), key(8, "more_1")], [val(0, "some")]),
+    N9 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "more"), key(8, "more_2")], [val(0, "yet")]),
+    N10 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "more"), key(8, "more_3")], [val(0, "lots more")]),
+    N11 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "more")], [val(8, "= some"),
+                                                                                 val(8, "= yet"),
+                                                                                 val(8, "= lots more")]),
+    N12 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3")], [val(6, "title = third"),
+                                                                val(6, "id = 3"),
+                                                                val(6, "more ="),
+                                                                val(8, "= some"),
+                                                                val(8, "= yet"),
+                                                                val(8, "= lots more")]),
+    N13 = eqil([key(0, "top"), key(2, "key"), key(4, "key_4"), key(6, "title")], [val(0, "fourth")]),
+    N14 = eqil([key(0, "top"), key(2, "key"), key(4, "key_4"), key(6, "id")], [val(0, "4")]),
+    N15 = eqil([key(0, "top"), key(2, "key"), key(4, "key_4")], [val(6, "title = fourth"),
+                                                                val(6, "id = 4")]),
+    N16 = eqil([key(0, "top"), key(2, "key"), key(4, "key_5")], [val(0, "fifth")]),
+    N17 = eqil([key(0, "top"), key(2, "key"), key(4, "key_6")], [val(0, "sixth")]),
+    N18 = eqil([key(0, "top"), key(2, "key")], [val(4, "= first"),
+                                                val(8, "title = first"),
+                                                val(8, "id = 1"),
+                                                val(4, "= second"),
+                                                val(6, "title = second"),
+                                                val(6, "id = 2"),
+                                                val(4, ""),
+                                                val(6, "title = third"),
+                                                val(6, "id = 3"),
+                                                val(6, "more ="),
+                                                val(8, "= some"),
+                                                val(8, "= yet"),
+                                                val(8, "= lots more"),
+                                                val(4, ""),
+                                                val(6, "title = fourth"),
+                                                val(6, "id = 4"),
+                                                val(4, "= fifth"),
+                                                val(4, "= sixth")]),
+    N19 = eqil([key(0, "top")], [val(2, "key ="),
+                                 val(4, "= first"),
+                                 val(8, "title = first"),
+                                 val(8, "id = 1"),
+                                 val(4, "= second"),
+                                 val(6, "title = second"),
+                                 val(6, "id = 2"),
+                                 val(4, ""),
+                                 val(6, "title = third"),
+                                 val(6, "id = 3"),
+                                 val(6, "more ="),
+                                 val(8, "= some"),
+                                 val(8, "= yet"),
+                                 val(8, "= lots more"),
+                                 val(4, ""),
+                                 val(6, "title = fourth"),
+                                 val(6, "id = 4"),
+                                 val(4, "= fifth"),
+                                 val(4, "= sixth")]),
+    Normalized = [N0, N1, N2, N3, N4, N5, N6, N7, N8, N9, N10, N11, N12, N13, N14,
+                  N15, N16, N17, N18, N19],
+    R2 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1")], [val(8, "title = first"),
+                                                                val(8, "id = 1")]),
+    R5 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2")], [val(6, "title = second"),
+                                                                val(6, "id = 2")]),
+    R11 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "more")], [val(8, "more_1 = some"),
+                                                                                 val(8, "more_2 = yet"),
+                                                                                 val(8, "more_3 = lots more")]),
+    R12 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3")], [val(6, "title = third"),
+                                                                 val(6, "id = 3"),
+                                                                 val(6, "more ="),
+                                                                 val(8, "more_1 = some"),
+                                                                 val(8, "more_2 = yet"),
+                                                                 val(8, "more_3 = lots more")]),
+    R18 = eqil([key(0, "top"), key(2, "key")], [val(4, "key_1 ="),
+                                                val(8, "title = first"),
+                                                val(8, "id = 1"),
+                                                val(4, "key_2 ="),
+                                                val(6, "title = second"),
+                                                val(6, "id = 2"),
+                                                val(4, "key_3 ="),
+                                                val(6, "title = third"),
+                                                val(6, "id = 3"),
+                                                val(6, "more ="),
+                                                val(8, "more_1 = some"),
+                                                val(8, "more_2 = yet"),
+                                                val(8, "more_3 = lots more"),
+                                                val(4, "key_4 ="),
+                                                val(6, "title = fourth"),
+                                                val(6, "id = 4"),
+                                                val(4, "key_5 = fifth"),
+                                                val(4, "key_6 = sixth")]),
+    R19 = eqil([key(0, "top")], [val(2, "key ="),
+                                 val(4, "key_1 ="),
+                                 val(8, "title = first"),
+                                 val(8, "id = 1"),
+                                 val(4, "key_2 ="),
+                                 val(6, "title = second"),
+                                 val(6, "id = 2"),
+                                 val(4, "key_3 ="),
+                                 val(6, "title = third"),
+                                 val(6, "id = 3"),
+                                 val(6, "more ="),
+                                 val(8, "more_1 = some"),
+                                 val(8, "more_2 = yet"),
+                                 val(8, "more_3 = lots more"),
+                                 val(4, "key_4 ="),
+                                 val(6, "title = fourth"),
+                                 val(6, "id = 4"),
+                                 val(4, "key_5 = fifth"),
+                                 val(4, "key_6 = sixth")]),
+    ReParsed = [N0, N1, R2, N3, N4, R5, N6, N7, N8, N9, N10, R11, R12, N13, N14,
+                 N15, N16, N17, R18, R19],
+    check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
+
+
 test(blank_key_and_values, [nondet]) :-
     Inp = {|string||
 | key =
@@ -1392,18 +1626,18 @@ test(blank_key_and_values, [nondet]) :-
     % spaces around =, adds an extra blank line for %3 gen_eqil_combine
     Out = {|string||
 | key =
-|   key1 =
+|   key_1 =
 |     foo =
 |       bar
-|   key4 =
+|   key_2 =
 |     cow =
-|       cow2 = moo
-|       cow3 = graze
+|       cow_1 = moo
+|       cow_2 = graze
 |
-| 5 = blank
+| key_3 = blank
 | mid = point
-| 6 = another blank
-| 7 =
+| key_4 = another blank
+| key_5 =
 | end =
 |  here
 |},
@@ -1452,32 +1686,42 @@ test(blank_key_and_values, [nondet]) :-
     Parsed = [ E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12 ],
     Normalized = [
         % E0 with assigned key:
-        eqil([key(0, "key"), key(2, "key1"), key(4, "foo")],
+        eqil([key(0, "key"), key(2, "key_1"), key(4, "foo")],
              [val(6, "bar")
               ]),
         % E1 with assigned key:
-        eqil([key(0, "key"), key(2, "key1")],
+        eqil([key(0, "key"), key(2, "key_1")],
               [val(4, "foo ="),
                val(6, "bar")
               ]),
-        % E2 removed,
+        % E2 + E7
+        eqil([key(0, "key")],
+              [val(2, ""),
+               val(4, "foo ="),
+               val(6, "bar"),
+               val(2, ""),
+               val(4, "cow ="),
+               val(6, "= moo"),
+               val(6, "= graze"),
+               val(0, "")
+              ]),
         % E3 with assigned key:
-        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow2")],
+        eqil([key(0, "key"), key(2, "key_2"), key(4, "cow"), key(6, "cow_1")],
               [val(0, "moo")
               ]),
         % E4 with assigned key
-        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow3")],
+        eqil([key(0, "key"), key(2, "key_2"), key(4, "cow"), key(6, "cow_2")],
              [val(0, "graze"),
               val(0, "")
              ]),
         % E5 with assigned key:
-        eqil([key(0, "key"), key(2, "key4"), key(4, "cow")],
+        eqil([key(0, "key"), key(2, "key_2"), key(4, "cow")],
               [val(6, "= moo"),
                val(6, "= graze"),
                val(0, "")
               ]),
         % E6 with assigned key:
-        eqil([key(0, "key"), key(2, "key4")],
+        eqil([key(0, "key"), key(2, "key_2")],
               [val(4, "cow ="),
                val(6, "= moo"),
                val(6, "= graze"),
@@ -1485,64 +1729,64 @@ test(blank_key_and_values, [nondet]) :-
               ]),
         % E7 removed.
         % E8 with assigned key:
-        eqil([key(0, "5")], [val(0, "blank")]),
+        eqil([key(0, "key_3")], [val(0, "blank")]),
         E9,
         % E10 with assigned key:
-        eqil([key(0, "6")], [val(0,"another blank")]),
+        eqil([key(0, "key_4")], [val(0,"another blank")]),
         % E11 with assigned key:
-        eqil([key(0, "7")], []),
+        eqil([key(0, "key_5")], []),
         E12 ],
     ReParsed = [
         % E0 with assigned key:
-        eqil([key(0, "key"), key(2, "key1"), key(4, "foo")],
+        eqil([key(0, "key"), key(2, "key_1"), key(4, "foo")],
              [val(6, "bar")
               ]),
         % E1 with assigned key:
-        eqil([key(0, "key"), key(2, "key1")],
+        eqil([key(0, "key"), key(2, "key_1")],
               [val(4, "foo ="),
                val(6, "bar")
               ]),
         % E2 removed,
         % E3 with assigned key:
-        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow2")],
+        eqil([key(0, "key"), key(2, "key_2"), key(4, "cow"), key(6, "cow_1")],
               [val(0, "moo")
               ]),
         % E4 with assigned key
-        eqil([key(0, "key"), key(2, "key4"), key(4, "cow"), key(6, "cow3")],
+        eqil([key(0, "key"), key(2, "key_2"), key(4, "cow"), key(6, "cow_2")],
              [val(0, "graze"),
               val(0, "")
              ]),
         % E5 with assigned key and value updates for assigned keys:
-        eqil([key(0, "key"), key(2, "key4"), key(4, "cow")],
-              [val(6, "cow2 = moo"),
-               val(6, "cow3 = graze"),
+        eqil([key(0, "key"), key(2, "key_2"), key(4, "cow")],
+              [val(6, "cow_1 = moo"),
+               val(6, "cow_2 = graze"),
                val(0, "")
               ]),
         % E6 with assigned key and value updates for assigned keys:
-        eqil([key(0, "key"), key(2, "key4")],
+        eqil([key(0, "key"), key(2, "key_2")],
               [val(4, "cow ="),
-               val(6, "cow2 = moo"),
-               val(6, "cow3 = graze"),
+               val(6, "cow_1 = moo"),
+               val(6, "cow_2 = graze"),
                val(0, "")
               ]),
         % E2 + E7 with value updates for assigned keys:
         eqil([key(0, "key")],
-              [val(2, "key1 ="),
+              [val(2, "key_1 ="),
                val(4, "foo ="),
                val(6, "bar"),
-               val(2, "key4 ="),
+               val(2, "key_2 ="),
                val(4, "cow ="),
-               val(6, "cow2 = moo"),
-               val(6, "cow3 = graze"),
+               val(6, "cow_1 = moo"),
+               val(6, "cow_2 = graze"),
                val(0, "")
               ]),
         % E8 with assigned key:
-        eqil([key(0, "5")], [val(0, "blank")]),
+        eqil([key(0, "key_3")], [val(0, "blank")]),
         E9,
         % E10 with assigned key:
-        eqil([key(0, "6")], [val(0,"another blank")]),
+        eqil([key(0, "key_4")], [val(0,"another blank")]),
         % E11 with assigned key:
-        eqil([key(0, "7")], []),
+        eqil([key(0, "key_5")], []),
         E12 ],
     check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
 
@@ -1564,10 +1808,10 @@ test(duplicate_keys, [nondet]) :-
 |   op = build
 |        test
 |        run
-|   key1 = right
-|   key2 = center
+|   key_1 = right
+|   key_2 = center
 |     of things
-|   key3 = left
+|   key_3 = left
 |},
     Parsed = [
         eqil([key(0, "key"), key(2,"op")], [val(0, "build")]),
@@ -1591,19 +1835,19 @@ test(duplicate_keys, [nondet]) :-
         eqil([key(0, "key"), key(2,"op")], [val(0, "build"),
                                             val(7, "test"),
                                             val(7, "run")]),
-        eqil([key(0, "key"), key(2, "key1")], [val(0, "right")]),
-        eqil([key(0, "key"), key(2, "key2")], [val(0, "center"),
+        eqil([key(0, "key"), key(2, "key_1")], [val(0, "right")]),
+        eqil([key(0, "key"), key(2, "key_2")], [val(0, "center"),
                                                val(4, "of things")]),
-        eqil([key(0, "key"), key(2, "key3")], [val(0, "left")])
-        %% eqil([key(0, "key")],
-        %%      [val(2, "op = build"),
-        %%       val(2, "op = test"),
-        %%       val(2, "op = run"),
-        %%       val(2, "= right"),
-        %%       val(2, "= center"),
-        %%       val(4, "of things"),
-        %%       val(2, "= left")
-        %%      ])
+        eqil([key(0, "key"), key(2, "key_3")], [val(0, "left")]),
+        eqil([key(0, "key")],
+             [val(2, "op = build"),
+              val(2, "op = test"),
+              val(2, "op = run"),
+              val(2, "= right"),
+              val(2, "= center"),
+              val(4, "of things"),
+              val(2, "= left")
+             ])
     ],
     ReParsed = [
         eqil([key(0, "key"), key(2,"op")], [val(0, "build"),
@@ -1612,18 +1856,18 @@ test(duplicate_keys, [nondet]) :-
                                            ]),
         %% eqil([key(0, "key"), key(2,"op")], [val(0, "test")]),
         %% eqil([key(0, "key"), key(2,"op")], [val(0, "run")]),
-        eqil([key(0, "key"), key(2, "key1")], [val(0, "right")]),
-        eqil([key(0, "key"), key(2, "key2")], [val(0, "center"),
+        eqil([key(0, "key"), key(2, "key_1")], [val(0, "right")]),
+        eqil([key(0, "key"), key(2, "key_2")], [val(0, "center"),
                                                val(4, "of things")]),
-        eqil([key(0, "key"), key(2, "key3")], [val(0, "left")]),
+        eqil([key(0, "key"), key(2, "key_3")], [val(0, "left")]),
         eqil([key(0, "key")],
              [val(2, "op = build"),
               val(7, "test"),
               val(7, "run"),
-              val(2, "key1 = right"),
-              val(2, "key2 = center"),
+              val(2, "key_1 = right"),
+              val(2, "key_2 = center"),
               val(4, "of things"),
-              val(2, "key3 = left")
+              val(2, "key_3 = left")
              ])
     ],
     check(Inp, Parsed, Out, Normalized, ReParsed, Result),
@@ -1634,16 +1878,16 @@ test(duplicate_keys, [nondet]) :-
     assertion(eng:eng(key, op, "build\ntest\nrun")),
     %% assertion(eng:eng(key, op, "test")),
     %% assertion(eng:eng(key, op, "run")),
-    assertion(eng:key(key, 'key1')),
-    assertion(eng:key(key, 'key2')),
-    assertion(eng:key(key, 'key3')),
-    assertion(eng:eng(key, 'key3', "left")),
-    assertion(eng:eng(key, 'key2', "center\nof things")),
-    assertion(eng:eng(key, 'key1', "right")),
+    assertion(eng:key(key, 'key_1')),
+    assertion(eng:key(key, 'key_2')),
+    assertion(eng:key(key, 'key_3')),
+    assertion(eng:eng(key, 'key_3', "left")),
+    assertion(eng:eng(key, 'key_2', "center\nof things")),
+    assertion(eng:eng(key, 'key_1', "right")),
     findall(K, eng:key(K), KS),
     assertion(KS == [ key ]),
     findall((K1,K2), eng:key(K1,K2), K2S),
-    assertion(K2S == [ (key,op), (key,'key1'), (key,'key2'), (key,'key3') ]),
+    assertion(K2S == [ (key,op), (key,'key_1'), (key,'key_2'), (key,'key_3') ]),
     findall((K1,K2,K3), eng:key(K1,K2,K3), K3S),
     assertion(K3S == []),
     %% findall((K,V), eng:eng(K,,V), KVS),
@@ -1864,12 +2108,12 @@ test(blank_keys, [nondet]) :-
 | system =
 |   spec =
 |     This is my Specification =
-|       This is my Specification1 = foo
-|       This is my Specification2 = foo.spec
-|       This is my Specification3 = used
-|       This is my Specification4 = at this time
+|       This is my Specification_1 = foo
+|       This is my Specification_2 = foo.spec
+|       This is my Specification_3 = used
+|       This is my Specification_4 = at this time
 |     Another spec =
-|       Another spec5 = there
+|       Another spec_1 = there
 |
 |},
     Parsed = [
@@ -1923,103 +2167,102 @@ test(blank_keys, [nondet]) :-
     Normalized = [
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification1")],
+              key(6, "This is my Specification_1")],
              [val(0, "foo")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification2")],
+              key(6, "This is my Specification_2")],
              [val(0, "foo.spec")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification3")],
+              key(6, "This is my Specification_3")],
              [val(0, "used")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification4")],
+              key(6, "This is my Specification_4")],
              [val(0, "at this time")]),
-        %% eqil([key(0, "system"), key(2, "spec")],
-        %%      [val(4, "This is my Specification ="),
-        %%       val(6, "= foo"),
-        %%       val(6, "= foo.spec"),
-        %%       val(6, "= used"),
-        %%       val(6, "= at this time"),
-        %%       val(4, "Another spec = here"),
-        %%       val(6, "= there")
-        %%      ]),
-        %% eqil([key(0, "system"), key(2, "spec"),
-        %%       key(4, "This is my Specification")],
-        %%      [val(6, "= foo"),
-        %%       val(6, "= foo.spec"),
-        %%       val(6, "= used"),
-        %%       val(6, "= at this time")
-        %%      ]),
+        eqil([key(0, "system"), key(2, "spec"),
+              key(4, "This is my Specification")],
+             [val(6, "= foo"),
+              val(6, "= foo.spec"),
+              val(6, "= used"),
+              val(6, "= at this time")
+             ]),
+        eqil([key(0, "system"), key(2, "spec")],
+             [val(4, "This is my Specification ="),
+              val(6, "= foo"),
+              val(6, "= foo.spec"),
+              val(6, "= used"),
+              val(6, "= at this time"),
+              val(4, "Another spec = here"),
+              val(6, "= there")
+             ]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "Another spec"),
-              key(6, "Another spec5")],
-             [val(0, "there")])
-        %% eqil([key(0, "system"), key(2, "spec"),
-        %%       key(4, "Another spec")],
-        %%      [val(0, "here"),
-        %%       val(6, "= there")]),
-        %% eqil([key(0, "system")],
-        %%      [val(2, "spec"),
-        %%       val(4, "This is my Specification ="),
-        %%       val(6, "= foo"),
-        %%       val(6, "= foo.spec"),
-                %%       val(6, "= used"),
-        %%       val(6, "= at this time"),
-        %%       val(2, "spec"),
-        %%       val(4, "Another spec = here"),
-        %%       val(6, "= there")])
+              key(6, "Another spec_1")],
+             [val(0, "there")]),
+        eqil([key(0, "system"), key(2, "spec"), key(4, "Another spec")],
+             [val(0, "here"),
+              val(6, "= there")]),
+        eqil([key(0, "system")],
+             [val(2, "spec"),
+              val(4, "This is my Specification ="),
+              val(6, "= foo"),
+              val(6, "= foo.spec"),
+                      val(6, "= used"),
+              val(6, "= at this time"),
+              val(2, "spec"),
+              val(4, "Another spec = here"),
+              val(6, "= there")])
     ],
     ReParsed = [
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification1")],
+              key(6, "This is my Specification_1")],
              [val(0, "foo")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification2")],
+              key(6, "This is my Specification_2")],
              [val(0, "foo.spec")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification3")],
+              key(6, "This is my Specification_3")],
              [val(0, "used")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification"),
-              key(6, "This is my Specification4")],
+              key(6, "This is my Specification_4")],
              [val(0, "at this time")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "This is my Specification")],
-             [val(6, "This is my Specification1 = foo"),
-              val(6, "This is my Specification2 = foo.spec"),
-              val(6, "This is my Specification3 = used"),
-              val(6, "This is my Specification4 = at this time")]),
+             [val(6, "This is my Specification_1 = foo"),
+              val(6, "This is my Specification_2 = foo.spec"),
+              val(6, "This is my Specification_3 = used"),
+              val(6, "This is my Specification_4 = at this time")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "Another spec"),
-              key(6, "Another spec5")],
+              key(6, "Another spec_1")],
              [val(0, "there")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "Another spec")],
-             [val(6, "Another spec5 = there")]),
+             [val(6, "Another spec_1 = there")]),
         eqil([key(0, "system"), key(2, "spec")],
              [val(4, "This is my Specification ="),
-              val(6, "This is my Specification1 = foo"),
-              val(6, "This is my Specification2 = foo.spec"),
-              val(6, "This is my Specification3 = used"),
-              val(6, "This is my Specification4 = at this time"),
+              val(6, "This is my Specification_1 = foo"),
+              val(6, "This is my Specification_2 = foo.spec"),
+              val(6, "This is my Specification_3 = used"),
+              val(6, "This is my Specification_4 = at this time"),
               val(4, "Another spec ="),
-              val(6, "Another spec5 = there")
+              val(6, "Another spec_1 = there")
              ]),
         eqil([key(0, "system")],
              [val(2, "spec ="),
               val(4, "This is my Specification ="),
-              val(6, "This is my Specification1 = foo"),
-              val(6, "This is my Specification2 = foo.spec"),
-              val(6, "This is my Specification3 = used"),
-              val(6, "This is my Specification4 = at this time"),
+              val(6, "This is my Specification_1 = foo"),
+              val(6, "This is my Specification_2 = foo.spec"),
+              val(6, "This is my Specification_3 = used"),
+              val(6, "This is my Specification_4 = at this time"),
               val(4, "Another spec ="),
-              val(6, "Another spec5 = there")
+              val(6, "Another spec_1 = there")
              ])
     ],
     check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
@@ -2185,11 +2428,11 @@ test(mixed_keys, [nondet]) :-
 |   key2 =
 |     key3 = value3
 |     key4 =
-|       key41 = value4.1
+|       key4_1 = value4.1
 |
-|       key42 = value4.2
+|       key4_2 = value4.2
 |
-|       key43 = value4.3
+|       key4_3 = value4.3
 |
 |     key5 = value5
 |
@@ -2205,107 +2448,25 @@ test(mixed_keys, [nondet]) :-
     Normalized = [
         eqil([key(0, "key1"), key(2, "key2"), key(4, "key3")],
              [val(0, "value3")]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key41")],
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key4_1")],
              [val(0, "value4.1"),
               val(0, "")
              ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key42")],
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key4_2")],
              [val(0, "value4.2"),
               val(0, "")
              ]),
-        %% eqil([key(0, "key1"), key(2, "key2"), key(4, "key4")],
-        %%      [val(0, ""),
-        %%       val(6, "= value4.1"),
-        %%       val(0, ""),
-        %%       val(6, "= value4.2"),
-        %%       val(0, ""),
-        %%       val(6, "= value4.3"),
-        %%       val(0, "")
-        %%      ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key43")],
-             [val(0, "value4.3"),
-              val(0, "")
-             ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key5")],
-             [val(0, "value5"),
-              val(0, "")
-             ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6"), key(6, "k6sub")],
-             [val(0, "foo"),
-              val(14, "bar"),
-              val(0, "")
-             ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6")],
-             [val(6, "k6sub = foo"),
-              val(14, "bar"),
-              val(0, "")
-             ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "k7")],
-             [val(0, "value7"),
-              val(3, ""),
-              val(4, "")
-             ]),
-        %% eqil([key(0, "key1"), key(2, "key2")],
-        %%      [val(4, "key3 = value3"),
-        %%       val(4, "key4 ="),
-        %%       val(0, ""),
-        %%       val(6, "= value4.1"),
-        %%       val(0, ""),
-        %%       val(6, "= value4.2"),
-        %%       val(0, ""),
-        %%       val(6, "= value4.3"),
-        %%       val(0, ""),
-        %%       val(4, "key5 = value5"),
-        %%       val(0, ""),
-        %%       val(4, "k6 ="),
-        %%       val(6, "k6sub = foo"),
-        %%       val(14, "bar"),
-        %%       val(0, ""),
-        %%       val(4, "k7 = value7")
-        %%      ])
-        %% eqil([key(0, "key1")],
-        %%      [val(2, "key2 ="),
-        %%       val(4, "key3 = value3"),
-        %%       val(4, "key4 ="),
-        %%       val(0, ""),
-        %%       val(6, "= value4.1"),
-        %%       val(0, ""),
-        %%       val(6, "= value4.2"),
-        %%       val(0, ""),
-        %%       val(6, "= value4.3"),
-        %%       val(0, ""),
-        %%       val(4, "key5 = value5"),
-        %%       val(0, ""),
-        %%       val(4, "k6 ="),
-        %%       val(6, "k6sub = foo"),
-        %%       val(14, "bar"),
-        %%       val(0, ""),
-        %%       val(4, "k7 = value7")
-        %%      ])
-        eqil([key(0, "end")], [val(0, "here")])
-    ],
-    ReParsed = [
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key3")],
-             [val(0, "value3")]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key41")],
-             [val(0, "value4.1"),
-              val(0, "")
-             ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key42")],
-             [val(0, "value4.2"),
-              val(0, "")
-             ]),
-        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key43")],
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key4_3")],
              [val(0, "value4.3"),
               val(0, "")
              ]),
         eqil([key(0, "key1"), key(2, "key2"), key(4, "key4")],
-             [%% val(0, ""),
-              val(6, "key41 = value4.1"),
+             [val(0, ""),
+              val(6, "= value4.1"),
               val(0, ""),
-              val(6, "key42 = value4.2"),
+              val(6, "= value4.2"),
               val(0, ""),
-              val(6, "key43 = value4.3"),
+              val(6, "= value4.3"),
               val(0, "")
              ]),
         eqil([key(0, "key1"), key(2, "key2"), key(4, "key5")],
@@ -2330,11 +2491,97 @@ test(mixed_keys, [nondet]) :-
         eqil([key(0, "key1"), key(2, "key2")],
              [val(4, "key3 = value3"),
               val(4, "key4 ="),
-              val(6, "key41 = value4.1"),
               val(0, ""),
-              val(6, "key42 = value4.2"),
+              val(6, "= value4.1"),
               val(0, ""),
-              val(6, "key43 = value4.3"),
+              val(6, "= value4.2"),
+              val(0, ""),
+              val(6, "= value4.3"),
+              val(0, ""),
+              val(4, "key5 = value5"),
+              val(0, ""),
+              val(4, "k6 ="),
+              val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, ""),
+              val(4, "k7 = value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "key1")],
+             [val(2, "key2 ="),
+              val(4, "key3 = value3"),
+              val(4, "key4 ="),
+              val(0, ""),
+              val(6, "= value4.1"),
+              val(0, ""),
+              val(6, "= value4.2"),
+              val(0, ""),
+              val(6, "= value4.3"),
+              val(0, ""),
+              val(4, "key5 = value5"),
+              val(0, ""),
+              val(4, "k6 ="),
+              val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, ""),
+              val(4, "k7 = value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "end")], [val(0, "here")])
+    ],
+    ReParsed = [
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key3")],
+             [val(0, "value3")]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key4_1")],
+             [val(0, "value4.1"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key4_2")],
+             [val(0, "value4.2"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4"), key(6, "key4_3")],
+             [val(0, "value4.3"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key4")],
+             [%% val(0, ""),
+              val(6, "key4_1 = value4.1"),
+              val(0, ""),
+              val(6, "key4_2 = value4.2"),
+              val(0, ""),
+              val(6, "key4_3 = value4.3"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "key5")],
+             [val(0, "value5"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6"), key(6, "k6sub")],
+             [val(0, "foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k6")],
+             [val(6, "k6sub = foo"),
+              val(14, "bar"),
+              val(0, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2"), key(4, "k7")],
+             [val(0, "value7"),
+              val(3, ""),
+              val(4, "")
+             ]),
+        eqil([key(0, "key1"), key(2, "key2")],
+             [val(4, "key3 = value3"),
+              val(4, "key4 ="),
+              val(6, "key4_1 = value4.1"),
+              val(0, ""),
+              val(6, "key4_2 = value4.2"),
+              val(0, ""),
+              val(6, "key4_3 = value4.3"),
               val(0, ""),
               val(4, "key5 = value5"),
               val(0, ""),
@@ -2351,11 +2598,11 @@ test(mixed_keys, [nondet]) :-
               val(4, "key3 = value3"),
               val(4, "key4 ="),
               %% val(0, ""),
-              val(6, "key41 = value4.1"),
+              val(6, "key4_1 = value4.1"),
               val(0, ""),
-              val(6, "key42 = value4.2"),
+              val(6, "key4_2 = value4.2"),
               val(0, ""),
-              val(6, "key43 = value4.3"),
+              val(6, "key4_3 = value4.3"),
               val(0, ""),
               val(4, "key5 = value5"),
               val(0, ""),
@@ -2380,7 +2627,7 @@ test(sample1, [nondet]) :-
 |  foo
 |    farm =
 |      cow = moo=says hello
-|      pig
+|      pigs
 |        = grunt
 |        = oink
 |  foo =
@@ -2397,9 +2644,9 @@ test(sample1, [nondet]) :-
 |  foo =
 |    farm =
 |      cow = moo=says hello
-|      pig =
-|        pig1 = grunt
-|        pig2 = oink
+|      pigs =
+|        pig_1 = grunt
+|        pig_2 = oink
 |      chicken = cluck
 |      info =
 |        A chicken is an animal (chicken = animal) but not all
@@ -2409,27 +2656,27 @@ test(sample1, [nondet]) :-
     E1 = eqil([key(0, "foo"), key(2,"farm"), key(4, "cow")],
               [val(0, "moo=says hello")
               ]),
-    E2 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "")],
+    E2 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs"), key(6, "")],
               [val(0, "grunt")
               ]),
     E6 = eqil([key(0, "foo")],
               [val(2, "farm ="),
                val(4, "cow = moo=says hello"),
-               val(4, "pig"),
+               val(4, "pigs"),
                val(6, "= grunt"),
                val(6, "= oink")
               ]),
     E5 = eqil([key(0, "foo"), key(2,"farm")],
               [val(4, "cow = moo=says hello"),
-               val(4, "pig"),
+               val(4, "pigs"),
                val(6, "= grunt"),
                val(6, "= oink")
               ]),
-    E4 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig")],
+    E4 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs")],
               [val(6, "= grunt"),
                val(6, "= oink")
               ]),
-    E3 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "")],
+    E3 = eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs"), key(6, "")],
               [val(0, "oink")
               ]),
     E7 = eqil([key(0, "foo"), key(2,"farm"), key(4, "chicken")],
@@ -2471,25 +2718,52 @@ test(sample1, [nondet]) :-
     ],
     Normalized = [
         E1,
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs"), key(6, "pig_1")],
              [val(0, "grunt")
              ]),
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs"), key(6, "pig_2")],
              [val(0, "oink")
+             ]),
+        E4,
+        % E5 + E12
+        eqil([key(0, "foo"), key(2,"farm")],
+             [val(4, "cow = moo=says hello"),
+              val(4, "pigs"),
+              val(6, "= grunt"),
+              val(6, "= oink"),
+              val(4, "chicken = cluck"),
+              val(4, "info ="),
+              val(6, "A chicken is an animal (chicken=animal) but not all"),
+              val(6, "animals are chickens, so we cannot say = for animal"),
+              val(6, "and chicken.")
+             ]),
+        % E6 + E13(tail)
+        eqil([key(0, "foo")],
+             [val(2, "farm ="),
+              val(4, "cow = moo=says hello"),
+              val(4, "pigs"),
+              val(6, "= grunt"),
+              val(6, "= oink"),
+                  val(2, "farm ="),  % KWQ! THIS SHOULD BE REMOVED!
+              val(4, "chicken = cluck"),
+              val(4, "info ="),
+              val(6, "A chicken is an animal (chicken=animal) but not all"),
+              val(6, "animals are chickens, so we cannot say = for animal"),
+              val(6, "and chicken.")
              ]),
         E7, E8, E9, E10, E11
     ],
     ReParsed = [
         E1,
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs"), key(6, "pig_1")],
              [val(0, "grunt")
              ]),
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs"), key(6, "pig_2")],
              [val(0, "oink")
              ]),
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig")],
-             [val(6, "pig1 = grunt"),
-              val(6, "pig2 = oink")
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pigs")],
+             [val(6, "pig_1 = grunt"),
+              val(6, "pig_2 = oink")
              ]),
         E7, E8, E9, E10,
         eqil([key(0, "foo"), key(2,"farm"), key(4, "info")],
@@ -2499,9 +2773,9 @@ test(sample1, [nondet]) :-
              ]),
         eqil([key(0, "foo"), key(2,"farm")],
              [val(4, "cow = moo=says hello"),
-              val(4, "pig ="),
-              val(6, "pig1 = grunt"),
-              val(6, "pig2 = oink"),
+              val(4, "pigs ="),
+              val(6, "pig_1 = grunt"),
+              val(6, "pig_2 = oink"),
               val(4, "chicken = cluck"),
               val(4, "info ="),
               val(6, "A chicken is an animal (chicken = animal) but not all"),
@@ -2511,9 +2785,9 @@ test(sample1, [nondet]) :-
         eqil([key(0, "foo")],
              [val(2,"farm ="),
               val(4, "cow = moo=says hello"),
-              val(4, "pig ="),
-              val(6, "pig1 = grunt"),
-              val(6, "pig2 = oink"),
+              val(4, "pigs ="),
+              val(6, "pig_1 = grunt"),
+              val(6, "pig_2 = oink"),
               val(4, "chicken = cluck"),
               val(4, "info ="),
               val(6, "A chicken is an animal (chicken = animal) but not all"),
@@ -2546,8 +2820,8 @@ test(sample1_valblock, [nondet]) :-
 |    farm =
 |      cow = moo=says hello
 |      pig =
-|        pig1 = grunt
-|        pig2 = oink
+|        pig_1 = grunt
+|        pig_2 = oink
 |      chicken = cluck
 |      info = |
 |        A chicken is an animal (chicken=animal) but not all
@@ -2606,35 +2880,60 @@ test(sample1_valblock, [nondet]) :-
     Parsed = [
         E1, E2, E3, E4, E5, E6, E7, E11, E12, E13
     ],
+    % N5 = E5 + E12
+    N5 = eqil([key(0,"foo"),key(2,"farm")],[val(4,"cow = moo=says hello"),
+                                           val(4,"pig"),
+                                           val(6,"= grunt"),val(6,"= oink"),
+                                           val(4,"chicken = cluck"),
+                                           val(4,"info ="),
+                                           val(6,"A chicken is an animal (chicken=animal) but not all"),
+                                           val(6,"animals are chickens, so we cannot say = for animal"),
+                                           val(6,"and chicken.")]),
+    % N6 = E6 + E13
+    N6 = eqil([key(0,"foo")],[val(2,"farm ="),
+                              val(4,"cow = moo=says hello"),
+                              val(4,"pig"),
+                              val(6,"= grunt"),
+                              val(6,"= oink"),
+                              val(2,"farm ="),
+                              val(4,"chicken = cluck"),
+                              val(4,"info ="),
+                              val(6,"A chicken is an animal (chicken=animal) but not all"),
+                              val(6,"animals are chickens, so we cannot say = for animal"),
+                              val(6,"and chicken.")]),
     Normalized = [
         E1,
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig_1")],
              [val(0, "grunt")
              ]),
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig_2")],
              [val(0, "oink")
              ]),
-        E7, E11
+        E4,
+        N5,
+        N6,
+        E7,
+        E11
     ],
     ReParsed = [
         E1,
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig1")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig_1")],
              [val(0, "grunt")
              ]),
-        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig2")],
+        eqil([key(0, "foo"), key(2,"farm"), key(4, "pig"), key(6, "pig_2")],
              [val(0, "oink")
              ]),
         eqil([key(0, "foo"), key(2,"farm"), key(4, "pig")],
-             [val(6, "pig1 = grunt"),
-              val(6, "pig2 = oink")
+             [val(6, "pig_1 = grunt"),
+              val(6, "pig_2 = oink")
              ]),
         E7,
         E11,
         eqil([key(0, "foo"), key(2,"farm")],
              [val(4, "cow = moo=says hello"),
               val(4, "pig ="),
-              val(6, "pig1 = grunt"),
-              val(6, "pig2 = oink"),
+              val(6, "pig_1 = grunt"),
+              val(6, "pig_2 = oink"),
               val(4, "chicken = cluck"),
               val(4, "info ="),
               val(6, "A chicken is an animal (chicken=animal) but not all"),
@@ -2645,8 +2944,8 @@ test(sample1_valblock, [nondet]) :-
              [val(2,"farm ="),
               val(4, "cow = moo=says hello"),
               val(4, "pig ="),
-              val(6, "pig1 = grunt"),
-              val(6, "pig2 = oink"),
+              val(6, "pig_1 = grunt"),
+              val(6, "pig_2 = oink"),
               val(4, "chicken = cluck"),
               val(4, "info ="),
               val(6, "A chicken is an animal (chicken=animal) but not all"),
