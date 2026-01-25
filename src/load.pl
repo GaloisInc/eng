@@ -35,6 +35,7 @@ load_eng.   % This used to have the use_module statements below as the body, but
 :- use_module('src/commands/help').
 :- use_module('src/commands/run').
 :- use_module('src/commands/system').
+:- use_module('src/commands/tasks').
 :- use_module('src/commands/exec_subcmds').
 :- use_module('src/commands/versionctl').
 :- use_module('src/datafmts/eqil').
@@ -46,6 +47,7 @@ known_commands([
                       "help",
                       "run",
                       "system",
+                      "tasks",
                       "vctl" ]).
 
 known_command_focus(Cmd, cmdfocus(Cmd, CmdFocus)) :-
