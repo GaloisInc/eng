@@ -3102,14 +3102,6 @@ compare_ignore_leading_trailing_blanks(Inp1, Inp2) :-
     string_trim(Inp2, TI2),
     assertion(TI1 == TI2).
 
-remove_blank_lines(Inp, Out) :-
-    split_string(Inp, "\n", "", Lines),
-    rmv_blanks(Lines, NonBlankLines),
-    intercalate(NonBlankLines, "\n", Out).
-rmv_blanks([], []).
-rmv_blanks([""|LS], OLS) :- !, rmv_blanks(LS, OLS).
-rmv_blanks([L|LS], [L|OLS]) :- rmv_blanks(LS, OLS).
-
 assertall(Got, Exp) :- assert_each_(0, Got, Exp).
 assert_each_(_, [], []).
 assert_each_(N, [], [_|_]) :- assertion(N == "Extra lines expected").
