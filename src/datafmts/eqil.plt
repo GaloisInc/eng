@@ -275,7 +275,6 @@ test(multi_line_indented_value_with_blanks, [nondet]) :-
 |             except the last.
 |
 | another key = another value
-|
 |},
     Parsed = [
         eqil([key(4, "key")], [val(0, "value"), val(0, "")]),
@@ -337,19 +336,15 @@ test(multi_line_value_only, [nondet]) :-
 | another key = another value
 |
 |},
-    % This one is unusual: not only is there a blank key that normalize will fill
-    % in, but there is a key with a value that also has sub-keys.  At the present
-    % time, eqil does not support having a key with a value *and* sub-keys, and
-    % the value itself will be dropped on emitting/
+    % There a blank key that normalize will assign.
     Out = {|string||
 | key = value
 |
 | key2 =
-|    This is =
+|    This is = a multi-line value
 |        that is on three lines =
 |   key2_1 = and = this is the third.
 | another key = another value
-|
 |},
     Parsed = [
         eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
@@ -366,7 +361,7 @@ test(multi_line_value_only, [nondet]) :-
                                 val(7, "that is on three lines ="),
                                 val(2, "= and = this is the third.")]),
         eqil([key(0, "another key")], [val(0, "another value")])
-        ],
+    ],
     Normalized = [
         eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
         eqil([key(0, "key2"),
@@ -392,13 +387,14 @@ test(multi_line_value_only, [nondet]) :-
               key(7, "that is on three lines")],
              []),
         eqil([key(0, "key2"), key(3, "This is")],
-             [% val(0, "a multi-line value"),   % KWQ: support this on emission because it's a val0!
-              val(7, "that is on three lines =")]),
+             [val(0, "a multi-line value"),
+              val(7, "that is on three lines =")
+             ]),
         eqil([key(0, "key2"),
               key(2, "key2_1")],
              [val(0, "and = this is the third.")]),
         % Re-parsing sees the new version of this
-        eqil([key(0, "key2")], [val(3, "This is ="),
+        eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
                                 val(7, "that is on three lines ="),
                                 val(2, "key2_1 = and = this is the third.")]),
         eqil([key(0, "another key")], [val(0, "another value")])
@@ -409,9 +405,9 @@ test(multi_line_value_only, [nondet]) :-
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey2_1 = and = this is the third.")),
+    assertion(eng:eng(key2, "This is = a multi-line value\nthat is on three lines =\nkey2_1 = and = this is the third.")),
     assertion(eng:key(key2, 'This is')),
-    assertion(eng:eng(key2, 'This is', "that is on three lines =")),
+    assertion(eng:eng(key2, 'This is', "a multi-line value\nthat is on three lines =")),
     assertion(eng:key(key2, 'key2_1')),
     assertion(eng:eng(key2, 'key2_1', "and = this is the third.")),
     assertion(eng:key('another key')),
@@ -436,19 +432,18 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
 | another key = another value
 |
 |},
-    % Blank lines between the key and value are dropped, if a key has a value and
-    % subkeys, the value is dropped, and blank keys are auto-generated.
+    % Blank lines between the key and value are dropped and blank keys are
+    % auto-generated, and trailing file blanks are removed.
     Out = {|string||
 | key = value
 |
 | key2 =
-|    This is =
+|    This is = a multi-line value
 |        that is on three lines =
 |   key2_1 = and = this is the third.
 |     and the fourth
 |
 | another key = another value
-|
 |},
     Parsed = [
         eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
@@ -495,7 +490,7 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
         eqil([key(0, "another key")], [val(0, "another value")])
     ],
     % Adds the generated key value replacing the blank key and re-introduces the
-    % parent key value, but drops the value for keys with value and sub-keys.
+    % parent key value.
     ReParsed = [
         eqil([key(0, "key")], [val(0, "value"), val(0, "")]),
         eqil([key(0, "key2"),
@@ -503,13 +498,14 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
               key(7, "that is on three lines")],
              []),
         eqil([key(0, "key2"), key(3, "This is")],
-             [ % val(0, "a multi-line value"),
-              val(7, "that is on three lines =")]),
+             [ val(0, "a multi-line value"),
+               val(7, "that is on three lines =")
+             ]),
         eqil([key(0, "key2"), key(2, "key2_1")],
              [val(0, "and = this is the third."),
               val(4, "and the fourth"),
               val(0, "")]),
-        eqil([key(0, "key2")], [val(3, "This is ="),
+        eqil([key(0, "key2")], [val(3, "This is = a multi-line value"),
                                 val(7, "that is on three lines ="),
                                 val(2, "key2_1 = and = this is the third."),
                                 val(4, "and the fourth"),
@@ -522,9 +518,9 @@ test(multi_line_value_only_with_blanks, [nondet]) :-
     assertion(eng:key(key)),
     assertion(eng:eng(key, "value")),
     assertion(eng:key(key2)),
-    assertion(eng:eng(key2, "This is =\nthat is on three lines =\nkey2_1 = and = this is the third.\nand the fourth")),
+    assertion(eng:eng(key2, "This is = a multi-line value\nthat is on three lines =\nkey2_1 = and = this is the third.\nand the fourth")),
     assertion(eng:key(key2, 'This is')),
-    assertion(eng:eng(key2, 'This is', "that is on three lines =")),
+    assertion(eng:eng(key2, 'This is', "a multi-line value\nthat is on three lines =")),
     assertion(eng:key(key2, 'This is', 'that is on three lines')),
     assertion(eng:key(key2, 'key2_1')),
     assertion(eng:eng(key2, 'key2_1', "and = this is the third.\nand the fourth")),
@@ -1371,10 +1367,10 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
     Inp = {|string||
 | top =
 |   key =
-|     = first
+|     = firstval
 |         title = first
 |         id = 1
-|     = second
+|     = secondval
 |       title = second
 |       id = 2
 |     =
@@ -1389,14 +1385,20 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
 |       id = 4
 |     = fifth
 |     = sixth
+|     = |
+|         seventh is
+|         a block value with
+|         an = character embedded
+|     = last is on more than
+|       a single line
 |},
       Out = {|string||
 | top =
 |   key =
-|     key_1 =
+|     key_1 = firstval
 |         title = first
 |         id = 1
-|     key_2 =
+|     key_2 = secondval
 |       title = second
 |       id = 2
 |     key_3 =
@@ -1411,14 +1413,20 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
 |       id = 4
 |     key_5 = fifth
 |     key_6 = sixth
+|     key_7 = |
+|         seventh is
+|         a block value with
+|         an = character embedded
+|     key_8 = last is on more than
+|       a single line
 |},
     E0 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(8, "title")], [val(0, "first")]),
     E1 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(8, "id")], [val(0, "1")]),
-    E2 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "first"),
+    E2 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "firstval"),
                                                            val(8, "title = first"), val(8, "id = 1")]),
     E3 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "title")], [val(0, "second")]),
     E4 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "id")], [val(0, "2")]),
-    E5 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "second"),
+    E5 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "secondval"),
                                                            val(6, "title = second"),
                                                            val(6, "id = 2")]),
     E6 = eqil([key(0, "top"), key(2, "key"), key(4, ""), key(6, "title")], [val(0, "third")]),
@@ -1441,10 +1449,15 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                                             val(6, "id = 4")]),
     E16 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "fifth")]),
     E17 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "sixth")]),
-    E18 = eqil([key(0, "top"), key(2, "key")], [val(4, "= first"),
+    E18 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(8, "seventh is"),
+                                                            val(8, "a block value with"),
+                                                            val(8, "an = character embedded")]),
+    E19 = eqil([key(0, "top"), key(2, "key"), key(4, "")], [val(0, "last is on more than"),
+                                                            val(6, "a single line")]),
+    E20 = eqil([key(0, "top"), key(2, "key")], [val(4, "= firstval"),
                                                 val(8, "title = first"),
                                                 val(8, "id = 1"),
-                                                val(4, "= second"),
+                                                val(4, "= secondval"),
                                                 val(6, "title = second"),
                                                 val(6, "id = 2"),
                                                 val(4, ""),
@@ -1458,12 +1471,19 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                                 val(6, "title = fourth"),
                                                 val(6, "id = 4"),
                                                 val(4, "= fifth"),
-                                                val(4, "= sixth")]),
-    E19 = eqil([key(0, "top")], [val(2, "key ="),
-                                 val(4, "= first"),
+                                                val(4, "= sixth"),
+                                                val(4,""),
+                                                val(8,"seventh is"),
+                                                val(8,"a block value with"),
+                                                val(8,"an = character embedded"),
+                                                val(4, "= last is on more than"),
+                                                val(6, "a single line")
+                                               ]),
+    E21 = eqil([key(0, "top")], [val(2, "key ="),
+                                 val(4, "= firstval"),
                                  val(8, "title = first"),
                                  val(8, "id = 1"),
-                                 val(4, "= second"),
+                                 val(4, "= secondval"),
                                  val(6, "title = second"),
                                  val(6, "id = 2"),
                                  val(4, ""),
@@ -1477,17 +1497,24 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                  val(6, "title = fourth"),
                                  val(6, "id = 4"),
                                  val(4, "= fifth"),
-                                 val(4, "= sixth")]),
+                                 val(4, "= sixth"),
+                                 val(4,""),
+                                 val(8,"seventh is"),
+                                 val(8,"a block value with"),
+                                 val(8,"an = character embedded"),
+                                 val(4, "= last is on more than"),
+                                 val(6, "a single line")
+                                ]),
     Parsed = [E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11, E12, E13, E14,
-              E15, E16, E17, E18, E19],
+              E15, E16, E17, E18, E19, E20, E21],
     N0 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1"), key(8, "title")], [val(0, "first")]),
     N1 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1"), key(8, "id")], [val(0, "1")]),
-    N2 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1")], [val(0, "first"),
+    N2 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1")], [val(0, "firstval"),
                                                                 val(8, "title = first"),
                                                                 val(8, "id = 1")]),
     N3 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2"), key(6, "title")], [val(0, "second")]),
     N4 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2"), key(6, "id")], [val(0, "2")]),
-    N5 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2")], [val(0, "second"),
+    N5 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2")], [val(0, "secondval"),
                                                                 val(6, "title = second"),
                                                                 val(6, "id = 2")]),
     N6 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "title")], [val(0, "third")]),
@@ -1510,10 +1537,15 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                                                 val(6, "id = 4")]),
     N16 = eqil([key(0, "top"), key(2, "key"), key(4, "key_5")], [val(0, "fifth")]),
     N17 = eqil([key(0, "top"), key(2, "key"), key(4, "key_6")], [val(0, "sixth")]),
-    N18 = eqil([key(0, "top"), key(2, "key")], [val(4, "= first"),
+    N18 = eqil([key(0, "top"), key(2, "key"), key(4, "key_7")], [val(8, "seventh is"),
+                                                                 val(8, "a block value with"),
+                                                                 val(8, "an = character embedded")]),
+    N19 = eqil([key(0, "top"), key(2, "key"), key(4, "key_8")], [val(0, "last is on more than"),
+                                                                 val(6, "a single line")]),
+    N20 = eqil([key(0, "top"), key(2, "key")], [val(4, "= firstval"),
                                                 val(8, "title = first"),
                                                 val(8, "id = 1"),
-                                                val(4, "= second"),
+                                                val(4, "= secondval"),
                                                 val(6, "title = second"),
                                                 val(6, "id = 2"),
                                                 val(4, ""),
@@ -1527,12 +1559,19 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                                 val(6, "title = fourth"),
                                                 val(6, "id = 4"),
                                                 val(4, "= fifth"),
-                                                val(4, "= sixth")]),
-    N19 = eqil([key(0, "top")], [val(2, "key ="),
-                                 val(4, "= first"),
+                                                val(4, "= sixth"),
+                                                val(4, ""),
+                                                val(8, "seventh is"),
+                                                val(8, "a block value with"),
+                                                val(8, "an = character embedded"),
+                                                val(4, "= last is on more than"),
+                                                val(6, "a single line")
+                                               ]),
+    N21 = eqil([key(0, "top")], [val(2, "key ="),
+                                 val(4, "= firstval"),
                                  val(8, "title = first"),
                                  val(8, "id = 1"),
-                                 val(4, "= second"),
+                                 val(4, "= secondval"),
                                  val(6, "title = second"),
                                  val(6, "id = 2"),
                                  val(4, ""),
@@ -1546,12 +1585,21 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                  val(6, "title = fourth"),
                                  val(6, "id = 4"),
                                  val(4, "= fifth"),
-                                 val(4, "= sixth")]),
+                                 val(4, "= sixth"),
+                                 val(4, ""),
+                                 val(8, "seventh is"),
+                                 val(8, "a block value with"),
+                                 val(8, "an = character embedded"),
+                                 val(4, "= last is on more than"),
+                                 val(6, "a single line")
+                                ]),
     Normalized = [N0, N1, N2, N3, N4, N5, N6, N7, N8, N9, N10, N11, N12, N13, N14,
-                  N15, N16, N17, N18, N19],
-    R2 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1")], [val(8, "title = first"),
+                  N15, N16, N17, N18, N19, N20, N21],
+    R2 = eqil([key(0, "top"), key(2, "key"), key(4, "key_1")], [val(0, "firstval"),
+                                                                val(8, "title = first"),
                                                                 val(8, "id = 1")]),
-    R5 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2")], [val(6, "title = second"),
+    R5 = eqil([key(0, "top"), key(2, "key"), key(4, "key_2")], [val(0, "secondval"),
+                                                                val(6, "title = second"),
                                                                 val(6, "id = 2")]),
     R11 = eqil([key(0, "top"), key(2, "key"), key(4, "key_3"), key(6, "more")], [val(8, "more_1 = some"),
                                                                                  val(8, "more_2 = yet"),
@@ -1562,10 +1610,10 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                                                  val(8, "more_1 = some"),
                                                                  val(8, "more_2 = yet"),
                                                                  val(8, "more_3 = lots more")]),
-    R18 = eqil([key(0, "top"), key(2, "key")], [val(4, "key_1 ="),
+    R20 = eqil([key(0, "top"), key(2, "key")], [val(4, "key_1 = firstval"),
                                                 val(8, "title = first"),
                                                 val(8, "id = 1"),
-                                                val(4, "key_2 ="),
+                                                val(4, "key_2 = secondval"),
                                                 val(6, "title = second"),
                                                 val(6, "id = 2"),
                                                 val(4, "key_3 ="),
@@ -1579,12 +1627,19 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                                 val(6, "title = fourth"),
                                                 val(6, "id = 4"),
                                                 val(4, "key_5 = fifth"),
-                                                val(4, "key_6 = sixth")]),
-    R19 = eqil([key(0, "top")], [val(2, "key ="),
-                                 val(4, "key_1 ="),
+                                                val(4, "key_6 = sixth"),
+                                                val(4, "key_7 ="),
+                                                val(8, "seventh is"),
+                                                val(8, "a block value with"),
+                                                val(8, "an = character embedded"),
+                                                val(4, "key_8 = last is on more than"),
+                                                val(6, "a single line")
+                                               ]),
+    R21 = eqil([key(0, "top")], [val(2, "key ="),
+                                 val(4, "key_1 = firstval"),
                                  val(8, "title = first"),
                                  val(8, "id = 1"),
-                                 val(4, "key_2 ="),
+                                 val(4, "key_2 = secondval"),
                                  val(6, "title = second"),
                                  val(6, "id = 2"),
                                  val(4, "key_3 ="),
@@ -1598,9 +1653,17 @@ test(separate_blank_keys_with_subvalues, [nondet]) :-
                                  val(6, "title = fourth"),
                                  val(6, "id = 4"),
                                  val(4, "key_5 = fifth"),
-                                 val(4, "key_6 = sixth")]),
+                                 val(4, "key_6 = sixth"),
+                                 val(4, "key_7 ="),
+                                 val(8, "seventh is"),
+                                 val(8, "a block value with"),
+                                 val(8, "an = character embedded"),
+                                 val(4, "key_8 = last is on more than"),
+                                 val(6, "a single line")
+
+                                ]),
     ReParsed = [N0, N1, R2, N3, N4, R5, N6, N7, N8, N9, N10, R11, R12, N13, N14,
-                 N15, N16, N17, R18, R19],
+                N15, N16, N17, N18, N19, R20, R21],
     check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
 
 
@@ -1916,7 +1979,7 @@ test(top_level_implicit_keys, [nondet]) :-
 |     This is my Specification =
 |       name = foo
 |       file = foo.spec
-|     Another spec =
+|     Another spec = here
 |       name = 'nuther
 |       'not = used
 |
@@ -2041,7 +2104,7 @@ test(top_level_implicit_keys, [nondet]) :-
              [val(0, "used")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "Another spec")],
-             [%% val(0, "here"),
+             [val(0, "here"),
               val(6, "name = 'nuther"),
               val(6, "'not = used")
              ]),
@@ -2051,7 +2114,7 @@ test(top_level_implicit_keys, [nondet]) :-
               val(6, "name = foo"),
               val(6, "file = foo.spec"),
               % Added:
-              val(4, "Another spec ="),
+              val(4, "Another spec = here"),
               val(6, "name = 'nuther"),
               val(6, "'not = used")
              ]),
@@ -2061,7 +2124,7 @@ test(top_level_implicit_keys, [nondet]) :-
               val(6, "name = foo"),
               val(6, "file = foo.spec"),
               %% val(2, "spec"),
-              val(4, "Another spec ="),
+              val(4, "Another spec = here"),
               val(6, "name = 'nuther"),
               val(6, "'not = used")
              ])
@@ -2112,7 +2175,7 @@ test(blank_keys, [nondet]) :-
 |       This is my Specification_2 = foo.spec
 |       This is my Specification_3 = used
 |       This is my Specification_4 = at this time
-|     Another spec =
+|     Another spec = here
 |       Another spec_1 = there
 |
 |},
@@ -2244,14 +2307,14 @@ test(blank_keys, [nondet]) :-
              [val(0, "there")]),
         eqil([key(0, "system"), key(2, "spec"),
               key(4, "Another spec")],
-             [val(6, "Another spec_1 = there")]),
+             [val(0, "here"), val(6, "Another spec_1 = there")]),
         eqil([key(0, "system"), key(2, "spec")],
              [val(4, "This is my Specification ="),
               val(6, "This is my Specification_1 = foo"),
               val(6, "This is my Specification_2 = foo.spec"),
               val(6, "This is my Specification_3 = used"),
               val(6, "This is my Specification_4 = at this time"),
-              val(4, "Another spec ="),
+              val(4, "Another spec = here"),
               val(6, "Another spec_1 = there")
              ]),
         eqil([key(0, "system")],
@@ -2261,7 +2324,7 @@ test(blank_keys, [nondet]) :-
               val(6, "This is my Specification_2 = foo.spec"),
               val(6, "This is my Specification_3 = used"),
               val(6, "This is my Specification_4 = at this time"),
-              val(4, "Another spec ="),
+              val(4, "Another spec = here"),
               val(6, "Another spec_1 = there")
              ])
     ],
@@ -2312,7 +2375,11 @@ test(adjacent_keys, [nondet]) :-
 
 test(mixed_keys, [nondet]) :-
     % Note that there are spaces on the lines between k7 and end (warning, don't
-    % let the editor trim trailing whitespace and remove these!
+    % let the editor trim trailing whitespace and remove these!) which become
+    % part of value7 and are preserved, but the blanks after key4 values and
+    % k6sub are empty and elided.  ALL blank lines are preserved except those
+    % between the key and value, but the specific number of spaces on these lines
+    % must be preserved.
     Inp = {|string||
 | key1 =
 |   key2 =

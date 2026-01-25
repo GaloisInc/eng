@@ -27,11 +27,6 @@
 %%
 %% Although a value may be its own EQIL at the sub-level, that information will
 %% also appear simply as a multi-line value for the higher level key.
-%%
-%% The one edge case is that a key cannot have both a value and sub-keys. If
-%% there is an input specification like this, the higher level key will contain
-%% all subkeys/subvalues as part of the value, and emitting the EQIL will drop
-%% the key portion.
 
 parse_eng_eqil(FName, FContents, Result) :-
     string_codes(FContents, Chars),
@@ -561,6 +556,18 @@ val_indent(Keys, I) :-
 
 %% ----------------------------------------------------------------------
 
+% Converts the EQIL into the string representation. Ideally we would have
+% the following invariant:
+%
+%   EQIL = emit_eqil(parse_eng_eqil(EQIL))
+%
+% However, this is not quite possible because the parsed form is validated (and
+% possibly normalized), causing some changes relative to the original so while we
+% cannot achieve the above, we can achieve:
+%
+%   normalize_eqil(parse_eng_eqil(EQIL)) =
+%       parse_eng_eqil(emit_eqil(normalize_eqil(parse_eng_eqil(EQIL))))
+
 emit_eqil(EQIL, String) :-
     gen_eqil_string(EQIL, [], _, StringRep),
     stringrep_to_string(StringRep, String).
@@ -575,13 +582,24 @@ stringrep_to_string(multi(S), S).
 % gen_eqil_string is top level. It should walk through the keys, extending the
 % CurKeyPfx, to generate the results.
 gen_eqil_string([eqil(K,V)|EQIL], CurKeyPfx, RemEqil, String) :-
-    append(CurKeyPfx, [M|_], K), !, % K matches CurKeyPfx
+    append(CurKeyPfx, [M|_], K),
+    !, % K starts with but is deeper CurKeyPfx, M is the next element
     append(CurKeyPfx, [M], NxtKeyPfx),
+    % Advance the prefix and recursively check that for output
     gen_eqil_match([eqil(K,V)|EQIL], NxtKeyPfx, MEqil, MString),
+    % Recurse to continue with this prefix
     gen_eqil_string(MEqil, CurKeyPfx, RemEqil, OString),
     gen_key([M], MS),
+    % Now combine the string from this key with whatever recursively comes after
+    % it at this point.
     gen_eqil_combine(MS, MString, OString, String).
+gen_eqil_string([eqil(CurKeyPfx,[val(0,"")])|EQIL], CurKeyPfx, EQIL, emptystr) :- !.
+gen_eqil_string([eqil(CurKeyPfx,V)|EQIL], CurKeyPfx, EQIL, String) :-
+    \+ V = [val(0, "")],
+    !,  % Match current
+    gen_val(V, String).
 gen_eqil_string([E|EQIL], CurKeyPfx, [E|RemEqil], String) :-
+    % E doesn't match CurKeyPfx... save it for later
     gen_eqil_string(EQIL, CurKeyPfx, RemEqil, String).
 gen_eqil_string([], _, [], emptystr).
 
@@ -593,6 +611,9 @@ gen_eqil_string([], _, [], emptystr).
 gen_eqil_combine(K, emptystr, emptystr, single(String)) :-
     format(atom(StringA), "~w =", [ K ]),
     atom_string(StringA, String).
+gen_eqil_combine(K, emptystr, adj(P), adj_multi(P, multi(String))) :-
+    format(atom(StringA), "~w =", [ K ]),
+    atom_string(StringA, String).
 gen_eqil_combine(K, emptystr, Sub, multi(String)) :-
     stringrep_to_string(Sub, SubStr),
     format(atom(StringA), "~w =~n~w", [ K, SubStr ]),
@@ -602,6 +623,15 @@ gen_eqil_combine(K, emptyline, emptystr, single(String)) :-
     atom_string(StringA, String).
 gen_eqil_combine(K, adj(V), emptystr, single(String)) :-
     format(atom(StringA), "~w = ~w", [ K, V ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj(V), emptyline, single(String)) :-
+    format(atom(StringA), "~w = ~w", [ K, V ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj(V), adj(P), adj_multi(String, adj(P))) :-
+    format(atom(StringA), "~w = ~w", [K, V]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, adj(V), adj_multi(SubStr,P), adj_multi(String,P)) :-
+    format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
     atom_string(StringA, String).
 gen_eqil_combine(K, adj(V), Sub, single(String)) :-
     stringrep_to_string(Sub, SubStr),
@@ -630,9 +660,8 @@ gen_eqil_combine(K, adj_multi(V,adj_multi(V1, V2)), Sub, multi(String)) :-
     atom_string(StringA, String).
 gen_eqil_combine(K, adj_multi(V,adj(V1)), Sub, multi(String)) :-
     !,
-    gen_eqil_combine(K, adj(V1), Sub, SubRep),
-    stringrep_to_string(SubRep, SubStr),
-    format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
+    stringrep_to_string(Sub, SubStr),
+    format(atom(StringA), "~w = ~w~n~w~n~w", [ K, V1, V, SubStr ]),
     atom_string(StringA, String).
 gen_eqil_combine(K, adj_multi(V,ContV), Sub, multi(String)) :-
     stringrep_to_string(ContV, VS),
@@ -665,12 +694,20 @@ gen_eqil_combine(K, emptyline, single(Sub), multi(String)) :-
 % gen_eqil_match is called to get all sub-elements that match the locked-in
 % CurKeyPfx and return those in StringRep and the non-matches in RemEqil.
 gen_eqil_match([eqil(CurKeyPfx,V)|EQIL], CurKeyPfx, RemEqil, StringRep) :-
-    !, gen_eqil_string(EQIL, CurKeyPfx, RemEqil, RStr),
+    !,
+    % This entry matches the current prefix; generate its output and see if it
+    % should be included here.
+    gen_eqil_string(EQIL, CurKeyPfx, RemEqil, RStr),
     gen_eqil_check(V, RStr, StringRep).
 gen_eqil_match([eqil(K,V)|EQIL], CurKeyPfx, RemEqil, StringRep) :-
-    append(CurKeyPfx, _, K), !,
-    % This is not a terminal key, so filter out any EQIL elements that terminate
-    % on this key
+    append(CurKeyPfx, _, K),
+    !,
+    % CurKeyPfx is the prefix of the key K, which means there are sub elements
+    % (CurKeyPfx is not a terminal key) and therefore anything that has exactly
+    % CurKeyPfx is likely the aggregate value of the sub members: we don't want
+    % to print CurKeyPfx because we will be printing the sub-members.  Filter out
+    % any EQIL elements that terminate on CurKeyPfx except if there is a val(0,_)
+    % because that's a plain value and not a sub value.
     remove_keymatch(CurKeyPfx, EQIL, FilteredEQIL),
     % expecting CurKeyPfx to advance!
     gen_eqil_string([eqil(K,V)|FilteredEQIL], CurKeyPfx, RemEqil, StringRep).
@@ -681,6 +718,9 @@ gen_eqil_check(V, emptystr, StringRep) :-
 gen_eqil_check(_, RStr, RStr).
 
 remove_keymatch(_, [], []).
+remove_keymatch(K, [eqil(K,[val(0,V)|_])|ES], [eqil(K,[val(0,V)])|EQIL]) :-
+    !,
+    remove_keymatch(K, ES, EQIL).
 remove_keymatch(K, [eqil(K,_)|ES], EQIL) :- !, remove_keymatch(K, ES, EQIL).
 remove_keymatch(K, [E|ES], [E|EQIL]) :- remove_keymatch(K, ES, EQIL).
 
@@ -706,6 +746,7 @@ gen_val(V, StringRep) :-
     ; StringRep = ValRep
     ).
 
+% Preserve interstitial blank lines, but elide trailing zero-length blank lines.
 gen_val_([], emptystr) :- !.
 gen_val_([val(N,V)|VS], StringRep) :-
     gen_spaces(N, S), !,
@@ -722,7 +763,7 @@ ret_val(single(SubString), S, V, multi(R)) :-
 ret_val(multi(SubString), S, V, multi(R)) :-
     format(atom(R), "~w~w~n~w", [ S, V, SubString ]).
 ret_val(adj_multi(SubString,multi(MoreSub)), S, V, multi(R)) :-
-    format(atom(R), "~w~w~n~w~n~w", [ S, V, SubString, MoreSub ]).
+    format(atom(R), "~w~w~n~w~w", [ S, V, SubString, MoreSub ]).
 %% ret_val(X, S, V, _) :- writeln(ret_val_fail), writeln(X), fail.
 
 as_valblock(single(String)) :- !, string_chars(String, Codes), member('=', Codes).
