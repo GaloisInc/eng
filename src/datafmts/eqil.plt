@@ -724,6 +724,7 @@ test(nested_nested_keyvals, [nondet]) :-
 |     key with no value =
 |
 |     and =
+|
 |       an implicit key above with a multi-line value here
 |       and here
 |
@@ -813,7 +814,7 @@ test(nested_nested_keyvals, [nondet]) :-
         eqil([key(0, "key"), key(2, "subkey"), key(4, "key with no value")],
              [val(0, "")]),
         eqil([key(0, "key"), key(2, "subkey"), key(4, "and")],
-             [% val(0, ""),
+             [val(0, ""),
               val(6, "an implicit key above with a multi-line value here"),
               val(6, "and here"),
               val(0, ""),
@@ -828,7 +829,7 @@ test(nested_nested_keyvals, [nondet]) :-
               val(4, "key with no value ="),
               val(0, ""),
               val(4, "and ="),
-              %% val(0, ""),
+              val(0, ""),
               val(6, "an implicit key above with a multi-line value here"),
               val(6, "and here"),
               val(0, ""),
@@ -860,7 +861,7 @@ test(nested_nested_keyvals, [nondet]) :-
               val(4, "key with no value ="),
               val(0, ""),
               val(4, "and ="),
-              %% val(0, ""),
+              val(0, ""),
               val(6, "an implicit key above with a multi-line value here"),
               val(6, "and here"),
               val(0, ""),
@@ -3020,6 +3021,398 @@ test(sample1_valblock, [nondet]) :-
               val(6, "and chicken.")
              ])
     ],
+    check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
+
+test(sample2_valblock, [nondet]) :-
+    Inp = {|string||
+tasks =
+ features = New features
+  =
+    summary = foo support
+    priority = 5
+    type = feature/enhancement
+    description = |
+
+      finkel dunkel moonlight spar
+      hardware modules conn via cabling
+
+       strob ergo bing
+         zark na tout;
+
+      This function is provided to
+      of the indicated address/subaddress
+      specified funcData to do the receive.
+
+  =
+    summary = bar pattern
+    priority = 6
+    type = new feature
+    description = |
+
+      Develop a bar pattern that can be barful and recognizant
+      of erstwhile barness and baribility.
+
+      * new bar: bar none
+        - bar_table          action: entry, continuous, exit
+
+        static enum of bar
+
+        bar table:  row is current bar, column bar, entry is next bar
+
+
+      Also spend some time thinking about overall bar representation in
+      the program.
+|},
+    Out = {|string||
+tasks =
+ features = New features
+  feature_1 =
+    summary = foo support
+    priority = 5
+    type = feature/enhancement
+    description = |
+
+      finkel dunkel moonlight spar
+      hardware modules conn via cabling
+
+       strob ergo bing
+         zark na tout;
+
+      This function is provided to
+      of the indicated address/subaddress
+      specified funcData to do the receive.
+
+  feature_2 =
+    summary = bar pattern
+    priority = 6
+    type = new feature
+    description = |
+
+      Develop a bar pattern that can be barful and recognizant
+      of erstwhile barness and baribility.
+
+      * new bar: bar none
+        - bar_table          action: entry, continuous, exit
+
+        static enum of bar
+
+        bar table:  row is current bar, column bar, entry is next bar
+
+
+      Also spend some time thinking about overall bar representation in
+      the program.
+|},
+    E0 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"summary")],
+              [val(0,"foo support")]),
+    E1 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"priority")],
+              [val(0,"5")]),
+    E2 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"type")],
+              [val(0,"feature/enhancement")]),
+    E3 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"description")],
+              [val(0,""),
+               val(6,"finkel dunkel moonlight spar"),
+               val(6,"hardware modules conn via cabling"),
+               val(0,""),
+               val(7,"strob ergo bing"),
+               val(9,"zark na tout;"),
+               val(0,""),
+               val(6,"This function is provided to"),
+               val(6,"of the indicated address/subaddress"),
+               val(6,"specified funcData to do the receive."),
+               val(0,"")
+              ]),
+    E4 = eqil([key(0,"tasks"),key(1,"features"),key(2,"")],
+              [val(4, "summary = foo support"),
+               val(4, "priority = 5"),
+               val(4, "type = feature/enhancement"),
+               val(4, "description ="),
+               val(0,""),
+               val(6,"finkel dunkel moonlight spar"),
+               val(6,"hardware modules conn via cabling"),
+               val(0,""),
+               val(7,"strob ergo bing"),
+               val(9,"zark na tout;"),
+               val(0,""),
+               val(6,"This function is provided to"),
+               val(6,"of the indicated address/subaddress"),
+               val(6,"specified funcData to do the receive."),
+               val(0,"")
+              ]),
+    E5 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"summary")],
+              [val(0,"bar pattern")]),
+    E6 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"priority")],
+              [val(0,"6")]),
+    E7 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"type")],
+              [val(0,"new feature")]),
+    E8 = eqil([key(0,"tasks"),key(1,"features"),key(2,""),key(4,"description")],
+              [val(0,""),
+               val(6,"Develop a bar pattern that can be barful and recognizant"),
+               val(6,"of erstwhile barness and baribility."),
+               val(0,""),
+               val(6,"* new bar: bar none"),
+               val(8,"- bar_table          action: entry, continuous, exit"),
+               val(0,""),
+               val(8,"static enum of bar"),
+               val(0,""),
+               val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+               val(0,""),
+               val(0,""),
+               val(6,"Also spend some time thinking about overall bar representation in"),
+               val(6,"the program.")
+              ]),
+    E9 = eqil([key(0,"tasks"),key(1,"features"),key(2,"")],
+              [val(4, "summary = bar pattern"),
+               val(4, "priority = 6"),
+               val(4, "type = new feature"),
+               val(4, "description ="),
+               val(0,""),
+               val(6,"Develop a bar pattern that can be barful and recognizant"),
+               val(6,"of erstwhile barness and baribility."),
+               val(0,""),
+               val(6,"* new bar: bar none"),
+               val(8,"- bar_table          action: entry, continuous, exit"),
+               val(0,""),
+               val(8,"static enum of bar"),
+               val(0,""),
+               val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+               val(0,""),
+               val(0,""),
+               val(6,"Also spend some time thinking about overall bar representation in"),
+               val(6,"the program.")
+              ]),
+    E10 = eqil([key(0,"tasks"),key(1,"features")],
+               [val(0, "New features"),
+                val(2, ""),
+                val(4, "summary = foo support"),
+                val(4, "priority = 5"),
+                val(4, "type = feature/enhancement"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"finkel dunkel moonlight spar"),
+                val(6,"hardware modules conn via cabling"),
+                val(0,""),
+                val(7,"strob ergo bing"),
+                val(9,"zark na tout;"),
+                val(0,""),
+                val(6,"This function is provided to"),
+                val(6,"of the indicated address/subaddress"),
+                val(6,"specified funcData to do the receive."),
+                val(0,""),
+                val(2, ""),
+                val(4, "summary = bar pattern"),
+                val(4, "priority = 6"),
+                val(4, "type = new feature"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"Develop a bar pattern that can be barful and recognizant"),
+                val(6,"of erstwhile barness and baribility."),
+                val(0,""),
+                val(6,"* new bar: bar none"),
+                val(8,"- bar_table          action: entry, continuous, exit"),
+                val(0,""),
+                val(8,"static enum of bar"),
+                val(0,""),
+                val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+                val(0,""),
+                val(0,""),
+                val(6,"Also spend some time thinking about overall bar representation in"),
+                val(6,"the program.")
+               ]),
+    E11 = eqil([key(0,"tasks")],
+               [val(1,"features = New features"),
+                val(2, ""),
+                val(4, "summary = foo support"),
+                val(4, "priority = 5"),
+                val(4, "type = feature/enhancement"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"finkel dunkel moonlight spar"),
+                val(6,"hardware modules conn via cabling"),
+                val(0,""),
+                val(7,"strob ergo bing"),
+                val(9,"zark na tout;"),
+                val(0,""),
+                val(6,"This function is provided to"),
+                val(6,"of the indicated address/subaddress"),
+                val(6,"specified funcData to do the receive."),
+                val(0,""),
+                val(2, ""),
+                val(4, "summary = bar pattern"),
+                val(4, "priority = 6"),
+                val(4, "type = new feature"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"Develop a bar pattern that can be barful and recognizant"),
+                val(6,"of erstwhile barness and baribility."),
+                val(0,""),
+                val(6,"* new bar: bar none"),
+                val(8,"- bar_table          action: entry, continuous, exit"),
+                val(0,""),
+                val(8,"static enum of bar"),
+                val(0,""),
+                val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+                val(0,""),
+                val(0,""),
+                val(6,"Also spend some time thinking about overall bar representation in"),
+                val(6,"the program.")
+               ]),
+    Parsed = [E0, E1, E2, E3, E4, E5, E6, E7, E8, E9, E10, E11],
+    N0 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_1"),key(4,"summary")],
+              [val(0,"foo support")]),
+    N1 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_1"),key(4,"priority")],
+              [val(0,"5")]),
+    N2 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_1"),key(4,"type")],
+              [val(0,"feature/enhancement")]),
+    N3 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_1"),key(4,"description")],
+              [val(0,""),
+               val(6,"finkel dunkel moonlight spar"),
+               val(6,"hardware modules conn via cabling"),
+               val(0,""),
+               val(7,"strob ergo bing"),
+               val(9,"zark na tout;"),
+               val(0,""),
+               val(6,"This function is provided to"),
+               val(6,"of the indicated address/subaddress"),
+               val(6,"specified funcData to do the receive."),
+               val(0,"")
+              ]),
+    N4 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_1")],
+              [val(4, "summary = foo support"),
+               val(4, "priority = 5"),
+               val(4, "type = feature/enhancement"),
+               val(4, "description ="),
+               val(0,""),
+               val(6,"finkel dunkel moonlight spar"),
+               val(6,"hardware modules conn via cabling"),
+               val(0,""),
+               val(7,"strob ergo bing"),
+               val(9,"zark na tout;"),
+               val(0,""),
+               val(6,"This function is provided to"),
+               val(6,"of the indicated address/subaddress"),
+               val(6,"specified funcData to do the receive."),
+               val(0,"")
+              ]),
+    N5 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_2"),key(4,"summary")],
+              [val(0,"bar pattern")]),
+    N6 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_2"),key(4,"priority")],
+              [val(0,"6")]),
+    N7 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_2"),key(4,"type")],
+              [val(0,"new feature")]),
+    N8 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_2"),key(4,"description")],
+              [val(0,""),
+               val(6,"Develop a bar pattern that can be barful and recognizant"),
+               val(6,"of erstwhile barness and baribility."),
+               val(0,""),
+               val(6,"* new bar: bar none"),
+               val(8,"- bar_table          action: entry, continuous, exit"),
+               val(0,""),
+               val(8,"static enum of bar"),
+               val(0,""),
+               val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+               val(0,""),
+               val(0,""),
+               val(6,"Also spend some time thinking about overall bar representation in"),
+               val(6,"the program.")
+              ]),
+    N9 = eqil([key(0,"tasks"),key(1,"features"),key(2,"feature_2")],
+              [val(4, "summary = bar pattern"),
+               val(4, "priority = 6"),
+               val(4, "type = new feature"),
+               val(4, "description ="),
+               val(0,""),
+               val(6,"Develop a bar pattern that can be barful and recognizant"),
+               val(6,"of erstwhile barness and baribility."),
+               val(0,""),
+               val(6,"* new bar: bar none"),
+               val(8,"- bar_table          action: entry, continuous, exit"),
+               val(0,""),
+               val(8,"static enum of bar"),
+               val(0,""),
+               val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+               val(0,""),
+               val(0,""),
+               val(6,"Also spend some time thinking about overall bar representation in"),
+               val(6,"the program.")
+              ]),
+    R10 = eqil([key(0,"tasks"),key(1,"features")],
+               [val(0, "New features"),
+                val(2, "feature_1 ="),
+                val(4, "summary = foo support"),
+                val(4, "priority = 5"),
+                val(4, "type = feature/enhancement"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"finkel dunkel moonlight spar"),
+                val(6,"hardware modules conn via cabling"),
+                val(0,""),
+                val(7,"strob ergo bing"),
+                val(9,"zark na tout;"),
+                val(0,""),
+                val(6,"This function is provided to"),
+                val(6,"of the indicated address/subaddress"),
+                val(6,"specified funcData to do the receive."),
+                val(0,""),
+                val(2, "feature_2 ="),
+                val(4, "summary = bar pattern"),
+                val(4, "priority = 6"),
+                val(4, "type = new feature"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"Develop a bar pattern that can be barful and recognizant"),
+                val(6,"of erstwhile barness and baribility."),
+                val(0,""),
+                val(6,"* new bar: bar none"),
+                val(8,"- bar_table          action: entry, continuous, exit"),
+                val(0,""),
+                val(8,"static enum of bar"),
+                val(0,""),
+                val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+                val(0,""),
+                val(0,""),
+                val(6,"Also spend some time thinking about overall bar representation in"),
+                val(6,"the program.")
+               ]),
+    R11 = eqil([key(0,"tasks")],
+               [val(1,"features = New features"),
+                val(2, "feature_1 ="),
+                val(4, "summary = foo support"),
+                val(4, "priority = 5"),
+                val(4, "type = feature/enhancement"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"finkel dunkel moonlight spar"),
+                val(6,"hardware modules conn via cabling"),
+                val(0,""),
+                val(7,"strob ergo bing"),
+                val(9,"zark na tout;"),
+                val(0,""),
+                val(6,"This function is provided to"),
+                val(6,"of the indicated address/subaddress"),
+                val(6,"specified funcData to do the receive."),
+                val(0,""),
+                val(2, "feature_2 ="),
+                val(4, "summary = bar pattern"),
+                val(4, "priority = 6"),
+                val(4, "type = new feature"),
+                val(4, "description ="),
+                val(0,""),
+                val(6,"Develop a bar pattern that can be barful and recognizant"),
+                val(6,"of erstwhile barness and baribility."),
+                val(0,""),
+                val(6,"* new bar: bar none"),
+                val(8,"- bar_table          action: entry, continuous, exit"),
+                val(0,""),
+                val(8,"static enum of bar"),
+                val(0,""),
+                val(8,"bar table:  row is current bar, column bar, entry is next bar"),
+                val(0,""),
+                val(0,""),
+                val(6,"Also spend some time thinking about overall bar representation in"),
+                val(6,"the program.")
+               ]),
+    Normalized = [N0, N1, N2, N3, N4, N5, N6, N7, N8, N9, E10, E11],
+    ReParsed = [N0, N1, N2, N3, N4, N5, N6, N7, N8, N9, R10, R11],
     check(Inp, Parsed, Out, Normalized, ReParsed, _Result).
 
 % ----------------------------------------------------------------------

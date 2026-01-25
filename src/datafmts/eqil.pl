@@ -102,6 +102,13 @@ eqil_keyvals(valblock(VN), Active, FKVs, Rem) -->   % key = block value
     !,
     inline_key_value(norm, Active, N, K, V, FKVs, Rem).
 
+eqil_keyvals(valblock(VN), Active, KVs, Rem) -->  % block value
+    indented(N), parse_val(N, V),
+    {N > VN},
+    !,
+    { active_add_val(V, Active, NextActive) },
+    eqil_keyvals(valblock(VN), NextActive, KVs, Rem).
+
 eqil_keyvals(Mode, Actives, KVs, Rem) -->   % value
     indented(N), parse_val(N, V),
     { active_alignment(Actives, N, indented) },
@@ -633,7 +640,7 @@ gen_eqil_combine(K, adj(V), adj(P), adj_multi(String, adj(P))) :-
 gen_eqil_combine(K, adj(V), adj_multi(SubStr,P), adj_multi(String,P)) :-
     format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
     atom_string(StringA, String).
-gen_eqil_combine(K, adj(V), Sub, single(String)) :-
+gen_eqil_combine(K, adj(V), Sub, multi(String)) :-
     stringrep_to_string(Sub, SubStr),
     format(atom(StringA), "~w = ~w~n~w", [ K, V, SubStr ]),
     atom_string(StringA, String).
@@ -680,6 +687,13 @@ gen_eqil_combine(K, single(VS), multi(OString), multi(String)) :-
 gen_eqil_combine(K, multi(VS), emptystr, multi(String)) :-
     format(atom(StringA), "~w =~n~w", [ K, VS ]),
     atom_string(StringA, String).
+gen_eqil_combine(K, multi(VS), adj(S), adj_multi(S, multi(String))) :-
+    format(atom(StringA), "~w =~n~w", [ K, VS ]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, multi(VS), adj_multi(S, M), adj_multi(S, multi(String))) :-
+    (stringrep_to_string(M, SubStr); SubStr = M),
+    format(atom(StringA), "~w =~n~w~n~w", [ K, VS, SubStr ]),
+    atom_string(StringA, String).
 gen_eqil_combine(K, multi(VS), Sub, multi(String)) :-
     stringrep_to_string(Sub, SubStr),
     format(atom(StringA), "~w =~n~w~n~w", [ K, VS, SubStr ]),
@@ -690,6 +704,13 @@ gen_eqil_combine(K, emptyline, multi(Sub), multi(String)) :-
 gen_eqil_combine(K, emptyline, single(Sub), multi(String)) :-
     format(atom(StringA), "~w =~n~n~w", [ K, Sub ]),
     atom_string(StringA, String).
+gen_eqil_combine(K, adj(V), single(Sub), multi(String)) :-
+    format(atom(StringA), "~w = ~w~n~w", [K, V, Sub]),
+    atom_string(StringA, String).
+gen_eqil_combine(K, single(V), adj(Sub), adj_multi(Sub, multi(String))) :-
+    format(atom(StringA), "~w = ~w", [K, V]),
+    atom_string(StringA, String).
+
 
 % gen_eqil_match is called to get all sub-elements that match the locked-in
 % CurKeyPfx and return those in StringRep and the non-matches in RemEqil.
@@ -739,7 +760,8 @@ gen_key([key(N,K)|KS], String) :-
 gen_val([], emptystr) :- !.
 gen_val([val(0,"")], emptyline) :- !.
 gen_val([val(0,V)], adj(V)) :- !.
-gen_val([val(0,V)|VS], adj_multi(V,SubString)) :- !, gen_val_(VS, SubString).
+gen_val([val(0,V)|VS], adj_multi(V,SubString)) :-
+    \+ V = "", !, gen_val_(VS, SubString).
 gen_val(V, StringRep) :-
     gen_val_(V, ValRep),
     ( as_valblock(ValRep), !, StringRep = adj_multi("|", ValRep)
@@ -766,6 +788,24 @@ ret_val(adj_multi(SubString,multi(MoreSub)), S, V, multi(R)) :-
     format(atom(R), "~w~w~n~w~w", [ S, V, SubString, MoreSub ]).
 %% ret_val(X, S, V, _) :- writeln(ret_val_fail), writeln(X), fail.
 
-as_valblock(single(String)) :- !, string_chars(String, Codes), member('=', Codes).
-as_valblock(multi(String)) :- !, string_chars(String, Codes), member('=', Codes).
-as_valblock(String) :- string_chars(String, Codes), member('=', Codes).
+as_valblock(single(String)) :- string_chars(String, Codes), member('=', Codes).
+as_valblock(multi(String)) :- string_chars(String, Codes), member('=', Codes).
+as_valblock(multi(String)) :-
+    split_string(String, "\n", "", Lines),
+    as_valblock_lines(0, Lines).
+%% as_valblock(String) :- string_chars(String, Codes), member('=', Codes).
+as_valblock_lines(N, [""|LS]) :- !, as_valblock_lines(N, LS).
+as_valblock_lines(0, [L|LS]) :-
+    string_codes(L, Chars),
+    phrase(indented(0), Chars, _),
+    !,
+    as_valblock_lines(0, LS).
+as_valblock_lines(0, [L|LS]) :-
+    string_codes(L, Chars),
+    phrase(indented(N), Chars, _),
+    !,
+    as_valblock_lines(N, LS).
+as_valblock_lines(N, [L|LS]) :-
+    string_codes(L, Chars),
+    phrase(indented(I), Chars, _),
+    (I > N, !; as_valblock_lines(N, LS)).
