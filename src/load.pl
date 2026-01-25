@@ -165,13 +165,17 @@ call_eng_cmd(Context, Cmd, CmdArgs, Sts) :-
 known_subcommand_help(Cmd, HelpOut) :-
     format('Please specify one of the ~w engineering sub-commands to perform:~n',
           [ Cmd ]),
-    known_subcommand_info(Info, Cmd), !,
+    known_subcommand_info(Info, Cmd),
+    !,
     maplist(mk_help, Info, HelpOut).
 known_subcommand_help(Cmd) :-
-    known_subcommand_help(Cmd, help(OutStr)),
-    writeln(OutStr).
+    known_subcommand_help(Cmd, OutHelp),
+    show_help(OutHelp).
 
 mk_help(Msg, help(Msg)).
+
+show_help([help(M)|HS]) :- writeln(M), show_help(HS).
+show_help([]).
 
 eng_cmd_help(Cmd, HelpInfo) :-
     string_concat(Cmd, "_help", S),
