@@ -148,7 +148,7 @@ postproc_unk_(N, NMsgs, [OtherSts|Other], Msgs, OutMsgs, [OtherSts|Rem]) :-
 
 % Found sts(N, S), so drop all unknown(N, Msg)
 postproc_sts_(_, [], []).
-postproc_sts_(N, [unknown(N, _)|ES], RES) :- !, postproc_sts(N, ES, RES).
+postproc_sts_(N, [unknown(N, _)|ES], RES) :- !, postproc_sts_(N, ES, RES).
 postproc_sts_(N, [E|ES], [E|RES]) :- postproc_sts_(N, ES, RES).
 
 
