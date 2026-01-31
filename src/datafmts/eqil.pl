@@ -469,14 +469,11 @@ assign_blank_keys_([eqil(K,V)|InpEqil], SinceLastBlank, AssignIDs, NewEqil) :-
     %
     % First, determine the generated name based on the immediate parent key and a
     % new assigned number.
-    (ParentKeys = [key(_, PKeyBase)|_], singularize(PKeyBase, KeyBase); KeyBase = "key"),
-    atom_string(KeyBaseA, KeyBase),
-    (get_dict(KeyBaseA, AssignIDs, PrevKeyNum) ; PrevKeyNum = 0),
-    succ(PrevKeyNum, KeyNum),
-    put_dict(KeyBaseA, AssignIDs, KeyNum, NewAssignIDs),
-    format(atom(NewKeyA), "~w_~w", [KeyBase, KeyNum]),
-    atom_string(NewKeyA, NewKey),
-    reverse([key(I, NewKey)|ParentKeys], NewK),
+
+    new_key_base(ParentKeys, KeyBase),
+    new_key(ParentKeys, KeyBase, AssignIDs, I, NewK, NewKey, NewAssignIDs),
+    key_is_unique(NewK, SinceLastBlank),
+
     length(NewK, KI),
     % Now substitute any blank entries in this key position in SinceLastBlank
     rewriteKeysAt(KI, NewKey, SinceLastBlank, SinceLastBlankAssigned),
@@ -491,6 +488,29 @@ assign_blank_keys_([E|InpEqil], SinceLastBlank, AssignIDs, NewEqil) :-
 assign_blank_keys_([], SinceLastBlank, AssignIDs, NewEqil) :-
     \+ dict_size(AssignIDs, 0), % fail all of assign_blank_keys if no assignments were made
     reverse(SinceLastBlank, NewEqil).
+
+new_key_base([key(_, PKeyBase)|_], KeyBase) :- singularize(PKeyBase, KeyBase), !.
+new_key_base([], "key").
+
+new_key(ParentKeys, KeyBase, AssignIDs, I, NewKey, NewKeyLast, NewAssignIDs) :-
+    atom_string(KeyBaseA, KeyBase),
+    (get_dict(KeyBaseA, AssignIDs, PrevKeyNum) ; PrevKeyNum = 0),
+    succ(PrevKeyNum, NewKeyNum),
+    unique_new_key(ParentKeys, KeyBase, NewKeyNum, I, KeyNum, NewKeyLast, NewKey),
+    put_dict(KeyBaseA, AssignIDs, KeyNum, NewAssignIDs).
+
+unique_new_key(ParentKeys, KeyBase, NewKeyNum, I, NewKeyNum, NewKeyLast, NewKey) :-
+    format(string(NewKeyLast), "~w_~w", [KeyBase, NewKeyNum]),
+    reverse([key(I, NewKeyLast)|ParentKeys], NewKey).
+    % n.b. if caller decides new key is not unique, there is a backtrack point
+    % here to new unique_new_key below.
+unique_new_key(ParentKeys, KeyBase, NewKeyNum, I, KeyNum, NewKeyLast, NewKey) :-
+    succ(NewKeyNum, NextKeyNum),
+    unique_new_key(ParentKeys, KeyBase, NextKeyNum, I, KeyNum, NewKeyLast, NewKey).
+
+key_is_unique(K, [eqil(K,_)|_]) :- !, false.
+key_is_unique(K, [_|KS]) :- key_is_unique(K, KS).
+key_is_unique(_, []).
 
 longerKeyLength(L, eqil(K,_)) :- length(K, KL), L #> KL.
 
