@@ -4,6 +4,7 @@
                           exec_from_spec_at/4,
                           exec_with_shell_wrapper/4,
                           do_exec/7,
+                          set_env_vars/2,
                           prep_args/3
                         ]).
 
