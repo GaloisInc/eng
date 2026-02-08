@@ -36,6 +36,7 @@ tasks_help(Info) :-
 |           [type = TASK TYPE]
 |           [area = TASK AREA]
 |           [severity = TASK SEVERITY]
+|           [visibility = internal]
 |           [effort = TASK EFFORT]
 |           [status = TASK STATUS]
 |
@@ -55,6 +56,9 @@ tasks_help(Info) :-
 |             units (recommended: h/hrs d/days, or w/wks).
 |             If units are not supplied, it numeric values are assumed to
 |             be a Kanban-style weight.
+|
+| Assigning a task an internal visibility will result in it not being
+| suggested for inclusion in release notes.
 |}.
 
 %% ----------------------------------------
