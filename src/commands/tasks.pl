@@ -105,7 +105,7 @@ show_a_task(Grp, TaskID, Pri) :-
     task_severity(Grp, TaskID, Sev),
     task_status(Grp, TaskID, Sts, Colorized),
     enabled_task_status(Sts),
-    format('  ~w~t~11|: [~w/~w]~`.t ~27|', [ TaskID, Pri, Sev ]),
+    format('  ~w~t~14|: [~w/~w]~`.t ~27|', [ TaskID, Pri, Sev ]),
     ansi_format(Colorized, Sts, []),
     write(' '), writeln(Summary),
     fail.  % next ...
