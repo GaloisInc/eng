@@ -25,7 +25,7 @@ tasks_help(Info) :-
 | (see the EQIL design document), and have the following structure:
 |
 |     tasks =
-|       group = groupname
+|       groupname
 |         config =
 |           [name = GroupName]
 |           [priorities = 1 2 3 4 5 6 7 8 9 10]
