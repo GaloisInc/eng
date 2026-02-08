@@ -40,13 +40,24 @@ get_local_repos(RelPath, KnownRepos, Locals) :-
     list_to_set(AllLocals, Locals).
 get_local_repos_(_, KnownRepos, Locals) :-
     setof((N,Dir), (member(N, KnownRepos),
-                    vctl_subproj_local_dir(N, Dir),
-                    exists_directory(Dir)), Locals).
+                    local_subproj_dir(N, Dir),
+                    exists_directory(Dir)
+                   ),
+          Locals).
 get_local_repos_(RelPath, KnownRepos, Locals) :-
     setof((N,Dir), (member(N, KnownRepos),
-                    vctl_subproj_local_dir(N, RDir),
+                    local_subproj_dir(N, RDir),
                     directory_file_path(RelPath, RDir, Dir),
-                    exists_directory(Dir)), Locals).
+                    exists_directory(Dir)
+                   ),
+          Locals).
+
+local_subproj_dir(Name, SPDir) :-
+    vctl_subproj_local_dir(Name, RDir),
+    eng:eng(vctl, subproject, Name, subdir, D),
+    !,
+    directory_file_path(RDir, D, SPDir).
+local_subproj_dir(Name, SPDir) :- vctl_subproj_local_dir(Name, SPDir).
 
 get_remote_repos(VCTool, KnownRepos, Remotes) :-
     findall((N,Rmt), (member(N, KnownRepos),
