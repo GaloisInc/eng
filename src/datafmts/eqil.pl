@@ -546,6 +546,7 @@ singularize(Name, SingularName) :- string_chars(Name, NL),
                                    string_chars(SingularName, SNL).
 singularize_([], []).
 singularize_([C], [C]).
+singularize_(['s', 'i'|W], ['s','i'|W]).
 singularize_(['s'|W], W).
 singularize_(W,W).
 
