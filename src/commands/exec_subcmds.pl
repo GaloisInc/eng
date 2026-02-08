@@ -146,9 +146,14 @@ exec_env_vars(EnvPath, VS) :-
                     string_trim(VR, V)
                    ), VS).
 
+:- dynamic eng:use_dir/3.
+
 exec_from_spec_at_dir(RootPath, ExecDir) :-
     append(RootPath, ['in dir'], DirPath),
     list_call(eng:eng, DirPath, ExecDir),
+    !.
+exec_from_spec_at_dir([Cmd,SubCmd|_], ExecDir) :-
+    list_call(eng:use_dir, [Cmd,SubCmd], ExecDir),
     !.
 exec_from_spec_at_dir(_, curdir).
 
