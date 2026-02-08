@@ -9,6 +9,7 @@ dev =
       Builds the project from source =
         exec = swipl --goal=main -o eng -c src/top.pl
         # = Can use --emulator=swipl, but that has immediate effect. =#
+        in dir = {TopDir}
 
     fret_fetch
       Fetches/updates fret semantics file from github
@@ -39,30 +40,36 @@ dev =
       testrunner =
         EXE:prolog tests =
           exec = swipl -t test_all src/test.pl
+          in dir = {TopDir}
         EXE:lando =
           exec =
             ./eng doc lando {Input}
+          in dir = {TopDir}
         EXE:kind2_contract =
           exec =
             kind2 --enable CONTRACTCK {Input}
+          in dir = {TopDir}
         KAT:lando =
           exec =
             mkdir -p $(dirname {Output})  # for {TestName}
             rm -f {Output}
             ./eng doc lando {Input} to-json {Output}
             diff {Expected} {Output}
+          in dir = {TopDir}
         KAT:lando json =
           exec =
             mkdir -p $(dirname {Output})  # for {TestName}
             rm -f {Output}
             ./eng doc lando {Input} to-json {Output}
             diff <(nix run nixpkgs#python3Packages.jsondiff -- {Expected} {Output}; echo) <(echo {})
+          in dir = {TopDir}
         KAT:lando markdown =
           exec =
             mkdir -p $(dirname {Output})  # for {TestName}
             rm -f {Output}
             ./eng doc lando {Input} to-markdown {Output}
             diff {Expected} {Output}
+          in dir = {TopDir}
 
 run =
   subcmd =
