@@ -473,6 +473,7 @@ assign_blank_keys_([eqil(K,V)|InpEqil], SinceLastBlank, AssignIDs, NewEqil) :-
     new_key_base(ParentKeys, KeyBase),
     new_key(ParentKeys, KeyBase, AssignIDs, I, NewK, NewKey, NewAssignIDs),
     key_is_unique(NewK, SinceLastBlank),
+    key_is_unique(NewK, InpEqil),
 
     length(NewK, KI),
     % Now substitute any blank entries in this key position in SinceLastBlank
