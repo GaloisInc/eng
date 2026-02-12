@@ -1,0 +1,55 @@
+tasks =
+  issues =
+    config =
+      name = Issues
+      priorities = high med low
+    issue_1 =
+      summary = vctl subproj clone apply subdir
+      description =
+
+        When locally cloning a vctl subproj, the subdir specified (if any) should
+        be applied in the cabal "packages" specification.  It is currently only
+        supplied for a source-repository-package reference.
+
+      severity = high
+      severity-reason = causes the clone operation to fail
+      priority = med
+      workarounds =
+        Hand-edit the cabal.project file 
+    issue_2 =
+      summary = vctl rev needs to be vctl specific
+      description =
+
+        The "rev" specification is repo-specific; if there is a dgsync repo
+        then it attempts to apply the git rev to the darcs checkout.
+
+      severity = low
+      severity-reason = reasonable workarounds
+      priority = low
+      workaround =
+        1. Make an identical tag in both git and darcs and use that tag in the =
+           EQIL spec.
+
+        2. Make a tag matching the git revision in the darcs repo. =
+
+    issue_3 =
+      summary = vctl operations skipped
+      description = Some subprojects are skipped for vctl operations like push.
+                    For example: taphos-examples.
+    issue_4 =
+      summary = vctl subproj help missing
+      description = eng help vctl does not show subproj or subproj subcmds
+
+    issue_5 =
+      summary = vctl internal dependencies for top-level project
+      description = can see dependencies for subprojs but not top level
+
+    issue_6 =
+      summary = blank key assignment conflicts
+      description =
+        Still getting duplicate keys assigned for blank keys, resulting in
+        combining of multiple elements.
+      note = Is it deconflicting only with assigned keys and not existing keys?
+      status = done
+      resolution = Checks for conflicts with yet-to-check EQIL as well as the
+                   already-done EQIL.
