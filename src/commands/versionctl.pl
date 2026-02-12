@@ -121,6 +121,8 @@ vctl_help("subproj clone", "clone a dependency to a local sub-project.") :-
     eng:key(vctl, subproject).
 vctl_help("subproj remove", "remove a local copy of a dependency.") :-
     eng:key(vctl, subproject).
+vctl_help("subproj local", "list local subproj clones and their remote.") :-
+    eng:key(vctl, subproject).
 
 vctl_help_internal("build_status", "show CI build status").
 vctl_help_internal("dependencies", "show project dependencies").
@@ -189,6 +191,13 @@ vctl_cmd(Context, [subproj,remove|Args], Sts) :-
     vcs_tool(Context, VCTool), !,
     findall(E, (member(N, Args), vctl_subproj_remove(Context, VCTool, N, E)), Sts).
 
+vctl_cmd(Context, [subproj,local], Sts) :-
+    vctl_subprojects_and_lcldirs(Context, SL),
+    !,
+    maplist(vctl_subproj_show_local(Context), SL, Sts).
+vctl_cmd(Context, [subproj, local], unknown(subproj_local, no_subprojects(Here))) :-
+    context_topdir(Context, Here), !.
+
 vctl_cmd(Context, [Cmd|_], vcs_tool_undefined(TopDir)) :-
     member(Cmd, [ status, push ]), !, context_topdir(Context, TopDir).
 vctl_cmd(Context, [Cmd|Args], Sts) :-
@@ -219,6 +228,14 @@ vctl_subproj_remover_(Context, SubProjs, sts(subproj_rmv, sts(subproj_rmv, 1))) 
       writeln(OSS),
       writeln('  * ALL')
     ), !.
+
+vctl_subproj_show_local(Context, (Name, IntoDir), sts(subproj_local, 0)) :-
+    exists_context_subdir(Context, IntoDir),
+    !,
+    eng:eng(vctl, subproject, Name, repo, Rmt),
+    format('LCL:~w:RMT:~w~n', [IntoDir, Rmt]).
+vctl_subproj_show_local(_, _, sts(subproj_local, 0)).
+
 
 % ----------------------------------------------------------------------
 %% Determine the VCS tool used for this project working directory.
