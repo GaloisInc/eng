@@ -896,6 +896,7 @@ update_eqilfile(File, Keyseq, NewValue) :-
      reverse(RKS, KS),
      insert_new_keyval(Parsed, KS, K, NewValue, NewEQIL)
     ),
+    !,
     rewrite_eqilfile(File, NewEQIL).
 
 update_keyval([eqil(K,_)|EQIL], Keyseq, NewVal,
