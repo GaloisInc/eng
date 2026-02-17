@@ -1,7 +1,9 @@
 :- module(eqil, [ parse_eng_eqil/3,
                   normalize_eqil/2,
                   assert_eqil/2,
-                  emit_eqil/2
+                  emit_eqil/2,
+                  add_to_eqilfile/4,
+                  update_eqilfile/3
                 ]).
 
 :- use_module(library(apply)).
@@ -39,6 +41,10 @@ parse_eng_eqil(FName, FContents, (FName, Result)) :-
 %% eng:val(key1, key2, key3, val) for each sequence of keys and their value.
 %% Note that the values have initial and trailing blanks removed (but not
 %% internal blanks).
+%%
+%% Note also that all keys up to depth three will be associated with their source
+%% file via an `eng:eqil_file(Key, Subkey, Subsubkey, FileName)` predicate.  This
+%% can be useful to determine the originating file if it is to be re-written.
 
 assert_eqil([(File, EQIL)|More], AllRefs) :-
     maplist([E,R]>>assert_eqil(E,R), [(File, EQIL)|More], EachRefs),
@@ -50,19 +56,35 @@ assert_eqil((FName, [eqil(Keys, [])|CCS]), Refs) :-
     !,
     assert_eng(Keychain, Refs1),
     assert_eqil((FName, CCS), Refs2),
-    append(Refs1, Refs2, Refs).
+    assert_eqil_file(FName, Keychain, Refs3),
+    append([Refs1, Refs2, Refs3], Refs).
 assert_eqil((FName, [eqil(Keys, [""])|CCS]), Refs) :-
     keyseq(Keys, Keychain),
     !,
     assert_eng(Keychain, Refs1),
     assert_eqil((FName, CCS), Refs2),
-    append(Refs1, Refs2, Refs).
+    assert_eqil_file(FName, Keychain, Refs3),
+    append([Refs1, Refs2, Refs3], Refs).
 assert_eqil((FName, [eqil(Keys, Val)|CCS]), Refs) :-
     keyseq(Keys, Keychain),
+    !,
     vals_as_val(Val, V),
     assert_eng(Keychain, V, Refs1),
     assert_eqil((FName, CCS), Refs2),
-    append(Refs1, Refs2, Refs).
+    assert_eqil_file(FName, Keychain, Refs3),
+    append([Refs1, Refs2, Refs3], Refs).
+
+:- dynamic eng:eqil_file/4.
+
+assert_eqil_file(FName, [Key, SKey, SSKey], []) :-
+    eng:eqil_file(Key, SKey, SSKey, FName), !.
+assert_eqil_file(FName, [Key, SKey, SSKey], [Ref]) :-
+    atom_string(KeyA, Key),
+    atom_string(SKeyA, SKey),
+    atom_string(SSKeyA, SSKey),
+    assertz(eng:eqil_file(KeyA, SKeyA, SSKeyA, FName), Ref),
+    !. % required because caller will retry and assertz is infinitely retryable
+assert_eqil_file(_, _, []).
 
 show_warnings(_, []).
 show_warnings(In, Unparsed) :-
@@ -835,3 +857,65 @@ as_valblock_lines(N, [L|LS]) :-
     string_codes(L, Chars),
     phrase(indented(I), Chars, _),
     (I > N, !; as_valblock_lines(N, LS)).
+
+% ----------------------------------------------------------------------
+
+add_to_eqilfile(File, Keyseq, NewKey, NewValue) :-
+    read_file_to_string(File, Contents, []),
+    parse_eng_eqil(File, Contents, (_, Parsed)),
+    insert_new_keyval(Parsed, Keyseq, NewKey, NewValue, NewEQIL),
+    % n.b. new key/val is not asserted (because no revocation ref is passed)
+    !,
+    rewrite_eqilfile(File, NewEQIL).
+
+% Generates a new key starting with Keyseq names and final key name NewKey with
+% appropriate indentations such that it can be added to the existing EQIL.  Note
+% that there must be existing entries to a depth of Keyseq + another subkey that
+% NewKey will become a sibling of, otherwise this will fail (silently).
+
+insert_new_keyval([eqil(K,V)|EQIL], Keyseq, NewKey, NewValue, NewEQIL) :-
+    gen_new_key_(K, Keyseq, NewKey, [], EQIL_Key),
+    !,
+    NewEQIL = [eqil(EQIL_Key, [val(0, NewValue)]),eqil(K,V)|EQIL].
+insert_new_keyval([KV|EQIL], Keyseq, NewKey, NewValue, [KV|Tail]) :-
+    insert_new_keyval(EQIL, Keyseq, NewKey, NewValue, Tail).
+
+gen_new_key_([key(I, KS)|SubKeys], [K|SubKeyseq], NewKey, Building, EQIL_Key) :-
+    atom_string(K, KS),
+    gen_new_key_(SubKeys, SubKeyseq, NewKey, [key(I, K)|Building], EQIL_Key).
+gen_new_key_([key(I, _)|_], [], NewKey, Building, EQIL_Key) :-
+    atom_string(NewKey, NewKeyS),
+    reverse([key(I, NewKeyS)|Building], EQIL_Key).
+
+
+update_eqilfile(File, Keyseq, NewValue) :-
+    read_file_to_string(File, Contents, []),
+    parse_eng_eqil(File, Contents, (_, Parsed)),
+    (update_keyval(Parsed, Keyseq, NewValue, NewEQIL), !;
+     reverse(Keyseq, [K|RKS]),
+     reverse(RKS, KS),
+     insert_new_keyval(Parsed, KS, K, NewValue, NewEQIL)
+    ),
+    rewrite_eqilfile(File, NewEQIL).
+
+update_keyval([eqil(K,_)|EQIL], Keyseq, NewVal,
+              [eqil(K, [val(0, NewVal)])|EQIL]) :-
+    match_key(K, Keyseq).
+update_keyval([E|EQIL], Keyseq, NewVal, [E|Out]) :-
+    update_keyval(EQIL, Keyseq, NewVal, Out).
+
+match_key([key(_, KS)|Keys], [K|SubKeys]) :-
+    atom_string(K, KS),
+    match_key(Keys, SubKeys).
+match_key([], []).
+
+rewrite_eqilfile(File, NewEQIL) :-
+    string_concat(File, ".upd", NewFile),
+    emit_eqil(NewEQIL, OutText),
+    open(NewFile, write, Out, [create([read, write]), type(text)]),
+    format(Out, '~w~n', [OutText]),
+    close(Out),
+    rename_file(NewFile, File),
+    print_message(informational, rewrote_eqil_file(File)).
+
+prolog:message(rewrote_eqil_file(FName)) --> [ 'Rewrote ~w' - [FName] ].

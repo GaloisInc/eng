@@ -1,8 +1,12 @@
 :- module(tasks, [ tasks_cmd/3, tasks_focus/1, tasks_help/1, tasks_help/2 ]).
 
 :- use_module(library(ansi_term)).
+:- use_module(library(http/http_ssl_plugin)).
+:- use_module(library(http/http_open)).
+:- use_module(library(http/json)).
 :- use_module(library(strings)).
 :- use_module('../englib').
+:- use_module('../services/gitforge').
 :- use_module(exec_subcmds).
 
 
@@ -29,6 +33,7 @@ tasks_help(Info) :-
 |         config =
 |           [name = GroupName]
 |           [priorities = 1 2 3 4 5 6 7 8 9 10]
+|           [remote = SEE_BELOW]
 |         taskID =
 |           summary = ONE-LINE SUMMARY
 |           description = FULL DESCRIPTION OF THE TASK
@@ -59,6 +64,22 @@ tasks_help(Info) :-
 |
 | Assigning a task an internal visibility will result in it not being
 | suggested for inclusion in release notes.
+|
+| Each task group can have a remote specified; task information is synchronized
+| between the local EQIL tasks and the remote task or issue information.
+| The remote section has the following possible EQIL structure:
+|
+|     tasks =
+|       groupname
+|         config =
+|           remote =
+|             repo = PROJECT/REPO
+|             [type = gitlab | github]
+|             host = HOSTNAME
+|             [label = COMMA-SEPARATED-LABELS]
+|
+| The label specifies any optional labels to use for issues synchronized
+| here.  By default, the groupname is also used as a label.
 |}.
 
 %% ----------------------------------------
@@ -67,12 +88,14 @@ tasks_subcmds([list|todo]).
 
 tasks_help(list, "List all tasks").
 tasks_help(todo, "List tasks not yet completed").
+tasks_help(sync, "Sync tasks with remote").
 % tasks_help(info, "Show task information").
 
 :- dynamic exclude_task_status/1.
 
 tasks_cmd(_, [list|_Args], 0) :- show_tasks(_) ; true.
 tasks_cmd(_, [todo|_Args], 0) :- assertz(exclude_task_status(done)), show_tasks(_) ; true.
+tasks_cmd(_, [sync|_Args], Sts) :- sync_tasks(Sts); true.
 tasks_cmd(_, [Cmd|_], invalid_subcmd(tasks, Cmd)) :- !.
 
 %% ----------------------------------------
@@ -146,3 +169,244 @@ task_colorize(O, S, [fg(red), bg(white)]) :-
 
 enabled_task_status(Sts) :- exclude_task_status(Sts), !, fail.
 enabled_task_status(_).
+
+% ----------------------------------------------------------------------
+
+sync_tasks(Sts) :-
+    eng:eng(tasks, Grp, config, remote, repo, RmtRepo),
+    !,
+    remote_updated(Grp, RmtRepo, Tasks),
+    findall((T,S), sync_task(Grp, RmtRepo, T, S), TskSts),
+    findall(T, new_remote_task(Grp, RmtRepo, Tasks, T), NewTasks),
+    (NewTasks == 0, !;
+     print_message(information, new_remote_tasks(NewTasks))
+    ),
+    !,
+    (update_sync_timestamp(Grp), !;
+     print_message(warning, unable_to_update_timestamp(Grp))
+    ),
+    NewTskSts = [],
+    append(TskSts, NewTskSts, AllTskSts),
+    maplist(sync_sts, AllTskSts, Sts).
+sync_tasks(0).  % no remote configured for any tasks
+
+prolog:message(new_remote_tasks(Tasks)) -->
+    { length(Tasks, N) },
+    [ 'There are ~w new remote tasks~n' - [N] ].
+prolog:message(unable_to_update_timestamp(Grp)) -->
+    [ 'Unable to update EQIL file timestamp for tasks ~w' - [Grp] ].
+
+update_sync_timestamp(Grp) :-
+    eng:eqil_file(tasks, Grp, config, File),
+    !,
+    get_time(TS),
+    format_time(atom(Mark), '%FT%T%z', TS),
+    update_eqilfile(File, [tasks, Grp, config, remote, '{updated at}'], Mark).
+update_sync_timestamp(Grp) :-
+    format('No eqil file for tasks ~w config~n', [Grp]).
+
+
+sync_sts((_, S), S).
+
+remote_id_key('{remote id}').
+
+sync_task(Grp, RmtRepo, TaskID, Sts) :-
+    eng:eng(tasks, Grp, TaskID, summary, Summary),
+    remote_id_key(RID_Key),
+    (eng:eng(tasks, Grp, TaskID, RID_Key, RemoteID)
+    -> sync_known_task(Grp, RmtRepo, TaskID, Summary, RemoteID, Sts)
+    ; sync_new_task(Grp, RmtRepo, TaskID, Summary, Sts)).
+
+
+% ----------------------------------------
+
+sync_new_task(Grp, RmtRepo, TaskID, Summary, Sts) :-
+    eng:eqil_file(tasks, Grp, TaskID, EQILFile),
+    !,
+    (eng:eng(tasks, Grp, TaskID, description, Desc), !; Desc = Summary),
+    create_remote_task(Grp, RmtRepo, Summary, Desc, RemoteID),
+    (task_status(Grp, TaskID, done, _)
+    -> format(atom(TIDStr), '~w', [RemoteID]),
+       update_remote_if_changes(Grp, RmtRepo, TIDStr, [state_event=close])
+    ; true
+    ),
+    print_message(info, new_task_remote_id(Grp, TaskID, RmtRepo, RemoteID)),
+    remote_id_key(RID_Key),
+    add_to_eqilfile(EQILFile, [tasks, Grp, TaskID], RID_Key, RemoteID),
+    Sts = 0.
+sync_new_task(Grp, _, TaskID, _, no_eqil_file_for_task(Grp, TaskID)).
+
+prolog:message(no_eqil_file_for_task(Grp, TaskID)) -->
+    [ 'No EQIL file found for task ~w ~w' - [Grp, TaskID] ].
+
+prolog:message(new_task_remote_id(Grp, TaskID, RmtRepo, RmtID)) -->
+    { eng:eng(tasks, Grp, config, remote, host, RmtHost) },
+    [ 'Created new ~w ~w entry with remote ID ~w for task ~w ~w' -
+      [ RmtHost, RmtRepo, RmtID, Grp, TaskID ] ].
+
+create_remote_task(Grp, RmtRepo, Summary, Desc, RmtTaskID) :-
+    build_mktask_url(Grp, RmtRepo, MakeTaskURL),
+    git_repo_AUTH(MakeTaskURL, Auth),
+    labels_string(Grp, Labels),
+    append(MakeTaskURL,
+           [ search([title=Summary,
+                     description=Desc,
+                     labels=Labels
+                    ])
+           ],
+           PostURL),
+    http_open(PostURL, STRM, [method(post)|Auth]),
+    json_read_dict(STRM, RspDict),
+    close(STRM),
+    get_dict(iid, RspDict, RmtTaskID).
+
+labels_string(Grp, Labels) :-
+    eng:eng(tasks, Grp, config, remote, labels, GroupLabels),
+    !,
+    split_string(Grp, " ", " ", GrpWrds),
+    intercalate(GrpWrds, "_", GrpLabel),
+    intercalate([GrpLabel, GroupLabels], ", ", Labels).
+labels_string(Grp, GrpLabel) :-
+    split_string(Grp, " ", " ", GrpWrds),
+    intercalate(GrpWrds, "_", GrpLabel).
+
+build_mktask_url(Grp, RmtRepo, URL) :-
+    build_task_url(Grp, RmtRepo, [], URL).
+
+
+% ----------------------------------------
+
+sync_known_task(Grp, RmtRepo, TaskID, _Summary, RemoteID, 0) :-
+    get_remote_task(Grp, RmtRepo, RemoteID, RmtInfo),
+    !,
+    sync_summary(Grp, TaskID, RmtInfo, [], UD0),
+    sync_description(Grp, TaskID, RmtInfo, UD0, UD1),
+    sync_status(Grp, TaskID, RmtInfo, UD1, UD2),
+    % sync_severity(Grp, TaskID, RmtInfo, UD2, UD3), % not supported for gitlab
+    update_remote_if_changes(Grp, RmtRepo, RemoteID, UD2),
+    !.
+sync_known_task(_Grp, RmtRepo, TaskID, _Summary, RemoteID, cmd_not_impl(sync_known_task)) :-
+    format('TBD: resync task ~w with remote ~w at ~w~n', [TaskID, RemoteID, RmtRepo]).
+
+
+sync_summary(Grp, TaskID, RmtInfo, Pending, Pending) :-
+    eng:eng(tasks, Grp, TaskID, summary, Summary),
+    get_dict(title, RmtInfo, Summary),
+    !.
+sync_summary(Grp, TaskID, RmtInfo, Pending, [title=Summary|Pending]) :-
+    eng:eng(tasks, Grp, TaskID, summary, Summary),
+    print_message(informational, update_summary(Grp, TaskID, RmtInfo, Summary)).
+
+prolog:message(update_summary(Grp, TaskID, RmtInfo, NewSumm)) -->
+    { get_dict(title, RmtInfo, OldSumm),
+      show_type(OldSumm, OT),
+      show_type(NewSumm, NT)
+    },
+    [ 'Updated ~w ~w summary~n  From(~w): ~w~n    To(~w): ~w' -
+      [Grp, TaskID, OT, OldSumm, NT, NewSumm ] ].
+
+sync_description(Grp, TaskID, RmtInfo, Pending, Pending) :-
+    eng:eng(tasks, Grp, TaskID, description, Description),
+    get_dict(description, RmtInfo, Description),
+    !.
+sync_description(Grp, TaskID, RmtInfo, Pending, [description=D|Pending]) :-
+    eng:eng(tasks, Grp, TaskID, description, D),
+    print_message(informational, update_description(Grp, TaskID, RmtInfo, D)).
+
+prolog:message(update_description(Grp, TaskID, RmtInfo, NewDesc)) -->
+    { get_dict(description, RmtInfo, OldDesc) },
+    [ 'Updated ~w ~w description~n  From: ~w~n    To: ~w' -
+      [Grp, TaskID, OldDesc, NewDesc ] ].
+
+sync_status(Grp, TaskID, RmtInfo, Pending, Pending) :-
+    task_status(Grp, TaskID, Sts, _),
+    get_dict(state, RmtInfo, RmtSts),
+    same_status(Sts, RmtSts),
+    !.
+sync_status(Grp, TaskID, RmtInfo, Pending, [state_event=Sts|Pending]) :-
+    task_status(Grp, TaskID, S, _),
+    to_remote_status(Grp, RmtInfo, S, Sts),
+    print_message(informational, update_status(Grp, TaskID, RmtInfo, Sts)).
+
+same_status('done', "closed").
+same_status('todo', "open").
+same_status('todo', "opened").
+same_status(A, S) :- atom_string(A, S).
+
+to_remote_status(Grp, _, 'done', 'close') :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab").
+to_remote_status(Grp, _, 'todo', 'reopen') :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab").
+to_remote_status(_, _, S, S).
+
+prolog:message(update_status(Grp, TaskID, RmtInfo, New)) -->
+    { get_dict(state, RmtInfo, Old) },
+    [ 'Updated ~w ~w status from: ~w to ~w' - [Grp, TaskID, Old, New ] ].
+
+update_remote_if_changes(_, _, _, []).
+update_remote_if_changes(Grp, RmtRepo, RmtTaskID, Changes) :-
+    build_task_url(Grp, RmtRepo, [RmtTaskID], URL),
+    git_repo_AUTH(URL, Auth),
+    append(URL, [ search(Changes) ], PostURL),
+    http_open(PostURL, STRM, [method(put)|Auth]),
+    json_read_dict(STRM, _Rspns),
+    close(STRM).
+
+get_remote_task(Grp, RmtRepo, RmtTaskID, Response) :-
+    build_task_url(Grp, RmtRepo, [RmtTaskID], GetURL),
+    git_repo_AUTH(GetURL, Auth),
+    http_open(GetURL, STRM, [method(get)|Auth]),
+    json_read_dict(STRM, Response),
+    close(STRM).
+
+
+% ----------------------------------------
+
+build_task_url(Grp, RmtRepo, PathEnd, URL) :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab"),
+    !,
+    eng:eng(tasks, Grp, config, remote, host, RmtHost),
+    split_string(RmtRepo, "/", "", PathParts),
+    intercalate(PathParts, "%2F", Project),
+    append(["/api", "v4", "projects", Project, "issues"], PathEnd, PathElems),
+    intercalate(PathElems, "/", Path),
+    atom_string(PathA, Path),
+    atom_string(RmtHostA, RmtHost),
+    URL = [ protocol(https),
+            host(RmtHostA),
+            path(PathA)
+          ].
+build_task_url(Grp, _RmtRepo, _URL) :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab"),
+    !,
+    fail. % TODO KWQ
+
+% ----------------------------------------------------------------------
+
+remote_updated(Grp, RmtRepo, Tasks) :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab"),
+    eng:eng(tasks, Grp, config, remote, '{updated at}', LastUpd),
+    !,
+    build_task_url(Grp, RmtRepo, [], URL),
+    git_repo_AUTH(URL, Auth),
+    append(URL, [ search = [ updated_after=LastUpd ] ], GetURL),
+    http_open(GetURL, STRM, [method(get),
+                             json_object(dict),
+                             request_header('Accept'='application/json')
+                             |Auth]),
+    json_read_dict(STRM, Tasks),
+    % TODO handle multiple pages of responses via pagination
+    close(STRM).
+
+remote_updated(_, _, []).
+
+new_remote_task(Grp, RmtRepo, RmtTasks, TaskID) :-
+    remote_id_key(RmtKey),
+    member(RmtT, RmtTasks),
+    get_dict(iid, RmtT, RmtTaskID),
+    format(string(RTID), '~w', [RmtTaskID]),
+    \+ eng:eng(tasks, Grp, TaskID, RmtKey, RTID),
+    print_message(info, new_remote_task(RmtRepo, RmtTaskID)).
+
+prolog:message(new_remote_task(RmtRepo, RmtTaskID)) -->
+    [ 'New ~w task: ~w' - [RmtRepo, RmtTaskID] ].
