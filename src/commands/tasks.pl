@@ -201,7 +201,8 @@ update_sync_timestamp(Grp) :-
     !,
     get_time(TS),
     format_time(atom(Mark), '%FT%T%z', TS),
-    update_eqilfile(File, [tasks, Grp, config, remote, '{updated at}'], Mark).
+    update_eqilfile(File, [tasks, Grp, config, remote, '{updated at}'], Mark),
+    !.
 update_sync_timestamp(Grp) :-
     format('No eqil file for tasks ~w config~n', [Grp]).
 
@@ -211,19 +212,20 @@ sync_sts((_, S), S).
 remote_id_key('{remote id}').
 
 sync_task(Grp, RmtRepo, TaskID, Sts) :-
-    eng:eng(tasks, Grp, TaskID, summary, Summary),
+    eng:eng(tasks, Grp, TaskID, summary, _Summary), % set TaskID
     remote_id_key(RID_Key),
     (eng:eng(tasks, Grp, TaskID, RID_Key, RemoteID)
-    -> sync_known_task(Grp, RmtRepo, TaskID, Summary, RemoteID, Sts)
-    ; sync_new_task(Grp, RmtRepo, TaskID, Summary, Sts)).
+    -> sync_known_task(Grp, RmtRepo, TaskID, RemoteID, Sts)
+    ; sync_new_task(Grp, RmtRepo, TaskID, Sts)).
 
 
 % ----------------------------------------
 
-sync_new_task(Grp, RmtRepo, TaskID, Summary, Sts) :-
+sync_new_task(Grp, RmtRepo, TaskID, Sts) :-
     eng:eqil_file(tasks, Grp, TaskID, EQILFile),
     !,
-    (eng:eng(tasks, Grp, TaskID, description, Desc), !; Desc = Summary),
+    task_remote_summary(Grp, TaskID, Summary),
+    task_remote_description(Grp, TaskID, Desc),
     create_remote_task(Grp, RmtRepo, Summary, Desc, RemoteID),
     (task_status(Grp, TaskID, done, _)
     -> format(atom(TIDStr), '~w', [RemoteID]),
@@ -233,8 +235,9 @@ sync_new_task(Grp, RmtRepo, TaskID, Summary, Sts) :-
     print_message(info, new_task_remote_id(Grp, TaskID, RmtRepo, RemoteID)),
     remote_id_key(RID_Key),
     add_to_eqilfile(EQILFile, [tasks, Grp, TaskID], RID_Key, RemoteID),
+    !,
     Sts = 0.
-sync_new_task(Grp, _, TaskID, _, no_eqil_file_for_task(Grp, TaskID)).
+sync_new_task(Grp, _, TaskID, no_eqil_file_for_task(Grp, TaskID)).
 
 prolog:message(no_eqil_file_for_task(Grp, TaskID)) -->
     [ 'No EQIL file found for task ~w ~w' - [Grp, TaskID] ].
@@ -276,7 +279,7 @@ build_mktask_url(Grp, RmtRepo, URL) :-
 
 % ----------------------------------------
 
-sync_known_task(Grp, RmtRepo, TaskID, _Summary, RemoteID, 0) :-
+sync_known_task(Grp, RmtRepo, TaskID, RemoteID, 0) :-
     get_remote_task(Grp, RmtRepo, RemoteID, RmtInfo),
     !,
     sync_summary(Grp, TaskID, RmtInfo, [], UD0),
@@ -285,38 +288,56 @@ sync_known_task(Grp, RmtRepo, TaskID, _Summary, RemoteID, 0) :-
     % sync_severity(Grp, TaskID, RmtInfo, UD2, UD3), % not supported for gitlab
     update_remote_if_changes(Grp, RmtRepo, RemoteID, UD2),
     !.
-sync_known_task(_Grp, RmtRepo, TaskID, _Summary, RemoteID, cmd_not_impl(sync_known_task)) :-
+sync_known_task(_Grp, RmtRepo, TaskID, RemoteID, cmd_not_impl(sync_known_task)) :-
     format('TBD: resync task ~w with remote ~w at ~w~n', [TaskID, RemoteID, RmtRepo]).
 
 
 sync_summary(Grp, TaskID, RmtInfo, Pending, Pending) :-
-    eng:eng(tasks, Grp, TaskID, summary, Summary),
+    task_remote_summary(Grp, TaskID, Summary),
     get_dict(title, RmtInfo, Summary),
     !.
 sync_summary(Grp, TaskID, RmtInfo, Pending, [title=Summary|Pending]) :-
-    eng:eng(tasks, Grp, TaskID, summary, Summary),
+    task_remote_summary(Grp, TaskID, Summary),
     print_message(informational, update_summary(Grp, TaskID, RmtInfo, Summary)).
 
 prolog:message(update_summary(Grp, TaskID, RmtInfo, NewSumm)) -->
     { get_dict(title, RmtInfo, OldSumm),
       show_type(OldSumm, OT),
-      show_type(NewSumm, NT)
+      show_type(NewSumm, NT),
+      get_dict(iid, RmtInfo, RemoteID)
     },
-    [ 'Updated ~w ~w summary~n  From(~w): ~w~n    To(~w): ~w' -
-      [Grp, TaskID, OT, OldSumm, NT, NewSumm ] ].
+    [ 'Updated ~w ~w summary (remote ID: ~w)~n  From(~w): ~w~n    To(~w): ~w' -
+      [Grp, TaskID, RemoteID, OT, OldSumm, NT, NewSumm ] ].
 
 sync_description(Grp, TaskID, RmtInfo, Pending, Pending) :-
-    eng:eng(tasks, Grp, TaskID, description, Description),
+    task_remote_description(Grp, TaskID, Description),
     get_dict(description, RmtInfo, Description),
     !.
 sync_description(Grp, TaskID, RmtInfo, Pending, [description=D|Pending]) :-
-    eng:eng(tasks, Grp, TaskID, description, D),
+    task_remote_description(Grp, TaskID, D),
     print_message(informational, update_description(Grp, TaskID, RmtInfo, D)).
 
+task_remote_summary(Grp, TaskID, RmtSummary) :-
+    eng:eng(tasks, Grp, TaskID, summary, Summary),
+    format(string(RmtSummary), '[~w] ~w', [TaskID, Summary]).
+
+task_remote_description(Grp, TaskID, RmtDesc) :-
+    (eng:eng(tasks, Grp, TaskID, description, LocalDesc), !
+    ; eng:eng(tasks, Grp, TaskID, summary, LocalDesc)),
+    eng:eqil_file(tasks, Grp, TaskID, FileName),
+    file_base_name(FileName, FName),
+    format(string(RmtDesc), "~w~n~n[Task ~w in `~w`]",
+           [ LocalDesc, TaskID, FName ]).
+
 prolog:message(update_description(Grp, TaskID, RmtInfo, NewDesc)) -->
-    { get_dict(description, RmtInfo, OldDesc) },
-    [ 'Updated ~w ~w description~n  From: ~w~n    To: ~w' -
-      [Grp, TaskID, OldDesc, NewDesc ] ].
+    { get_dict(description, RmtInfo, OldDesc),
+      show_type(NewDesc, NT),
+      show_type(OldDesc, OT),
+      (NewDesc == OldDesc -> S="Same" ; S="Different"),
+      get_dict(iid, RmtInfo, RemoteID)
+    },
+    [ 'Updated ~w ~w description [~w] (remote ID: ~w)~n  From(~w): ~w~n    To(~w): ~w' -
+      [Grp, TaskID, S, RemoteID, OT, OldDesc, NT, NewDesc ] ].
 
 sync_status(Grp, TaskID, RmtInfo, Pending, Pending) :-
     task_status(Grp, TaskID, Sts, _),
@@ -332,16 +353,19 @@ same_status('done', "closed").
 same_status('todo', "open").
 same_status('todo', "opened").
 same_status(A, S) :- atom_string(A, S).
+same_status(_, "opened").  % Anything else we just treat as "open" on the gitlab side
 
 to_remote_status(Grp, _, 'done', 'close') :-
     eng:eng(tasks, Grp, config, remote, type, "gitlab").
 to_remote_status(Grp, _, 'todo', 'reopen') :-
     eng:eng(tasks, Grp, config, remote, type, "gitlab").
-to_remote_status(_, _, S, S).
 
 prolog:message(update_status(Grp, TaskID, RmtInfo, New)) -->
-    { get_dict(state, RmtInfo, Old) },
-    [ 'Updated ~w ~w status from: ~w to ~w' - [Grp, TaskID, Old, New ] ].
+    { get_dict(state, RmtInfo, Old),
+      get_dict(iid, RmtInfo, RemoteID)
+    },
+    [ 'Updated ~w ~w status (remote ID: ~w) from: ~w to ~w' -
+      [Grp, TaskID, RemoteID, Old, New ] ].
 
 update_remote_if_changes(_, _, _, []).
 update_remote_if_changes(Grp, RmtRepo, RmtTaskID, Changes) :-
