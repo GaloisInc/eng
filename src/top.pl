@@ -222,7 +222,7 @@ ordered(ConPars, SortedConPars) :-
     !.
 ordered_([Top], Sub, SortedConPars) :-
     top_conpar_context(Top, TopContext),
-    % Convert remaining into sometihg sort_subprojects can use
+    % Convert remaining into somethig sort_subprojects can use
     maplist(get_dep_checker(TopContext), Sub, SubAndCheckers),
     EntryInfo = entry{ entMyDepName: getname, entDepChecker: getchecker },
     % Sort into dependency or alphanumeric order

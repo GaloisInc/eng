@@ -28,7 +28,7 @@
 %% Although a value may be its own EQIL at the sub-level, that information will
 %% also appear simply as a multi-line value for the higher level key.
 
-parse_eng_eqil(FName, FContents, Result) :-
+parse_eng_eqil(FName, FContents, (FName, Result)) :-
     string_codes(FContents, Chars),
     phrase(eqil(Result), Chars, Leftover), !,
     show_warnings(FName, Leftover).
@@ -40,24 +40,28 @@ parse_eng_eqil(FName, FContents, Result) :-
 %% Note that the values have initial and trailing blanks removed (but not
 %% internal blanks).
 
-assert_eqil([], []).
-assert_eqil([eqil(Keys, [])|CCS], Refs) :-
+assert_eqil([(File, EQIL)|More], AllRefs) :-
+    maplist([E,R]>>assert_eqil(E,R), [(File, EQIL)|More], EachRefs),
+    append(EachRefs, AllRefs).
+
+assert_eqil((_, []), []).
+assert_eqil((FName, [eqil(Keys, [])|CCS]), Refs) :-
     keyseq(Keys, Keychain),
     !,
     assert_eng(Keychain, Refs1),
-    assert_eqil(CCS, Refs2),
+    assert_eqil((FName, CCS), Refs2),
     append(Refs1, Refs2, Refs).
-assert_eqil([eqil(Keys, [""])|CCS], Refs) :-
+assert_eqil((FName, [eqil(Keys, [""])|CCS]), Refs) :-
     keyseq(Keys, Keychain),
     !,
     assert_eng(Keychain, Refs1),
-    assert_eqil(CCS, Refs2),
+    assert_eqil((FName, CCS), Refs2),
     append(Refs1, Refs2, Refs).
-assert_eqil([eqil(Keys, Val)|CCS], Refs) :-
+assert_eqil((FName, [eqil(Keys, Val)|CCS]), Refs) :-
     keyseq(Keys, Keychain),
     vals_as_val(Val, V),
     assert_eng(Keychain, V, Refs1),
-    assert_eqil(CCS, Refs2),
+    assert_eqil((FName, CCS), Refs2),
     append(Refs1, Refs2, Refs).
 
 show_warnings(_, []).

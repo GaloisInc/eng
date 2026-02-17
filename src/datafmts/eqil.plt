@@ -3424,7 +3424,7 @@ check(Inp, Parsed, ReParsed, EmittedResult) :-
     check(Inp, Parsed, Inp, ReParsed, EmittedResult).
 
 check(Inp, Parsed, Out, ReParsed, EmittedResult) :-
-    parse_eng_eqil(testinp, Inp, Result),
+    parse_eng_eqil(testinp, Inp, (_, Result)),
     writeln(Result),
     assertall(Result, Parsed),
 
@@ -3443,10 +3443,11 @@ check(Inp, Parsed, Out, ReParsed, EmittedResult) :-
     parse_eng_eqil(emitted_out, Out, EmittedResult),
     writeln(parsed_emitted), !,
     writeln(EmittedResult),
-    assertall(EmittedResult, ReParsed).
+    EmittedResult = (_, EREqil),
+    assertall(EREqil, ReParsed).
 
 check(Inp, Parsed, Out, already_normalized, ReParsed, EmittedResult) :-
-    parse_eng_eqil(testinp, Inp, Result),
+    parse_eng_eqil(testinp, Inp, (_, Result)),
     writeln(Result),
     assertall(Result, Parsed),
 
@@ -3465,10 +3466,11 @@ check(Inp, Parsed, Out, already_normalized, ReParsed, EmittedResult) :-
     parse_eng_eqil(emitted_out, Out, EmittedResult),
     writeln(parsed_emitted),
     writeln(EmittedResult),
-    assertall(EmittedResult, ReParsed).
+    EmittedResult = (_, EREqil),
+    assertall(EREqil, ReParsed).
 
 check(Inp, Parsed, Out, Normalized, ReParsed, EmittedResult) :-
-    parse_eng_eqil(testinp, Inp, Result),
+    parse_eng_eqil(testinp, Inp, (_, Result)),
     writeln(Result),
     assertall(Result, Parsed),
 
@@ -3488,7 +3490,8 @@ check(Inp, Parsed, Out, Normalized, ReParsed, EmittedResult) :-
     parse_eng_eqil(emitted_out, Out, EmittedResult),
     writeln(parsed_emitted),
     writeln(EmittedResult),
-    assertall(EmittedResult, ReParsed).
+    EmittedResult = (_, EREqil),
+    assertall(EREqil, ReParsed).
 
 compare_ignore_leading_trailing_blanks(Inp1, Inp2) :-
     string_trim(Inp1, TI1),

@@ -110,7 +110,7 @@ known_subcommands(Cmd, SubCmds) :-
 
 show_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, OutStrs) :-
     ingest_engfiles(_Context, Parsed, silent),
-    findall(R, (member(P, Parsed), assert_eqil(P, R)), Refs),
+    assert_eqil(Parsed, Refs),
     !,
     findall(O, get_subcmd_focus(Cmd, SubCmd, CmdType, OutputMode, O), OutStrs),
     erase_refs(Refs).
@@ -290,8 +290,7 @@ ingest_user_engfiles(Refs) :-
 ingest_user_engfiles([]).
 
 ingest_files(Verbosity, Dir, Files, Parsed) :-
-    findall(R, ingest_files(Verbosity, Dir, Files, each, R), AllParses),
-    append(AllParses, Parsed).
+    findall(R, ingest_files(Verbosity, Dir, Files, each, R), Parsed).
 ingest_files(Verbosity, Dir, Files, each, Parsed) :-
     member(File, Files),
     directory_file_path(Dir, File, FilePath),
@@ -307,7 +306,7 @@ ingest_file(Verbosity, File, ParseResult) :-
     read_file_to_string(File, Contents, []),
     print_message(Verbosity, reading_eng_file(File)),
     parse_eng_eqil(File, Contents, Parsed),
-    ( normalize_eqil(Parsed, Normalized), !,
+    ( Parsed = (_, PEQil), normalize_eqil(PEQil, Normalized), !,
       reprocess_eng_file(File, Normalized, ParseResult)
     ; ParseResult = Parsed
     ).
