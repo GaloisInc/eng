@@ -427,18 +427,7 @@ vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, Sts) :-
     git_remote_head(Context, VCSDir, Fetch_SHA), % TODO if local git repo, doesn't get *current* remote head, just remote head from this revision!
     git_build_status_url(URL, Fetch_SHA, StatusURL),
     http_get(StatusURL, RData, [json_object(dict)|Auth]),
-    % gitlab returns a list; just use the first by default.
-    (is_list(RData) -> RData = [Data|_] ; Data = RData),
-    (get_dict(status, Data, BldStatus)  % Gitlab
-    ; (get_dict(workflow_runs, Data, []), BldStatus = "no CI"
-      ; get_dict(workflow_runs, Data, WFRuns),  % Github
-        reverse(WFRuns, [WFRun|_]),  % use the latest github workflow run
-        ( get_dict(status, WFRun, "completed"),
-          get_dict(conclusion, WFRun, BldStatus)
-        ; get_dict(status, WFRun,  BldStatus)
-        )
-      )
-    ),
+    bld_status_response(RData, BldStatus),
     member(host(RH), URL),
     member(path(RP), URL),
     show_bld_status(RH, RP, BldStatus),
@@ -447,6 +436,23 @@ vctl_build_status(Context, darcs(_, Parent), Args, Sts) :-
     !, vctl_build_status(Context, Parent, Args, Sts).
 vctl_build_status(_Context, _VCSTool, _Args, 0) :-
     writeln('No build status available').
+
+bld_status_response([], "invalid").  % Gitlab bad YAML
+bld_status_response([D|_], R) :-
+    % gitlab returns a list; just use the first by default, which is the latest run?
+    bld_status_response(D, R).
+bld_status_response(D, R) :- get_dict(status, D, R).  % Gitlab
+bld_status_response(D, "no CI") :- get_dict(workflow_runs, D, []).
+bld_status_response(D, R) :- get_dict(workflow_runs, D, Runs),
+                             reverse(Runs, [Run|_]), % get last run
+                             github_run_status(Run, R).
+bld_status_response(_, "??bldsts??").
+
+github_run_status(Run, R) :- get_dict(status, Run, "completed"),
+                             get_dict(conclusion, Run, R).
+github_run_status(Run, R) :- get_dict(status, Run, R).
+github_run_status(_, "??github??").
+
 
 show_bld_status(RH, RP, "success") :- show_bld_status_(RH, RP, [bold], "success"), !.
 show_bld_status(RH, RP, "running") :- show_bld_status_(RH, RP, [bold, fg('#fcec03')], "running"), !.
