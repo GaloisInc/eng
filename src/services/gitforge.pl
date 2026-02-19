@@ -8,6 +8,8 @@
 :- use_module('../englib').
 
 
+% Remote is an atom formatted something like: git@github.com:galoisinc/eng
+% Output URL is https://github.com/galoisinc/eng
 git_remote_url(Remote, URL) :- parse_url(Remote, URL).
 git_remote_url(Remote, URL) :-
     string_concat("git@", Coord, Remote),
@@ -45,7 +47,11 @@ git_repo_path(URL, PathParts) :-
     split_string(PS, "/", "", [_|PPS]),
     remove_blanks(PPS, PathParts).
 
-prolog:message(using_pat(H)) --> [ "Using PAT to access ~w" - [ H ] ].
+:- dynamic used_pat/1.
+
+prolog:message(using_pat(H)) --> { used_pat(H) }, [].
+prolog:message(using_pat(H)) --> [ "Using PAT to access ~w" - [ H ] ],
+                                 { assertz(used_pat(H)) }.
 
 remove_blanks([""|E], R) :- remove_blanks(E, R), !.
 remove_blanks([], []).
