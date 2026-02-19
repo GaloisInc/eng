@@ -1,0 +1,4 @@
+release
+  prep
+    exec = echo Release ${NEWVERSION} in $(pwd)
+    
