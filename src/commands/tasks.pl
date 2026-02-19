@@ -214,6 +214,7 @@ remote_id_key('{remote id}').
 sync_task(Grp, RmtRepo, TaskID, Sts) :-
     eng:eng(tasks, Grp, TaskID, summary, _Summary), % set TaskID
     remote_id_key(RID_Key),
+    format('sync ~w...~n', [TaskID]),
     (eng:eng(tasks, Grp, TaskID, RID_Key, RemoteID)
     -> sync_known_task(Grp, RmtRepo, TaskID, RemoteID, Sts)
     ; sync_new_task(Grp, RmtRepo, TaskID, Sts)).
@@ -226,7 +227,7 @@ sync_new_task(Grp, RmtRepo, TaskID, Sts) :-
     !,
     task_remote_summary(Grp, TaskID, Summary),
     task_remote_description(Grp, TaskID, Desc),
-    create_remote_task(Grp, RmtRepo, Summary, Desc, RemoteID),
+    create_remote_task(Grp, RmtRepo, TaskID, Summary, Desc, RemoteID),
     (task_status(Grp, TaskID, done, _)
     -> format(atom(TIDStr), '~w', [RemoteID]),
        update_remote_if_changes(Grp, RmtRepo, TIDStr, [state_event=close])
@@ -247,10 +248,10 @@ prolog:message(new_task_remote_id(Grp, TaskID, RmtRepo, RmtID)) -->
     [ 'Created new ~w ~w entry with remote ID ~w for task ~w ~w' -
       [ RmtHost, RmtRepo, RmtID, Grp, TaskID ] ].
 
-create_remote_task(Grp, RmtRepo, Summary, Desc, RmtTaskID) :-
+create_remote_task(Grp, RmtRepo, TaskID, Summary, Desc, RmtTaskID) :-
     build_mktask_url(Grp, RmtRepo, MakeTaskURL),
     git_repo_AUTH(MakeTaskURL, Auth),
-    labels_string(Grp, Labels),
+    labels_string(Grp, TaskID, Labels),
     append(MakeTaskURL,
            [ search([title=Summary,
                      description=Desc,
@@ -263,15 +264,38 @@ create_remote_task(Grp, RmtRepo, Summary, Desc, RmtTaskID) :-
     close(STRM),
     get_dict(iid, RspDict, RmtTaskID).
 
-labels_string(Grp, Labels) :-
+labels_string(Grp, TaskID, Labels) :-
     eng:eng(tasks, Grp, config, remote, labels, GroupLabels),
     !,
-    split_string(Grp, " ", " ", GrpWrds),
-    intercalate(GrpWrds, "_", GrpLabel),
-    intercalate([GrpLabel, GroupLabels], ", ", Labels).
-labels_string(Grp, GrpLabel) :-
-    split_string(Grp, " ", " ", GrpWrds),
-    intercalate(GrpWrds, "_", GrpLabel).
+    split_string(GroupLabels, ",", " ", GrpWrds),
+    maplist(safe_label, GrpWrds, GrpLabels),
+    task_type_labels(Grp, TaskID, TypeLabels),
+    task_area_labels(Grp, TaskID, AreaLabels),
+    safe_label(Grp, GrpLabel),
+    append([[GrpLabel], GrpLabels, TypeLabels, AreaLabels], AllLabels),
+    intercalate(AllLabels, ", ", Labels).
+labels_string(Grp, TaskID, Labels) :-
+    safe_label(Grp, GrpLabel),
+    task_type_labels(Grp, TaskID, TypeLabels),
+    task_area_labels(Grp, TaskID, AreaLabels),
+    append([[GrpLabel], TypeLabels, AreaLabels], AllLabels),
+    intercalate(AllLabels, ", ", Labels).
+
+task_type_labels(Grp, TaskID, [TypeLabel]) :-
+    eng:eng(tasks, Grp, TaskID, type, TaskType),
+    !,
+    safe_label(TaskType, TypeLabel).
+task_type_labels(_, _, []).
+
+task_area_labels(Grp, TaskID, [AreaLabel]) :-
+    eng:eng(tasks, Grp, TaskID, area, Areas),
+    !,
+    safe_label(Areas, AreaLabel).
+task_area_labels(_, _, []).
+
+safe_label(Input, Label) :-
+    split_string(Input, " ", " ", Wrds),
+    intercalate(Wrds, "_", Label).
 
 build_mktask_url(Grp, RmtRepo, URL) :-
     build_task_url(Grp, RmtRepo, [], URL).
@@ -286,7 +310,8 @@ sync_known_task(Grp, RmtRepo, TaskID, RemoteID, 0) :-
     sync_description(Grp, TaskID, RmtInfo, UD0, UD1),
     sync_status(Grp, TaskID, RmtInfo, UD1, UD2),
     % sync_severity(Grp, TaskID, RmtInfo, UD2, UD3), % not supported for gitlab
-    update_remote_if_changes(Grp, RmtRepo, RemoteID, UD2),
+    sync_labels(Grp, TaskID, RmtInfo, UD2, UD3),
+    update_remote_if_changes(Grp, RmtRepo, RemoteID, UD3),
     !.
 sync_known_task(_Grp, RmtRepo, TaskID, RemoteID, cmd_not_impl(sync_known_task)) :-
     format('TBD: resync task ~w with remote ~w at ~w~n', [TaskID, RemoteID, RmtRepo]).
@@ -365,6 +390,28 @@ prolog:message(update_status(Grp, TaskID, RmtInfo, New)) -->
       get_dict(iid, RmtInfo, RemoteID)
     },
     [ 'Updated ~w ~w status (remote ID: ~w) from: ~w to ~w' -
+      [Grp, TaskID, RemoteID, Old, New ] ].
+
+sync_labels(Grp, TaskID, RmtInfo, Pending, Pending) :-
+    labels_string(Grp, TaskID, Labels),
+    % Labels is a comma (and space) separated string, but the return from the
+    % remote is a JSON list, so connvert the string to a similar list for
+    % comparison.
+    split_string(Labels, ",", ", ", LabelList),
+    % Sort both lists for a stable comparison
+    get_dict(labels, RmtInfo, RmtLabels),
+    sort(LabelList, LabelListS),
+    sort(RmtLabels, LabelListS),
+    !.
+sync_labels(Grp, TaskID, RmtInfo, Pending, [labels=Labels|Pending]) :-
+    labels_string(Grp, TaskID, Labels),
+    print_message(informational, update_labels(Grp, TaskID, RmtInfo, Labels)).
+
+prolog:message(update_labels(Grp, TaskID, RmtInfo, New)) -->
+    { get_dict(labels, RmtInfo, Old),
+      get_dict(iid, RmtInfo, RemoteID)
+    },
+    [ 'Updated ~w ~w labels (remote ID: ~w)~n  From: ~w~n    To: ~w' -
       [Grp, TaskID, RemoteID, Old, New ] ].
 
 update_remote_if_changes(_, _, _, []).
