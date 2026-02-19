@@ -173,22 +173,22 @@ enabled_task_status(_).
 % ----------------------------------------------------------------------
 
 sync_tasks(Sts) :-
-    eng:eng(tasks, Grp, config, remote, repo, RmtRepo),
-    !,
+    findall((G,R), eng:eng(tasks, G, config, remote, repo, R), GrpsAndRemotes),
+    maplist([(G,R), S]>>sync_rmt_tasks(G, R, S), GrpsAndRemotes, Sts).
+
+sync_rmt_tasks(Grp, RmtRepo, Sts) :-
     remote_updated(Grp, RmtRepo, Tasks),
     findall((T,S), sync_task(Grp, RmtRepo, T, S), TskSts),
     findall(T, new_remote_task(Grp, RmtRepo, Tasks, T), NewTasks),
     (NewTasks == 0, !;
      print_message(information, new_remote_tasks(NewTasks))
     ),
-    !,
     (update_sync_timestamp(Grp), !;
      print_message(warning, unable_to_update_timestamp(Grp))
     ),
     NewTskSts = [],
     append(TskSts, NewTskSts, AllTskSts),
     maplist(sync_sts, AllTskSts, Sts).
-sync_tasks(0).  % no remote configured for any tasks
 
 prolog:message(new_remote_tasks(Tasks)) -->
     { length(Tasks, N) },
