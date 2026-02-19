@@ -440,12 +440,13 @@ vctl_build_status(_Context, _VCSTool, _Args, 0) :-
 bld_status_response([], "invalid").  % Gitlab bad YAML
 bld_status_response([D|_], R) :-
     % gitlab returns a list; just use the first by default, which is the latest run?
+    !,
     bld_status_response(D, R).
-bld_status_response(D, R) :- get_dict(status, D, R).  % Gitlab
+bld_status_response(D, R) :- get_dict(status, D, R), !.  % Gitlab
 bld_status_response(D, "no CI") :- get_dict(workflow_runs, D, []).
 bld_status_response(D, R) :- get_dict(workflow_runs, D, Runs),
                              reverse(Runs, [Run|_]), % get last run
-                             github_run_status(Run, R).
+                             github_run_status(Run, R), !.
 bld_status_response(_, "??bldsts??").
 
 github_run_status(Run, R) :- get_dict(status, Run, "completed"),
