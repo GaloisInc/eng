@@ -399,12 +399,14 @@ vctl_darcs_status(Context, VCSDir, full, [Sts,PullSts,PushSts]) :-
     darcs_pull_args(VCSDir, ExtraArgs),
     append(["darcs", "pull", "--repodir={VCSDir}", "-q", "--dry-run"],
            ExtraArgs, DarcsPullCmd),
-    do_exec(Context, 'vcs darcs pull dryrun', [ 'VCSDir' = VCSDir ],
-            capture(DarcsPullCmd), [], TopDir, PullOut),
-    format_lines("~w~n", PullOut),
-    ( PullOut = []
-    -> PullSts = 0
-    ; context_reltip(Context, R), PullSts = sts(R, end_msg("pull from remote"))
+    (do_exec(Context, 'vcs darcs pull dryrun', [ 'VCSDir' = VCSDir ],
+             capture(DarcsPullCmd), [], TopDir, PullOut)
+    -> format_lines("~w~n", PullOut),
+       ( PullOut = []
+       -> PullSts = 0
+       ; context_reltip(Context, R), PullSts = sts(R, end_msg("pull from remote"))
+       )
+    ; PullSts = 1
     ),
     do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
             capture([ "darcs", "push", "--repodir={VCSDir}", "-q", "--dry-run"]),
