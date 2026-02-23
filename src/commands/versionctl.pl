@@ -439,7 +439,7 @@ vctl_build_status(Context, darcs(_, Parent), Args, Sts) :-
 vctl_build_status(_Context, _VCSTool, _Args, 0) :-
     writeln('No build status available').
 
-bld_status_response([], "invalid").  % Gitlab bad YAML
+bld_status_response([], "invalid") :- !.  % Gitlab bad YAML
 bld_status_response([D|_], R) :-
     % gitlab returns a list; just use the first by default, which is the latest run?
     !,
