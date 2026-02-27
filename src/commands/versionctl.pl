@@ -408,13 +408,15 @@ vctl_darcs_status(Context, VCSDir, full, [Sts,PullSts,PushSts]) :-
        )
     ; PullSts = 1
     ),
-    do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
+    (do_exec(Context, 'vcs darcs status', [ 'VCSDir' = VCSDir ],
             capture([ "darcs", "push", "--repodir={VCSDir}", "-q", "--dry-run"]),
             [], TopDir, PushOut),
-    format_lines("~w~n", PushOut),
-    ( PushOut = []
-    -> PushSts = 0
-    ; context_reltip(Context, R), PushSts = sts(R, end_msg("push local changes"))
+     format_lines("~w~n", PushOut),
+     ( PushOut = []
+     -> PushSts = 0
+     ; context_reltip(Context, R), PushSts = sts(R, end_msg("push local changes"))
+     )
+    ; PushSts = 1
     ).
 vctl_darcs_status(_, _, [Scope|_Args], sts(status, 1)) :-
     \+ member(Scope, [ local, full ]),
