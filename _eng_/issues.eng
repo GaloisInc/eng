@@ -58,3 +58,17 @@ tasks =
       status = done
       resolution = Checks for conflicts with yet-to-check EQIL as well as the
                    already-done EQIL.
+      {remote id} = 138
+
+    issue_7 =
+      summary = help results only based on top-level
+      description =
+        For valid subproj configurations, the various run and dev subcmds from those
+        are not displayed via help, nor are they useable?!
+
+        For example, Taphos allows "eng run taphrep", but not "eng run taphos".
+
+        Only happening in work/Taphos/tp26
+
+      severity = medium
+      status = done

@@ -213,6 +213,7 @@ safe_directory_files(Dir, Files) :-
           error(syntax_error(illegal_multibyte_sequence), _),
           Files = []).
 
+% Returns a list of engnode(..) or engleaf(..) entries in EngDirs
 find_engfile_tree(EngfileDirPattern, TopDir, EngDirs) :-
     absolute_file_name(EngfileDirPattern, AbsDir), % AbsDir is CWD+/_eng_
     file_directory_name(AbsDir, Main),
@@ -258,9 +259,11 @@ is_subdir_of(TopDir, SubDir) :-
     absolute_file_name(TopDir, TopAbs),
     append(TopAbs, _SubRel, SubAbs).
 
+% concatenates and flattens lists, removing nulls and promoting sublists
 normalize_subtrees([], []).
 normalize_subtrees([[]|ES], OS) :- !, normalize_subtrees(ES, OS).
-normalize_subtrees([[E]|ES], [OS]) :- !, normalize_subtrees([E|ES], OS).
+normalize_subtrees([[E|ES]|ESS], OS) :- !, append([ [E|ES], ESS ], FS),
+                                        normalize_subtrees(FS, OS).
 normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 
 
