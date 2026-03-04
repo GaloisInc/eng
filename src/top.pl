@@ -232,6 +232,9 @@ ordered_([Top], Sub, SortedConPars) :-
 ordered_(O, Sub, Sub) :-
     print_message(error, invalid_top_conpar(O)).
 
+prolog:message(invalid_top_conpar(O)) -->
+	[ 'Invalid top-level context parse: ~w' - [O] ].
+
 is_top_conpar(ConPar) :- top_conpar_context(ConPar, _).
 top_conpar_context((Context, _), Context) :- context_reltip(Context, '<here>').
 
