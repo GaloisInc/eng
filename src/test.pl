@@ -5,6 +5,7 @@
 :- use_module(datafmts/cabal).
 :- use_module(fret_kind2).
 :- use_module(engine).
+:- use_module(commands/release).
 :- set_test_options([show_blocked(true),
                      output(on_failure)
                      % output(always)
