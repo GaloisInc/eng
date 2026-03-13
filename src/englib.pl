@@ -32,7 +32,8 @@
                     engfile_dir/1,
                     has_engfiles/2,
                     assert_eng/2,
-                    assert_eng/3
+                    assert_eng/3,
+                    revert_assert_eng/0
                   ]).
 
 :- use_module(library(apply)).
@@ -268,6 +269,24 @@ has_engfiles(Dir, EngDir) :-
 
 assertz_(A, []) :- call(A), !.
 assertz_(A, [Ref]) :- assertz(A, Ref).
+
+%% Retracts all eng:key and eng:eng dynamic facts from the database.
+%% Useful in tests to clean up after asserting EQIL facts.
+revert_assert_eng :-
+    retractall(eng:key(_)),
+    retractall(eng:key(_,_)),
+    retractall(eng:key(_,_,_)),
+    retractall(eng:key(_,_,_,_)),
+    retractall(eng:key(_,_,_,_,_)),
+    retractall(eng:key(_,_,_,_,_,_)),
+    retractall(eng:key(_,_,_,_,_,_,_)),
+    retractall(eng:eng(_,_)),
+    retractall(eng:eng(_,_,_)),
+    retractall(eng:eng(_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_,_,_,_)).
 
 % Assert a fact with no value.  The replication here is ugly, but there's no good
 % way to dynamically perform these.

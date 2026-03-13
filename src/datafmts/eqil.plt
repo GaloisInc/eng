@@ -3508,20 +3508,4 @@ assert_each_(N, [G|Got], [E|Exp]) :-
     assertion(M == (G == E)),
     succ(N, P), assert_each_(P, Got, Exp).
 
-revert_assert_eng :-
-    retractall(eng:key(_)),
-    retractall(eng:key(_,_)),
-    retractall(eng:key(_,_,_)),
-    retractall(eng:key(_,_,_,_)),
-    retractall(eng:key(_,_,_,_,_)),
-    retractall(eng:key(_,_,_,_,_,_)),
-    retractall(eng:key(_,_,_,_,_,_,_)),
-    retractall(eng:eng(_,_)),
-    retractall(eng:eng(_,_,_)),
-    retractall(eng:eng(_,_,_,_)),
-    retractall(eng:eng(_,_,_,_,_)),
-    retractall(eng:eng(_,_,_,_,_,_)),
-    retractall(eng:eng(_,_,_,_,_,_,_)),
-    retractall(eng:eng(_,_,_,_,_,_,_,_)).
-
 :- end_tests(eqil).

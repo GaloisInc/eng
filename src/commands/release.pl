@@ -2,8 +2,11 @@
 
 :- use_module(library(ansi_term)).
 :- use_module(library(apply)).
+:- use_module(library(filesex)).
+:- use_module(library(readutil)).
 :- use_module(library(strings)).
 :- use_module('../englib').
+:- use_module('../datafmts/eqil').
 :- use_module(exec_subcmds).
 :- use_module(versionctl).
 
@@ -69,18 +72,51 @@ release_cmd(_, [Cmd|_], invalid_subcmd(release, Cmd)) :- !.
 eng:use_dir(release, prep, '{TopDir}').
 
 %% release_excluded(+Context) is true when the release operation should be
-%% skipped for the given Context, based on the "release/exclude" eng input
-%% file entry.  The top-level project (RelTip = '<here>') is never excluded.
+%% skipped for the given Context, based on the "release/exclude" entry in the
+%% TOP-LEVEL project's eng files.  The top-level project (RelTip = '<here>') is
+%% never excluded.
+%%
+%% Each subproject is processed with only its own eng files loaded (see top.pl),
+%% so the "release/exclude" configuration -- which lives in the top-level project
+%% -- must be loaded directly from the filesystem here.
+%%
 %% Exclusion is checked by matching the context's relative tip against the
 %% space-separated names or local-directory paths listed in the exclude spec.
 
 release_excluded(Context) :-
+    context_reltip(Context, RelTip),
+    RelTip \= '<here>',
+    context_topdir(Context, TopDir),
+    %% Recover TipTopDir: the overall project root.  By the invariant set up
+    %% in ingest_engfiles (load.pl), directory_file_path(TipTopDir, RelTip, TopDir)
+    %% always holds when RelTip \= '<here>', so atom_concat is the inverse.
+    atom_concat('/', RelTip, RelSuffix),
+    atom_concat(TipTopDir, RelSuffix, TopDir),
+    %% Load the top-level project's eng files to check release/exclude
+    engfile_dir(EngDirName),
+    directory_file_path(TipTopDir, EngDirName, TipEngDir),
+    exists_directory(TipEngDir),
+    directory_files(TipEngDir, AllFiles),
+    include([F]>>(file_name_extension(_, ".eng", F),
+                  \+ string_chars(F, ['.'|_])),
+             AllFiles, EngFiles),
+    maplist([F, PR]>>(directory_file_path(TipEngDir, F, FP),
+                      read_file_to_string(FP, FC, []),
+                      parse_eng_eqil(FP, FC, PR)),
+             EngFiles, Parsed),
+    setup_call_cleanup(
+        assert_eqil(Parsed, Refs),
+        release_excluded_check(RelTip),
+        maplist(erase, Refs)
+    ).
+
+%% True when the RelTip matches the release/exclude specification in the
+%% currently loaded EQIL (the top-level project's).
+release_excluded_check(RelTip) :-
     eng:eng(release, exclude, ExcludeSpec),
     split_string(ExcludeSpec, " ", "", ExcludeStrs),
     ExcludeStrs \= [],
     maplist(flip(atom_string), ExcludeStrs, Excludes),
-    context_reltip(Context, RelTip),
-    RelTip \= '<here>',
     release_excluded_match(RelTip, Excludes).
 
 %% True if RelTip matches any entry in Excludes, either directly (path match)
