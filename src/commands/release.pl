@@ -1,5 +1,4 @@
-:- module(release, [ release_cmd/3, release_focus/1, release_help/1, release_help/2,
-                    release_excluded/1 ]).
+:- module(release, [ release_cmd/3, release_focus/1, release_help/1, release_help/2 ]).
 
 :- use_module(library(ansi_term)).
 :- use_module(library(apply)).
