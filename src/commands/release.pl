@@ -92,7 +92,7 @@ release_excluded(Context) :-
     engfile_dir(EngDirName),
     directory_file_path(TipTopDir, EngDirName, TipEngDir),
     exists_directory(TipEngDir),
-    directory_files(TipEngDir, AllFiles),
+    safe_directory_files(TipEngDir, AllFiles),
     ingest_files(silent, TipEngDir, AllFiles, Parsed),
     setup_call_cleanup(
         assert_eqil(Parsed, Refs),
