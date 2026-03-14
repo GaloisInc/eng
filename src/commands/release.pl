@@ -1,4 +1,10 @@
-:- module(release, [ release_cmd/3, release_focus/1, release_help/1, release_help/2 ]).
+:- module(release, [ release_cmd/3,
+                     release_focus/1,
+                     release_help/1,
+                     release_help/2,
+                     %% Testing only
+                     release_excluded/1
+                   ]).
 
 :- use_module(library(ansi_term)).
 :- use_module(library(apply)).
@@ -116,7 +122,8 @@ release_excluded_match(RelTip, Excludes) :-
 release_excluded_match(RelTip, Excludes) :-
     eng:key(vctl, subproject, Name),
     vctl_subproj_local_dir(Name, LclDir),
-    LclDir = RelTip,
+    atom_string(LclDirA, LclDir),
+    LclDirA = RelTip,
     member(Name, Excludes), !.
 
 %% ----------------------------------------
