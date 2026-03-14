@@ -24,6 +24,7 @@
                     context_topdir/2,
                     context_engdir/2,
                     context_reltip/2,
+                    context_tiptopdir/2,
                     format_str/3,
                     format_lines/2,
                     write_strings/2,
@@ -224,6 +225,20 @@ exists_context_subdir(Context, SubDir) :-
 context_topdir(context(_, TopDir, _), TopDir).
 context_engdir(context(EngDir, _, _), EngDir).
 context_reltip(context(_, _, RelTip), RelTip).
+
+% Recover the top-most (TipTop) directory of the project tree from a context.
+% When RelTip = '<here>', TipTopDir equals TopDir (this is the top-level project).
+% Otherwise the invariant set up by ingest_engfiles holds:
+%   directory_file_path(TipTopDir, RelTip, TopDir)
+% so TipTopDir is recovered by stripping the RelTip suffix from TopDir.
+context_tiptopdir(Context, TipTopDir) :-
+    context_topdir(Context, TopDir),
+    context_reltip(Context, RelTip),
+    ( RelTip = '<here>'
+    -> TipTopDir = TopDir
+    ; atom_concat('/', RelTip, RelSuffix),
+      atom_concat(TipTopDir, RelSuffix, TopDir)
+    ).
 
 
 is_success(0).

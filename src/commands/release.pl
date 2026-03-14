@@ -7,6 +7,7 @@
 :- use_module(library(strings)).
 :- use_module('../englib').
 :- use_module('../datafmts/eqil').
+:- use_module('../load').
 :- use_module(exec_subcmds).
 :- use_module(versionctl).
 
@@ -86,28 +87,17 @@ eng:use_dir(release, prep, '{TopDir}').
 release_excluded(Context) :-
     context_reltip(Context, RelTip),
     RelTip \= '<here>',
-    context_topdir(Context, TopDir),
-    %% Recover TipTopDir: the overall project root.  By the invariant set up
-    %% in ingest_engfiles (load.pl), directory_file_path(TipTopDir, RelTip, TopDir)
-    %% always holds when RelTip \= '<here>', so atom_concat is the inverse.
-    atom_concat('/', RelTip, RelSuffix),
-    atom_concat(TipTopDir, RelSuffix, TopDir),
+    context_tiptopdir(Context, TipTopDir),
     %% Load the top-level project's eng files to check release/exclude
     engfile_dir(EngDirName),
     directory_file_path(TipTopDir, EngDirName, TipEngDir),
     exists_directory(TipEngDir),
     directory_files(TipEngDir, AllFiles),
-    include([F]>>(file_name_extension(_, ".eng", F),
-                  \+ string_chars(F, ['.'|_])),
-             AllFiles, EngFiles),
-    maplist([F, PR]>>(directory_file_path(TipEngDir, F, FP),
-                      read_file_to_string(FP, FC, []),
-                      parse_eng_eqil(FP, FC, PR)),
-             EngFiles, Parsed),
+    ingest_files(silent, TipEngDir, AllFiles, Parsed),
     setup_call_cleanup(
         assert_eqil(Parsed, Refs),
         release_excluded_check(RelTip),
-        maplist(erase, Refs)
+        erase_refs(Refs)
     ).
 
 %% True when the RelTip matches the release/exclude specification in the
