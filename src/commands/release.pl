@@ -1,9 +1,15 @@
 :- module(release, [ release_cmd/3, release_focus/1, release_help/1, release_help/2 ]).
 
 :- use_module(library(ansi_term)).
+:- use_module(library(apply)).
+:- use_module(library(filesex)).
+:- use_module(library(readutil)).
 :- use_module(library(strings)).
 :- use_module('../englib').
+:- use_module('../datafmts/eqil').
+:- use_module('../load').
 :- use_module(exec_subcmds).
+:- use_module(versionctl).
 
 
 release_focus("Releases").
@@ -23,6 +29,7 @@ release_help(Info) :-
 | document), and have the following structure:
 |
 |     release =
+|       [exclude = SUBREPO [SUBREPO ...]]
 |       prep =
 |         [doc = PATH/TO/RELEASENOTES]
 |         {ExecSpecHelp}
@@ -42,6 +49,11 @@ release_help(Info) :-
 | It is strongly suggested that the release prep executions be setup
 | such that it can be run repeatedly until the user is satisfied with
 | the release preparation.
+|
+| If the optional "exclude" list is specified, the release operation
+| will not be applied to any sub-repository whose name (as defined
+| under "vctl/subproject") or local path matches one of the
+| space-separated entries.  The top-level project is never excluded.
 |}.
 
 %% ----------------------------------------
@@ -52,11 +64,60 @@ release_help(prep, "Prepare a release.").
 release_help(post, "Finish the release and return to development.").
 
 release_cmd(_, [prep], sts(release, 1)) :- !, print_message(error, specify_release_version).
+release_cmd(C, [prep,_Version], sts(prep, 0)) :- release_excluded(C), !.
 release_cmd(C, [prep,Version], S) :- do_release_prep(C, Version, S).
+release_cmd(C, [post], sts(post, 0)) :- release_excluded(C), !.
 release_cmd(C, [post], S) :- do_release_post(C, S).
 release_cmd(_, [Cmd|_], invalid_subcmd(release, Cmd)) :- !.
 
 eng:use_dir(release, prep, '{TopDir}').
+
+%% release_excluded(+Context) is true when the release operation should be
+%% skipped for the given Context, based on the "release/exclude" entry in the
+%% TOP-LEVEL project's eng files.  The top-level project (RelTip = '<here>') is
+%% never excluded.
+%%
+%% Each subproject is processed with only its own eng files loaded (see top.pl),
+%% so the "release/exclude" configuration -- which lives in the top-level project
+%% -- must be loaded directly from the filesystem here.
+%%
+%% Exclusion is checked by matching the context's relative tip against the
+%% space-separated names or local-directory paths listed in the exclude spec.
+
+release_excluded(Context) :-
+    context_reltip(Context, RelTip),
+    RelTip \= '<here>',
+    context_tiptopdir(Context, TipTopDir),
+    %% Load the top-level project's eng files to check release/exclude
+    engfile_dir(EngDirName),
+    directory_file_path(TipTopDir, EngDirName, TipEngDir),
+    exists_directory(TipEngDir),
+    safe_directory_files(TipEngDir, AllFiles),
+    ingest_files(silent, TipEngDir, AllFiles, Parsed),
+    setup_call_cleanup(
+        assert_eqil(Parsed, Refs),
+        release_excluded_check(RelTip),
+        erase_refs(Refs)
+    ).
+
+%% True when the RelTip matches the release/exclude specification in the
+%% currently loaded EQIL (the top-level project's).
+release_excluded_check(RelTip) :-
+    eng:eng(release, exclude, ExcludeSpec),
+    split_string(ExcludeSpec, " ", "", ExcludeStrs),
+    ExcludeStrs \= [],
+    maplist(flip(atom_string), ExcludeStrs, Excludes),
+    release_excluded_match(RelTip, Excludes).
+
+%% True if RelTip matches any entry in Excludes, either directly (path match)
+%% or by resolving a vctl subproject name to its local directory (name match).
+release_excluded_match(RelTip, Excludes) :-
+    member(RelTip, Excludes), !.
+release_excluded_match(RelTip, Excludes) :-
+    eng:key(vctl, subproject, Name),
+    vctl_subproj_local_dir(Name, LclDir),
+    LclDir = RelTip,
+    member(Name, Excludes), !.
 
 %% ----------------------------------------
 

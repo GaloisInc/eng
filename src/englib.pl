@@ -24,6 +24,7 @@
                     context_topdir/2,
                     context_engdir/2,
                     context_reltip/2,
+                    context_tiptopdir/2,
                     format_str/3,
                     format_lines/2,
                     write_strings/2,
@@ -32,7 +33,8 @@
                     engfile_dir/1,
                     has_engfiles/2,
                     assert_eng/2,
-                    assert_eng/3
+                    assert_eng/3,
+                    revert_assert_eng/0
                   ]).
 
 :- use_module(library(apply)).
@@ -224,6 +226,20 @@ context_topdir(context(_, TopDir, _), TopDir).
 context_engdir(context(EngDir, _, _), EngDir).
 context_reltip(context(_, _, RelTip), RelTip).
 
+% Recover the top-most (TipTop) directory of the project tree from a context.
+% When RelTip = '<here>', TipTopDir equals TopDir (this is the top-level project).
+% Otherwise the invariant set up by ingest_engfiles holds:
+%   directory_file_path(TipTopDir, RelTip, TopDir)
+% so TipTopDir is recovered by stripping the RelTip suffix from TopDir.
+context_tiptopdir(Context, TipTopDir) :-
+    context_topdir(Context, TopDir),
+    context_reltip(Context, RelTip),
+    ( RelTip = '<here>'
+    -> TipTopDir = TopDir
+    ; atom_concat('/', RelTip, RelSuffix),
+      atom_concat(TipTopDir, RelSuffix, TopDir)
+    ).
+
 
 is_success(0).
 is_success(end_msg(_)).
@@ -268,6 +284,24 @@ has_engfiles(Dir, EngDir) :-
 
 assertz_(A, []) :- call(A), !.
 assertz_(A, [Ref]) :- assertz(A, Ref).
+
+%% Retracts all eng:key and eng:eng dynamic facts from the database.
+%% Useful in tests to clean up after asserting EQIL facts.
+revert_assert_eng :-
+    retractall(eng:key(_)),
+    retractall(eng:key(_,_)),
+    retractall(eng:key(_,_,_)),
+    retractall(eng:key(_,_,_,_)),
+    retractall(eng:key(_,_,_,_,_)),
+    retractall(eng:key(_,_,_,_,_,_)),
+    retractall(eng:key(_,_,_,_,_,_,_)),
+    retractall(eng:eng(_,_)),
+    retractall(eng:eng(_,_,_)),
+    retractall(eng:eng(_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_,_,_)),
+    retractall(eng:eng(_,_,_,_,_,_,_,_)).
 
 % Assert a fact with no value.  The replication here is ugly, but there's no good
 % way to dynamically perform these.

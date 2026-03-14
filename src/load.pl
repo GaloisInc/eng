@@ -15,6 +15,8 @@
                   engfile_dir/1,
                   ingest_user_engfiles/1,
                   ingest_engfiles/2,
+                  ingest_files/4,
+                  safe_directory_files/2,
                   erase_refs/1
                 ]).
 
