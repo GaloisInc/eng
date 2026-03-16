@@ -378,7 +378,9 @@ same_status('done', "closed").
 same_status('todo', "open").
 same_status('todo', "opened").
 same_status(A, S) :- atom_string(A, S).
-same_status(_, "opened").  % Anything else we just treat as "open" on the gitlab side
+same_status(Lcl, "opened") :-
+    % Anything else we just treat as "open" on the gitlab side
+    \+ member(Lcl, ['done', 'todo']).
 
 to_remote_status(Grp, _, 'done', 'close') :-
     eng:eng(tasks, Grp, config, remote, type, "gitlab").
