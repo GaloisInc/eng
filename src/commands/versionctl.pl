@@ -349,7 +349,7 @@ vctl_git_status(Context, VCSDir, full, Sts) :-
     context_topdir(Context, TopDir),
     do_exec(Context, 'vcs git status', [ 'VCSDir' = VCSDir ],
             [ 'git -C {VCSDir} status -s',
-              'git -C {VCSDir} fetch --dry-run origin -q'
+              'git -C {VCSDir} fetch --dry-run origin'
             ],
             [], TopDir, Sts).
 vctl_git_status(_, _, Scope, sts(status, 1)) :-
