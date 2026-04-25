@@ -1,15 +1,19 @@
 {
   "nodes": {
-    "fret-semantics": {
+    "fret-src": {
       "flake": false,
       "locked": {
-        "narHash": "sha256-zP5etYRHXqyzz1znckDZ1KaWrudTxvl/3J3IQvMOTxw=",
-        "type": "file",
-        "url": "https://raw.githubusercontent.com/NASA-SW-VnV/fret/refs/heads/master/fret-electron/app/parser/semantics.json"
+        "lastModified": 1775833441,
+        "narHash": "sha256-rG2LyCz4KBleSyhJMNUXbhPTOdzqxmi1PcdvbfO6xFs=",
+        "owner": "NASA-SW-VnV",
+        "repo": "fret",
+        "rev": "cf0f913cc15c41705e803593297e89cd6056b839",
+        "type": "github"
       },
       "original": {
-        "type": "file",
-        "url": "https://raw.githubusercontent.com/NASA-SW-VnV/fret/refs/heads/master/fret-electron/app/parser/semantics.json"
+        "owner": "NASA-SW-VnV",
+        "repo": "fret",
+        "type": "github"
       }
     },
     "levers": {
@@ -19,11 +23,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1726675215,
-        "narHash": "sha256-a0c9fvSTXlwiqR75WdKfP15fX0Zh7HcnDNUqk+mZqg4=",
+        "lastModified": 1768050190,
+        "narHash": "sha256-xjWlwQpodI/YA/92fFjWAM7MQeUjNkP6FIUv8RyT41g=",
         "owner": "kquick",
         "repo": "nix-levers",
-        "rev": "efa344dfd989fc9ca8c8be6b06c551bda37989dc",
+        "rev": "1ba59d23c84bf0699b4a82ffcf154ec832ffabeb",
         "type": "github"
       },
       "original": {
@@ -34,11 +38,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1758446476,
-        "narHash": "sha256-5rdAi7CTvM/kSs6fHe1bREIva5W3TbImsto+dxG4mBo=",
+        "lastModified": 1776949667,
+        "narHash": "sha256-GMSVw35Q+294GlrTUKlx087E31z7KurReQ1YHSKp5iw=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "a1f79a1770d05af18111fbbe2a3ab2c42c0f6cd0",
+        "rev": "01fbdeef22b76df85ea168fbfe1bfd9e63681b30",
         "type": "github"
       },
       "original": {
@@ -50,7 +54,7 @@
     },
     "root": {
       "inputs": {
-        "fret-semantics": "fret-semantics",
+        "fret-src": "fret-src",
         "levers": "levers",
         "nixpkgs": "nixpkgs"
       }

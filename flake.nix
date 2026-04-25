@@ -9,13 +9,13 @@
       url = "github:kquick/nix-levers";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    fret-semantics = {
-      url = "https://raw.githubusercontent.com/NASA-SW-VnV/fret/refs/heads/master/fret-electron/app/parser/semantics.json";
+    fret-src = {
+      url = "github:NASA-SW-VnV/fret";
       flake = false;
     };
   };
 
-  outputs = { self, nixpkgs, levers, fret-semantics }:
+  outputs = { self, nixpkgs, levers, fret-src }:
     {
       apps = levers.eachSystem (s:
         rec {
@@ -37,7 +37,7 @@
             src = self;
             buildInputs = [ pkgs.curl pkgs.swi-prolog ];
             buildPhase = ''
-              cp ${fret-semantics} src/semantics.json
+              cp ${fret-src}/fret-electron/app/parser/semantics.json src/semantics.json
               ${pkgs.bash}/bin/bash ./eng.sh dev build
               ./eng dev build
             '';
