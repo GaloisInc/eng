@@ -58,6 +58,8 @@ lando_ssl(Source, InpString, Result, Leftover) :-
 
 parse_lando(Source, Tokens, Result) :-
     tmp_file_stream(FailFName, FailStrm, [encoding(utf8)]),
+    % Store source file for error context display
+    nb_setval(lando_source_file, Source),
     ( phrase(ssl(FailStrm, Result), Tokens, Remainder)
     -> ((Remainder == []
         -> close(FailStrm)
@@ -75,7 +77,7 @@ parse_lando(Source, Tokens, Result) :-
 show_errs(FailStrm, FailFName) :-
     close(FailStrm),
     read_file_to_string(FailFName, Fails, []),
-    writeln(Fails).
+    (Fails == "" -> true; process_and_show_errors(Fails)).
 
 % ----------------------------------------------------------------------
 % Helpers for working with the resulting Lando
@@ -749,3 +751,155 @@ does_not_end_with(S, InvalidLast) :-
 % Takes two lists of string codes and is true if there are no common codes
 no_overlaps(A, B) :- member(X, A), member(X, B), !, fail.
 no_overlaps(_, _).
+
+% ----------------------------------------------------------------------
+% Improved error processing and display
+
+process_and_show_errors(FailsStr) :-
+    % Parse the error lines
+    split_string(FailsStr, "\n", "", Lines),
+    include(is_error_line, Lines, ErrorLines),
+    % Extract structured errors
+    maplist(parse_error_line, ErrorLines, ParsedErrors),
+    % Find the furthest line number
+    max_line_number(ParsedErrors, MaxLine),
+    % Keep only errors at or near the furthest line
+    include(near_max_line(MaxLine), ParsedErrors, RelevantErrors),
+    % Deduplicate by line and expected item
+    sort(2, @=<, RelevantErrors, SortedErrors),
+    deduplicate_errors(SortedErrors, UniqueErrors),
+    % Take top 5
+    (length(UniqueErrors, N), N > 5 -> length(Top5, 5), append(Top5, _, UniqueErrors)
+    ; Top5 = UniqueErrors),
+    % Display
+    format('~n~n========== Parse Errors (showing most relevant) ==========~n', []),
+    maplist(display_error, Top5),
+    format('===========================================================~n~n', []).
+
+is_error_line(Line) :-
+    (sub_string(Line, _, _, _, "** Attempting")
+    ; sub_string(Line, _, _, _, "** Wanted")).
+
+parse_error_line(Line, error(Type, LineNum, Details)) :-
+    (sub_string(Line, _, _, _, "** Attempting") ->
+        (re_matchsub("Attempting \"(?<what>[^\"]+)\" \\[line (?<line>\\d+)\\], failing at: (?<details>.+)", Line, Sub, [])
+        -> Type = attempting,
+           atom_number(Sub.line, LineNum),
+           Details = Sub.what/Sub.details
+        ; Type = attempting, LineNum = 0, Details = unknown)
+    ; sub_string(Line, _, _, _, "** Wanted") ->
+        (re_matchsub("Wanted \"(?<what>[^\"]+)\" but (?<found>.+)", Line, Sub, [])
+        -> Type = wanted,
+           extract_line_from_found(Sub.found, LineNum),
+           Details = Sub.what/Sub.found
+        ; Type = wanted, LineNum = 0, Details = unknown)
+    ; Type = other, LineNum = 0, Details = Line).
+
+extract_line_from_found(FoundStr, Line) :-
+    (re_matchsub("w\\([^,]+,(?<line>\\d+),", FoundStr, Sub, [])
+    -> atom_number(Sub.line, Line)
+    ; Line = 0).
+
+max_line_number([], 0).
+max_line_number([error(_,L,_)|Rest], Max) :-
+    max_line_number(Rest, RestMax),
+    (L > RestMax -> Max = L; Max = RestMax).
+
+near_max_line(MaxLine, error(_,Line,_)) :-
+    Line >= MaxLine - 2.
+
+deduplicate_errors([], []).
+deduplicate_errors([E|Es], [E|Rest]) :-
+    E = error(_, Line, What/_),
+    exclude(same_location_and_type(Line, What), Es, Remaining),
+    deduplicate_errors(Remaining, Rest).
+
+same_location_and_type(Line, What, error(_, Line, What/_)).
+
+display_error(error(attempting, Line, What/Details)) :-
+    format('~n~c[1;31m** Parse Error at line ~w~c[0m~n', [27, Line, 27]),
+    show_source_context(Line),
+    format('   Failed to parse: ~c[1m~w~c[0m~n', [27, What, 27]),
+    % Try to extract readable info from Details
+    (re_matchsub("w\\((?<word>[^,]+),", Details, Sub, []) ->
+        format('   Near token: "~w"~n', [Sub.word])
+    ; format('   Context: ~w~n', [Details])),
+    suggest_fix_for(What),
+    !.
+display_error(error(wanted, Line, What/Found)) :-
+    (Line > 0 -> format('~n~c[1;31m** Parse Error at line ~w~c[0m~n', [27, Line, 27])
+    ; format('~n~c[1;31m** Parse Error~c[0m~n', [27, 27])),
+    show_source_context(Line),
+    format('   Expected: ~c[1m~w~c[0m~n', [27, What, 27]),
+    % Extract readable found info
+    (re_matchsub("w\\((?<word>[^,]+),", Found, Sub, []) ->
+        format('   Found: "~w"~n', [Sub.word])
+    ; Found == "reached the end" ->
+        format('   Found: ~c[1;33mend of file~c[0m~n', [27, 27])
+    ; format('   Found: ~w~n', [Found])),
+    suggest_fix_for(What),
+    !.
+display_error(error(_, Line, Details)) :-
+    (Line > 0 -> format('~n~c[1;31m** Parse Error at line ~w~c[0m: ~w~n', [27, Line, 27, Details])
+    ; format('~n~c[1;31m** Parse Error~c[0m: ~w~n', [27, 27, Details])),
+    show_source_context(Line).
+
+% Show source code context around an error line
+show_source_context(Line) :-
+    Line > 0,
+    catch(nb_getval(lando_source_file, SourceFile), _, fail),
+    catch(access_file(SourceFile, read), _, fail),
+    !,
+    catch((
+        read_file_to_lines(SourceFile, Lines),
+        length(Lines, TotalLines),
+        (Line > TotalLines -> true; (
+            StartLine is max(1, Line - 2),
+            EndLine is min(TotalLines, Line + 2),
+            format('~n', []),
+            show_lines(Lines, 1, StartLine, EndLine, Line)
+        ))
+    ), _, true).
+show_source_context(_).
+
+show_lines([], _, _, _, _) :- !.
+show_lines(_, Current, _, End, _) :- Current > End, !.
+show_lines([L|Ls], Current, Start, End, ErrorLine) :-
+    Current >= Start,
+    Current =< End,
+    !,
+    (Current =:= ErrorLine ->
+        format('  ~c[1;33m~w |~c[0m ~w~n', [27, Current, 27, L])
+    ;   format('  ~w | ~w~n', [Current, L])),
+    Next is Current + 1,
+    show_lines(Ls, Next, Start, End, ErrorLine).
+show_lines([_|Ls], Current, Start, End, ErrorLine) :-
+    % Skip lines before Start
+    Next is Current + 1,
+    show_lines(Ls, Next, Start, End, ErrorLine).
+
+read_file_to_lines(File, Lines) :-
+    read_file_to_string(File, Contents, []),
+    split_string(Contents, "\n", "", Lines).
+
+suggest_fix_for(What) :-
+    % Convert to string for matching
+    (atom(What) -> atom_string(What, WhatStr); WhatStr = What),
+    (suggestion_for(WhatStr, Suggestion) ->
+        format('   ~c[1;36m>> Suggestion:~c[0m ~w~n', [27, 27, Suggestion])
+    ; true).
+
+% Common error suggestions
+suggestion_for("blockend", "Add a blank line after the element, or add 'end' if inside a contains block").
+suggestion_for("subsystem_", "The subsystem is missing its name - add a name after the 'subsystem' keyword").
+suggestion_for("system_", "The system is missing its name - add a name after the 'system' keyword").
+suggestion_for("component_", "The component is missing its name - add a name after the 'component' keyword").
+suggestion_for("requirement_", "The requirement is missing its name - add a name after the 'requirement' keyword").
+suggestion_for("system", "A previous element may be incomplete - check for missing 'end' keyword or description paragraph").
+suggestion_for("subsystem", "A previous element may be incomplete - check for missing 'end' keyword or description paragraph").
+suggestion_for("component", "A previous element may be incomplete - check for missing 'end' keyword or description paragraph").
+suggestion_for("requirement", "A previous element may be incomplete - check for missing 'end' keyword or description paragraph").
+suggestion_for("specElement", "Expected a spec element (system/subsystem/component/requirement) - previous element may be missing 'end'").
+suggestion_for("paragraph", "A description paragraph is required here - add text and terminate with a blank line").
+suggestion_for("name", "A name is required - names can have multiple words but cannot contain ( ) : or end with , . ! ?").
+suggestion_for("explanation", "An explanation (description) is required - add a paragraph terminated by a blank line").
