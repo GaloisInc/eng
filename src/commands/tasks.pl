@@ -44,6 +44,18 @@ tasks_help(Info) :-
 |           [visibility = internal]
 |           [effort = TASK EFFORT]
 |           [status = TASK STATUS]
+|           [notes =
+|             note_1 = First note content
+|             note_2 = Second note content
+|           ]
+|           [sync =
+|             123 =               # GitLab note iid
+|               note_ref = note_1
+|               updated = 2026-04-29T10:00:00
+|             456 =
+|               note_ref = note_2
+|               updated = 2026-04-29T11:00:00
+|           ]
 |
 | Commonly, the taskID is left blank initially: ~eng~ will rewrite the
 | task file and assign an unused task ID value.  The values of the status
@@ -80,6 +92,28 @@ tasks_help(Info) :-
 |
 | The label specifies any optional labels to use for issues synchronized
 | here.  By default, the groupname is also used as a label.
+|
+| Notes Synchronization:
+|
+| Task entries can have notes associated with them, which are synchronized
+| with remote GitLab issue notes. The structure uses two optional sections:
+|
+|   notes   - Contains the actual note content, with references like note_1,
+|             note_2, etc. These can be added manually or automatically from
+|             remote GitLab notes.
+|
+|   sync    - Tracks synchronization state between local notes and remote
+|             GitLab notes. Each entry uses the GitLab note iid as a key
+|             and contains:
+|               note_ref - Reference to the corresponding entry in notes
+|               updated  - Timestamp of last update
+|
+| To add a note locally and sync it to remote:
+|   1. Add an entry to the notes section (e.g., note_3 = My note)
+|   2. The next 'eng tasks sync' will create it on remote GitLab
+|   3. The sync tracking will be automatically added
+|
+| Remote notes are automatically added to the local EQIL during sync.
 |}.
 
 %% ----------------------------------------
@@ -312,6 +346,7 @@ sync_known_task(Grp, RmtRepo, TaskID, RemoteID, 0) :-
     % sync_severity(Grp, TaskID, RmtInfo, UD2, UD3), % not supported for gitlab
     sync_labels(Grp, TaskID, RmtInfo, UD2, UD3),
     update_remote_if_changes(Grp, RmtRepo, RemoteID, UD3),
+    sync_notes(Grp, RmtRepo, TaskID, RemoteID),
     !.
 sync_known_task(_Grp, RmtRepo, TaskID, RemoteID, cmd_not_impl(sync_known_task)) :-
     format('TBD: resync task ~w with remote ~w at ~w~n', [TaskID, RemoteID, RmtRepo]).
@@ -483,3 +518,204 @@ new_remote_task(Grp, RmtRepo, RmtTasks, TaskID) :-
 
 prolog:message(new_remote_task(RmtRepo, RmtTaskID)) -->
     [ 'New ~w task: ~w' - [RmtRepo, RmtTaskID] ].
+
+% ----------------------------------------------------------------------
+% Notes synchronization support
+
+% Synchronize notes between local EQIL and remote GitLab
+sync_notes(Grp, RmtRepo, TaskID, RemoteID) :-
+    % First, sync remote notes to local
+    sync_remote_notes_to_local(Grp, RmtRepo, TaskID, RemoteID),
+    % Then, sync local notes to remote
+    sync_local_notes_to_remote(Grp, RmtRepo, TaskID, RemoteID).
+
+% Fetch all notes for a given issue from GitLab
+get_remote_notes(Grp, RmtRepo, RemoteID, Notes) :-
+    catch((
+        build_notes_url(Grp, RmtRepo, RemoteID, URL),
+        git_repo_AUTH(URL, Auth),
+        http_open(URL, STRM, [method(get),
+                              json_object(dict),
+                              request_header('Accept'='application/json')
+                              |Auth]),
+        json_read_dict(STRM, Notes),
+        close(STRM)
+    ), Error, (
+        print_message(warning, failed_to_fetch_notes(Grp, RemoteID, Error)),
+        Notes = []
+    )).
+
+% Build URL for notes API endpoint
+build_notes_url(Grp, RmtRepo, RemoteID, URL) :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab"),
+    !,
+    eng:eng(tasks, Grp, config, remote, host, RmtHost),
+    split_string(RmtRepo, "/", "", PathParts),
+    intercalate(PathParts, "%2F", Project),
+    append(["/api", "v4", "projects", Project, "issues", RemoteID, "notes"],
+           [],
+           PathElems),
+    intercalate(PathElems, "/", Path),
+    atom_string(PathA, Path),
+    atom_string(RmtHostA, RmtHost),
+    URL = [ protocol(https),
+            host(RmtHostA),
+            path(PathA)
+          ].
+
+% Synchronize remote notes to local EQIL
+sync_remote_notes_to_local(Grp, RmtRepo, TaskID, RemoteID) :-
+    get_remote_notes(Grp, RmtRepo, RemoteID, RemoteNotes),
+    !,
+    maplist(sync_remote_note(Grp, RmtRepo, TaskID), RemoteNotes).
+sync_remote_notes_to_local(_, _, _, _).
+
+% Process a single remote note
+sync_remote_note(Grp, _RmtRepo, TaskID, NoteDict) :-
+    get_dict(id, NoteDict, NoteIID),
+    format(string(NoteIIDStr), '~w', [NoteIID]),
+    % Check if we already have this note tracked
+    (eng:eng(tasks, Grp, TaskID, sync, NoteIIDStr, note_ref, _)
+    -> true  % Already synced, skip for now (future: check for updates)
+    ; add_remote_note_to_local(Grp, TaskID, NoteDict)
+    ).
+
+% Add a new remote note to local EQIL
+add_remote_note_to_local(Grp, TaskID, NoteDict) :-
+    eng:eqil_file(tasks, Grp, TaskID, EQILFile),
+    !,
+    get_dict(id, NoteDict, NoteIID),
+    get_dict(body, NoteDict, NoteBody),
+    get_dict(updated_at, NoteDict, UpdatedAt),
+    format(string(NoteIIDStr), '~w', [NoteIID]),
+
+    % Generate a new note reference (note_1, note_2, etc.)
+    find_next_note_ref(Grp, TaskID, NoteRef),
+
+    % Add note content and sync tracking via batch update
+    add_note_to_eqilfile(EQILFile, Grp, TaskID, NoteIIDStr, NoteRef, NoteBody, UpdatedAt),
+
+    print_message(informational, added_remote_note(Grp, TaskID, NoteIID, NoteRef)).
+add_remote_note_to_local(_, _, _).
+
+% Add a note with all its metadata to the EQIL file in one operation
+add_note_to_eqilfile(File, Grp, TaskID, NoteIIDStr, NoteRef, NoteBody, UpdatedAt) :-
+    read_file_to_string(File, Contents, []),
+    parse_eng_eqil(File, Contents, (_, Parsed)),
+
+    % Build the keys we need to add
+    atom_string(GrpAtom, Grp),
+    atom_string(TaskIDAtom, TaskID),
+    atom_string(NoteRefAtom, NoteRef),
+    atom_string(NoteIIDAtom, NoteIIDStr),
+
+    % Try to insert the note body
+    (insert_new_keyval_safe(Parsed, [tasks, GrpAtom, TaskIDAtom, notes],
+                            NoteRefAtom, NoteBody, Parsed1)
+    -> true
+    ; Parsed1 = Parsed
+    ),
+
+    % Try to insert the sync/NoteIID/note_ref
+    (insert_new_keyval_safe(Parsed1, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom],
+                            note_ref, NoteRef, Parsed2)
+    -> true
+    ; Parsed2 = Parsed1
+    ),
+
+    % Try to insert the sync/NoteIID/updated
+    (insert_new_keyval_safe(Parsed2, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom],
+                            updated, UpdatedAt, NewEQIL)
+    -> true
+    ; NewEQIL = Parsed2
+    ),
+
+    rewrite_eqilfile(File, NewEQIL).
+
+% Safe version of insert that handles missing parents
+insert_new_keyval_safe(EQIL, Keyseq, NewKey, NewValue, NewEQIL) :-
+    insert_new_keyval(EQIL, Keyseq, NewKey, NewValue, NewEQIL), !.
+insert_new_keyval_safe(EQIL, _Keyseq, _NewKey, _NewValue, EQIL).
+
+% Find the next available note reference number
+find_next_note_ref(Grp, TaskID, NoteRef) :-
+    findall(N, (eng:eng(tasks, Grp, TaskID, notes, NR, _),
+                atom_string(NR, NRStr),
+                string_concat("note_", NumStr, NRStr),
+                catch(atom_number(NumStr, N), _, fail)),
+            Nums),
+    (Nums = []
+    -> NextNum = 1
+    ; max_list(Nums, MaxNum),
+      NextNum is MaxNum + 1
+    ),
+    format(atom(NoteRef), 'note_~w', [NextNum]).
+
+% Synchronize local notes to remote GitLab
+sync_local_notes_to_remote(Grp, RmtRepo, TaskID, RemoteID) :-
+    findall((NoteRef, Body),
+            (eng:eng(tasks, Grp, TaskID, notes, NR, Body),
+             atom_string(NR, NoteRef),
+             % Check if this note has a sync entry
+             \+ eng:eng(tasks, Grp, TaskID, sync, _, note_ref, NoteRef)),
+            UnsyncdNotes),
+    maplist(create_remote_note(Grp, RmtRepo, TaskID, RemoteID), UnsyncdNotes).
+
+% Create a new note on remote GitLab
+create_remote_note(Grp, RmtRepo, TaskID, RemoteID, (NoteRef, Body)) :-
+    catch((
+        build_notes_url(Grp, RmtRepo, RemoteID, URL),
+        git_repo_AUTH(URL, Auth),
+        append(URL, [ search([body=Body]) ], PostURL),
+        http_open(PostURL, STRM, [method(post)|Auth]),
+        json_read_dict(STRM, RspDict),
+        close(STRM),
+        get_dict(id, RspDict, NoteIID),
+        get_dict(updated_at, RspDict, UpdatedAt),
+        format(string(NoteIIDStr), '~w', [NoteIID]),
+
+        % Update EQIL with sync tracking
+        eng:eqil_file(tasks, Grp, TaskID, EQILFile),
+        add_sync_tracking(EQILFile, Grp, TaskID, NoteIIDStr, NoteRef, UpdatedAt),
+
+        print_message(informational, created_remote_note(Grp, TaskID, NoteRef, NoteIID))
+    ), Error, (
+        print_message(warning, failed_to_create_remote_note(Grp, TaskID, NoteRef, Error))
+    )).
+
+% Add sync tracking for a note
+add_sync_tracking(File, Grp, TaskID, NoteIIDStr, NoteRef, UpdatedAt) :-
+    read_file_to_string(File, Contents, []),
+    parse_eng_eqil(File, Contents, (_, Parsed)),
+
+    atom_string(GrpAtom, Grp),
+    atom_string(TaskIDAtom, TaskID),
+    atom_string(NoteIIDAtom, NoteIIDStr),
+
+    % Try to insert the sync/NoteIID/note_ref
+    (insert_new_keyval_safe(Parsed, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom],
+                            note_ref, NoteRef, Parsed1)
+    -> true
+    ; Parsed1 = Parsed
+    ),
+
+    % Try to insert the sync/NoteIID/updated
+    (insert_new_keyval_safe(Parsed1, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom],
+                            updated, UpdatedAt, NewEQIL)
+    -> true
+    ; NewEQIL = Parsed1
+    ),
+
+    rewrite_eqilfile(File, NewEQIL).
+
+prolog:message(added_remote_note(Grp, TaskID, NoteIID, NoteRef)) -->
+    [ 'Added remote note ~w to task ~w ~w as ~w' - [NoteIID, Grp, TaskID, NoteRef] ].
+
+prolog:message(created_remote_note(Grp, TaskID, NoteRef, NoteIID)) -->
+    [ 'Created remote note ~w for task ~w ~w from local ~w' - [NoteIID, Grp, TaskID, NoteRef] ].
+
+prolog:message(failed_to_fetch_notes(Grp, RemoteID, Error)) -->
+    [ 'Failed to fetch notes for ~w issue ~w: ~w' - [Grp, RemoteID, Error] ].
+
+prolog:message(failed_to_create_remote_note(Grp, TaskID, NoteRef, Error)) -->
+    [ 'Failed to create remote note for task ~w ~w (local ~w): ~w' - [Grp, TaskID, NoteRef, Error] ].
