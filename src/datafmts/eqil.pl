@@ -883,7 +883,8 @@ insert_new_keyval([eqil(K,V)|EQIL], Keyseq, NewKey, NewValue, NewEQIL) :-
     % least the base match to K here.
     gen_new_key_(K, Keyseq, NewKey, [], EQIL_Key),
     !,
-    NewEQIL = [eqil(EQIL_Key, [val(0, NewValue)]),eqil(K,V)|EQIL].
+    prep_value(EQIL_Key, NewValue, ValueToAdd),
+    NewEQIL = [eqil(EQIL_Key, ValueToAdd),eqil(K,V)|EQIL].
 insert_new_keyval([KV|EQIL], Keyseq, NewKey, NewValue, [KV|Tail]) :-
     % Key did not match, try next EQIL key set
     insert_new_keyval(EQIL, Keyseq, NewKey, NewValue, Tail).
@@ -914,6 +915,39 @@ gen_new_key_([], [], NewKey, [key(BI, BK)|Building], EQIL_Key) :-
     succ(BI, I_),
     succ(I_, I),
     reverse([key(I, NewKeyS),key(BI, BK)|Building], EQIL_Key).
+
+prep_value(EQIL_Key, InpValue, Val) :-
+    split_string(InpValue, "\n", "", Lines),
+    length(Lines, NumLines),
+    prep_value(EQIL_Key, Lines, NumLines, Val).
+
+prep_value(_EQIL_Key, [], 0, []).
+prep_value(_EQIL_Key, [Line], 1, [val(0, Line)]).
+prep_value(EQIL_Key, [L|Lines], NL, Val) :-
+    NL #> 1,
+    get_indent(EQIL_Key, KeyIndent),
+    line_indent(L, Line_Indent),
+    Base_Indent = KeyIndent + 2,
+    gen_lines(Base_Indent, Line_Indent, [L|Lines], Val).
+
+gen_lines(_, _, [], []).
+gen_lines(ValIndent, FirstLineIndent, [L|LS], [V|VS]) :-
+    line_indent(L, LI),
+    gen_line(ValIndent, FirstLineIndent, LI, L, V),
+    gen_lines(ValIndent, FirstLineIndent, LS, VS).
+
+gen_line(VI, FLI, LI, L, val(I, L)) :- LI #> FLI, I is (LI - FLI) + VI.
+gen_line(VI, _, LI, L, val(I, L)) :- I is VI + LI.
+
+get_indent([], 0).
+get_indent(EQIL_Key, I) :-
+    reverse(EQIL_Key, [key(I, _)|_]).
+
+line_indent(Line, Indent) :-
+    string_trim(Line, LT),
+    string_length(Line, LL),
+    string_length(LT, LTL),
+    Indent is LL - LTL.
 
 
 update_eqilfile(File, Keyseq, NewValue) :-

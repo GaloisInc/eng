@@ -8,6 +8,7 @@
                     show_type/2,
                     debug/1,
                     debug/2,
+                    to_string/2,
                     string_trim/2,
                     string_codes_ltrim/3,
                     string_codes_rtrim/3,
