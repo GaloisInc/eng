@@ -864,7 +864,9 @@ as_valblock_lines(N, [L|LS]) :-
 add_to_eqilfile(File, Keyseq, NewKey, NewValue) :-
     read_file_to_string(File, Contents, []),
     parse_eng_eqil(File, Contents, (_, Parsed)),
-    insert_new_keyval(Parsed, Keyseq, NewKey, NewValue, NewEQIL),
+    (string(NewValue), !, NewVal = NewValue
+    ; format(string(NewVal), "~w", [NewValue])),
+    insert_new_keyval(Parsed, Keyseq, NewKey, NewVal, NewEQIL),
     % n.b. new key/val is not asserted (because no revocation ref is passed)
     !,
     rewrite_eqilfile(File, NewEQIL).
