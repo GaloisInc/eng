@@ -869,24 +869,51 @@ add_to_eqilfile(File, Keyseq, NewKey, NewValue) :-
     !,
     rewrite_eqilfile(File, NewEQIL).
 
+
 % Generates a new key starting with Keyseq names and final key name NewKey with
-% appropriate indentations such that it can be added to the existing EQIL.  Note
-% that there must be existing entries to a depth of Keyseq + another subkey that
-% NewKey will become a sibling of, otherwise this will fail (silently).
+% appropriate indentations such that it can be added to the existing EQIL.
+%
+% Assumes that EQIL is normalized and that deeper keys are found before shallower
+% keys (so that the new key can be inserted underneath the maximum matching
+% existing location).
 
 insert_new_keyval([eqil(K,V)|EQIL], Keyseq, NewKey, NewValue, NewEQIL) :-
+    % Consume leading key match points; this will eliminate non-matching paths
+    % (especially because the gen_new_key_ recursion below only applies after at
+    % least the base match to K here.
     gen_new_key_(K, Keyseq, NewKey, [], EQIL_Key),
     !,
     NewEQIL = [eqil(EQIL_Key, [val(0, NewValue)]),eqil(K,V)|EQIL].
 insert_new_keyval([KV|EQIL], Keyseq, NewKey, NewValue, [KV|Tail]) :-
+    % Key did not match, try next EQIL key set
     insert_new_keyval(EQIL, Keyseq, NewKey, NewValue, Tail).
 
 gen_new_key_([key(I, KS)|SubKeys], [K|SubKeyseq], NewKey, Building, EQIL_Key) :-
     atom_string(K, KS),
+    % This prefix portion of the key matches, continue trying
     gen_new_key_(SubKeys, SubKeyseq, NewKey, [key(I, K)|Building], EQIL_Key).
+gen_new_key_([], [K|SubKeyseq], NewKey, [key(BI, BK)|Building], EQIL_Key) :-
+    % New location is deeper than existing paths reach, so synthesize new entries.
+    succ(BI, I_),
+    succ(I_, I),
+    gen_new_key_([], SubKeyseq, NewKey, [key(I, K),key(BI, BK)|Building], EQIL_Key).
+gen_new_key_([], [K|SubKeyseq], NewKey, [], EQIL_Key) :-
+    % New location is deeper at the top-level match, so synthesize a top-level
+    % entry.
+    gen_new_key_([], SubKeyseq, NewKey, [key(0, K)], EQIL_Key).
 gen_new_key_([key(I, _)|_], [], NewKey, Building, EQIL_Key) :-
+    % Reached the location where the new key and value are added at an index
+    % matching a different key at this same level.
     atom_string(NewKey, NewKeyS),
     reverse([key(I, NewKeyS)|Building], EQIL_Key).
+gen_new_key_([], [], NewKey, [key(BI, BK)|Building], EQIL_Key) :-
+    % Reached the location where the new key and value are added, but no other
+    % key exists at this level, so synthesize the indentation as previous
+    % indentation + 2.
+    atom_string(NewKey, NewKeyS),
+    succ(BI, I_),
+    succ(I_, I),
+    reverse([key(I, NewKeyS),key(BI, BK)|Building], EQIL_Key).
 
 
 update_eqilfile(File, Keyseq, NewValue) :-
