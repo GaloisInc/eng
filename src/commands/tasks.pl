@@ -598,44 +598,22 @@ add_remote_note_to_local(Grp, TaskID, NoteDict) :-
     print_message(informational, added_remote_note(Grp, TaskID, NoteIID, NoteRef)).
 add_remote_note_to_local(_, _, _).
 
+
 % Add a note with all its metadata to the EQIL file in one operation
 add_note_to_eqilfile(File, Grp, TaskID, NoteIIDStr, NoteRef, NoteBody, UpdatedAt) :-
-    read_file_to_string(File, Contents, []),
-    parse_eng_eqil(File, Contents, (_, Parsed)),
-
-    % Build the keys we need to add
     atom_string(GrpAtom, Grp),
     atom_string(TaskIDAtom, TaskID),
     atom_string(NoteRefAtom, NoteRef),
     atom_string(NoteIIDAtom, NoteIIDStr),
 
-    % Try to insert the note body
-    (insert_new_keyval_safe(Parsed, [tasks, GrpAtom, TaskIDAtom, notes],
-                            NoteRefAtom, NoteBody, Parsed1)
-    -> true
-    ; Parsed1 = Parsed
-    ),
+    assert_eng([tasks, Grp, TaskID, notes, NoteRefAtom], NoteBody, _),
+    assert_eng([tasks, Grp, TaskID, sync, NoteIIDAtom, note_ref], NoteRef, _),
+    assert_eng([tasks, Grp, TaskID, sync, NoteIIDAtom, updated], UpdatedAt, _),
 
-    % Try to insert the sync/NoteIID/note_ref
-    (insert_new_keyval_safe(Parsed1, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom],
-                            note_ref, NoteRef, Parsed2)
-    -> true
-    ; Parsed2 = Parsed1
-    ),
+    add_to_eqilfile(File, [tasks, GrpAtom, TaskIDAtom, notes], NoteRefAtom, NoteBody),
+    add_to_eqilfile(File, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom], note_ref, NoteRef),
+    add_to_eqilfile(File, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom], updated, UpdatedAt).
 
-    % Try to insert the sync/NoteIID/updated
-    (insert_new_keyval_safe(Parsed2, [tasks, GrpAtom, TaskIDAtom, sync, NoteIIDAtom],
-                            updated, UpdatedAt, NewEQIL)
-    -> true
-    ; NewEQIL = Parsed2
-    ),
-
-    rewrite_eqilfile(File, NewEQIL).
-
-% Safe version of insert that handles missing parents
-insert_new_keyval_safe(EQIL, Keyseq, NewKey, NewValue, NewEQIL) :-
-    insert_new_keyval(EQIL, Keyseq, NewKey, NewValue, NewEQIL), !.
-insert_new_keyval_safe(EQIL, _Keyseq, _NewKey, _NewValue, EQIL).
 
 % Find the next available note reference number
 find_next_note_ref(Grp, TaskID, NoteRef) :-
