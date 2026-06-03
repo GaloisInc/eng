@@ -563,6 +563,7 @@ darcs_remote_repo(VCSDir, RepoAddr) :-
     directory_file_path(VCSDir, "_darcs", DarcsDir),
     directory_file_path(DarcsDir, "prefs", PrefsDir),
     directory_file_path(PrefsDir, "defaultrepo", DefRepoFile),
+    exists_file(DefRepoFile),
     read_file_to_string(DefRepoFile, DefRepoStr, []),
     string_trim(DefRepoStr, RepoAddr).
 
