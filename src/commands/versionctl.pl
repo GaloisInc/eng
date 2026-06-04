@@ -898,10 +898,11 @@ vctl_subproj_clone(Context, _, DepName,
                    unknown(subproj_clone, unknown_subproject(EngDir, DepName))) :-
         context_engdir(Context, EngDir).
 
-vctl_subproj_clone_into(Context, VCTool, _DepName, TgtDir, sts(subproj_clone, 0)) :-
+vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, 0)) :-
     exists_context_subdir(Context, TgtDir),
+    empty_directory(TgtDir),
     !,
-    print_message(warning, clone_tgt_already_exists(TgtDir)),
+    print_message(warning, clone_target_exists(TgtDir, DepName)),
     % Still perform post-clone operation to keep things synchronized: the subproj
     % might have been checked out manually.
     vctl_post_clone(Context, VCTool, TgtDir).
@@ -912,9 +913,6 @@ vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, Clo
     (CloneSts == 0
     -> vctl_post_clone(Context, VCTool, TgtDir), !
     ; true).
-
-prolog:message(clone_tgt_already_exists(TgtDir)) -->
-    [ 'Clone target ~w already exists' - [TgtDir] ].
 
 vctl_post_clone(Context, VCTool, _TgtDir) :-
     context_topdir(Context, TopDir),
@@ -1027,6 +1025,7 @@ remove_subproj(Context, VCTool, DepName, Sts) :-
     working_directory(OldDir, TopDir),
     vctl_subproj_local_dir(DepName, TgtDir),
     exists_directory(TgtDir),
+    \+ empty_directory(TgtDir),
     !,
     remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, Sts),
     working_directory(_, OldDir).

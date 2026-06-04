@@ -19,6 +19,7 @@
                     get_dict_or/4,
                     ensure_dir/1,
                     ensure_file_loc/1,
+                    empty_directory/1,
                     context_subdir/3,
                     ensure_context_subdir/2,
                     exists_context_subdir/2,
@@ -211,6 +212,10 @@ ensure_dir(Dir) :- directory_file_path(Top, Top, Dir), !.
 ensure_dir(Dir) :- directory_file_path(Parent, _, Dir),
                    ensure_dir(Parent),
                    (exists_directory(Dir), !; make_directory(Dir)).
+
+% True iff directory exists and has no files in it
+empty_directory(Dir) :- directory_files(Dir, ['.', '..']).
+empty_directory(Dir) :- directory_files(Dir, ['..', '.']).
 
 context_subdir(context(_, TopDir, _), SubDir, AbsPath) :-
     directory_file_path(TopDir, SubDir, AbsPath), !.
