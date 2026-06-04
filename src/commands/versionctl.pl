@@ -431,49 +431,75 @@ vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, Sts) :-
     git_remote_head(Context, VCSDir, Fetch_SHA), % TODO if local git repo, doesn't get *current* remote head, just remote head from this revision!
     git_build_status_url(URL, Fetch_SHA, StatusURL),
     http_get(StatusURL, RData, [json_object(dict)|Auth]),
-    bld_status_response(RData, BldStatus),
-    member(host(RH), URL),
-    member(path(RP), URL),
-    show_bld_status(RH, RP, BldStatus),
-    bld_endmsg(Context, BldStatus, Sts).
+    !, % no retry of http request on failure in the following
+    report_build_status(Context, URL, RData, Sts).
 vctl_build_status(Context, darcs(_, Parent), Args, Sts) :-
     !, vctl_build_status(Context, Parent, Args, Sts).
 vctl_build_status(_Context, _VCSTool, _Args, 0) :-
     writeln('No build status available').
 
-bld_status_response([], "invalid") :- !.  % Gitlab bad YAML
-bld_status_response([D|_], R) :-
-    % gitlab returns a list; just use the first by default, which is the latest run?
+report_build_status(_, _, [], 0) :- !.
+report_build_status(Context, URL, [Data|DS], S) :- % gitlab returns an array of dicts
+    get_dict(status, Data, BldStatus),
+    get_dict(name, Data, BldName),
+    get_dict(ref, Data, BldRef),
+    get_dict(allow_failure, Data, FailOK),
+    format(string(Name), "~w [~w]", [BldName, BldRef]),
     !,
-    bld_status_response(D, R).
-bld_status_response(D, R) :- get_dict(status, D, R), !.  % Gitlab
-bld_status_response(D, "no CI") :- get_dict(workflow_runs, D, []).
-bld_status_response(D, R) :- get_dict(workflow_runs, D, Runs),
-                             reverse(Runs, [Run|_]), % get last run
-                             github_run_status(Run, R), !.
-bld_status_response(_, "??bldsts??").
+    show_build_status_(URL, Name, BldStatus, FailOK),
+    report_build_status(Context, URL, DS, SS),
+    build_final_status(Context, BldStatus, FailOK, SS, S).
+report_build_status(_, URL, Rsp, 0) :-
+    get_dict(workflow_runs, Rsp, []),  % github, no CI
+    !,
+    show_build_status_(URL, "", "no CI", false).
+report_build_status(Context, URL, Rsp, S) :-
+    get_dict(workflow_runs, Rsp, Runs),  % github
+    !,
+    reverse(Runs, [LatestRun|_]),
+    github_run_status(LatestRun, BldName, BldStatus),
+    show_build_status_(URL, BldName, BldStatus, false),
+    build_final_status(Context, BldStatus, false, [], S).
+report_build_status(_, URL, _, 0) :-
+    !,
+    show_build_status_(URL, "", "??bldsts??", false).
 
-github_run_status(Run, R) :- get_dict(status, Run, "completed"),
-                             get_dict(conclusion, Run, R).
-github_run_status(Run, R) :- get_dict(status, Run, R).
-github_run_status(_, "??github??").
+
+github_run_status(Run, Name, R) :- get_dict(status, Run, "completed"),
+                                   get_dict(conclusion, Run, R),
+                                   get_dict(name, Run, Name),
+                                   !.
+github_run_status(Run, Name, R) :- get_dict(status, Run, R),
+                                   get_dict(name, Run, Name),
+                                   !.
+github_run_status(_, "?action?", "??github??").
+
+show_build_status_(URL, BldName, BldStatus, FailOK) :-
+    member(host(RH), URL),
+    member(path(RP), URL),
+    show_bld_status(RH, RP, BldName, BldStatus, FailOK).
 
 
-show_bld_status(RH, RP, "success") :- show_bld_status_(RH, RP, [bold], "success"), !.
-show_bld_status(RH, RP, "running") :- show_bld_status_(RH, RP, [bold, fg('#fcec03')], "running"), !.
-show_bld_status(RH, RP, "pending") :- show_bld_status_(RH, RP, [bold, fg('#fc8403')], "pending"), !.
-show_bld_status(RH, RP, "no CI") :- show_bld_status_(RH, RP, [fg('#a0a0a0')], "no CI"), !.
-show_bld_status(RH, RP, S) :- show_bld_status_(RH, RP, [bold, fg(red)], S).
-show_bld_status_(RH, RP, F, S) :-
-    ansi_format(F, '~w~t~10|', [S]),
-    format('~w ~w build status', [RH, RP]),
-    writeln('').
+show_bld_status(RH, RP, Name, "success", _) :- show_bld_status_(RH, RP, Name, [bold], "success"), !.
+show_bld_status(RH, RP, Name, "running", _) :- show_bld_status_(RH, RP, Name, [bold, fg('#fcec03')], "running"), !.
+show_bld_status(RH, RP, Name, "pending", _) :- show_bld_status_(RH, RP, Name, [bold, fg('#fc8403')], "pending"), !.
+show_bld_status(RH, RP, Name, "skipped", _) :- show_bld_status_(RH, RP, Name, [fg('#0084a3')], "skipped"), !.
+show_bld_status(RH, RP, Name, "failed", true) :- show_bld_status_(RH, RP, Name, [fg('#0084a3')], "(failed)"), !.
+show_bld_status(RH, RP, Name, "no CI", _) :- show_bld_status_(RH, RP, Name, [fg('#a0a0a0')], "no CI"), !.
+show_bld_status(RH, RP, Name, S, true) :- show_bld_status_(RH, RP, Name, [bold, fg("#0084a3")], S), !.
+show_bld_status(RH, RP, Name, S, _) :- show_bld_status_(RH, RP, Name, [bold, underline, fg(red)], S).
 
-bld_endmsg(_, "success", 0).
-bld_endmsg(_, "no CI", 0).
-bld_endmsg(Context, BldSts, end_msg(R, M)) :-
+show_bld_status_(RH, RP, Name, F, S) :-
+    ansi_format(F, '~w~t~12|', [S]),
+    format('building ~w ~w ~w~n', [RH, RP, Name]).
+
+build_final_status(_, _, true, S, S).
+build_final_status(_, BS, _, [], 0) :- member(BS, ["success", "no CI"]), !.
+build_final_status(_, BS, _, S, S) :- member(BS, ["success", "no CI"]), !.
+build_final_status(Context, BS, _, S, [end_msg(R, M)|S]) :-
     context_reltip(Context, R),
-    format(atom(M), 'build ~w', [BldSts]).
+    format(atom(M), 'build ~w', [BS]).
+
 
 %% --------------------
 
