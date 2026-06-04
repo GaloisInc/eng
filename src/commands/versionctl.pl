@@ -561,12 +561,7 @@ git_build_status_url(URL, Fetch_SHA, StatusURL) :-
     string_concat(SPath2, "/", StatusPath),
     replace_url_path(URL, StatusPath, StatusURLP),
     parse_url(StatusURLS, StatusURLP),
-    % The %2F is turned into %252F by parse_url... undo that
-    sub_string(StatusURLS, SB, 3, SA, "%25"),
-    sub_string(StatusURLS, 0, SB, _, SBS),
-    string_concat(SBS, "%", SBM),
-    sub_string(StatusURLS, _, SA, 0, SAS),
-    string_concat(SBM, SAS, StatusURLR),
+    change_252F_into_2F(StatusURLS, StatusURLR),
     atom_string(StatusURL, StatusURLR).
 
 git_build_status_url(URL, Fetch_SHA, StatusURL) :-
@@ -574,7 +569,6 @@ git_build_status_url(URL, Fetch_SHA, StatusURL) :-
     sub_string(H, _, _, _, "github"),  %% <--- selector
     git_repo_path(URL, PathParts),
     intercalate(PathParts, "/", RepoPath),
-    %% intercalate(["/repos", RepoPath, "commits", "HEAD", "status"], "/", SPath),
     intercalate(["/repos", RepoPath, "actions", "runs"], "/", SPath),
     replace_url_path(URL, SPath, StatusURLP),
     intercalate(["api", H], ".", APIHost),
@@ -584,6 +578,16 @@ git_build_status_url(URL, Fetch_SHA, StatusURL) :-
                          ])|StatusURLH],
     parse_url(StatusURLS, StatusURLQ),
     atom_string(StatusURL, StatusURLS).
+
+% % The %2F is turned into %252F by parse_url... undo that
+change_252F_into_2F(Inp, Out) :-
+    sub_string(Inp, SB, 5, SA, "%252F"),
+    !,
+    sub_string(Inp, 0, SB, _, SBS),
+    sub_string(Inp, _, SA, 0, SAS),
+    format(string(Nxt), '~w%2F~w', [SBS, SAS]),
+    change_252F_into_2F(Nxt, Out).
+change_252F_into_2F(Out, Out).
 
 darcs_remote_repo(VCSDir, RepoAddr) :-
     directory_file_path(VCSDir, "_darcs", DarcsDir),
