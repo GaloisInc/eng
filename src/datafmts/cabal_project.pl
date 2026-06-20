@@ -77,9 +77,15 @@ write_projfile(CProj, _Repos, Locals, Remotes, Extra) :-
     close(ProjFile).
 
 write_local_packages(ProjFile, Locals) :-
+    eng:key(cabal_project, 'main packages'),
+    !,
+    % Explicit declaration of main packages
     findall((M,D), eng:eng(cabal_project, 'main packages', M, D), MainPkgs),
     append(MainPkgs, Locals, Pkgs),
     wlp(ProjFile, 'packages:', Pkgs).
+write_local_packages(ProjFile, Locals) :-
+    % Default: top level is the "main package"
+    wlp(ProjFile, 'packages:', [("default top-level",'.')|Locals]).
 wlp(ProjFile, Pfx, [(_,LDir)|Locals]) :-
     format(ProjFile, '~w ~w~n', [Pfx, LDir]),
     wlp(ProjFile, '         ', Locals).
