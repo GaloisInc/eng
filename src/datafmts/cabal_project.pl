@@ -39,13 +39,13 @@ get_local_repos(RelPath, KnownRepos, Locals) :-
     append(LocalsList, AllLocals),
     list_to_set(AllLocals, Locals).
 get_local_repos_(_, KnownRepos, Locals) :-
-    setof((N,Dir), (member(N, KnownRepos),
+    findall((N,Dir), (member(N, KnownRepos),
                     local_subproj_dir(N, Dir),
                     exists_directory(Dir)
                    ),
           Locals).
 get_local_repos_(RelPath, KnownRepos, Locals) :-
-    setof((N,Dir), (member(N, KnownRepos),
+    findall((N,Dir), (member(N, KnownRepos),
                     local_subproj_dir(N, RDir),
                     directory_file_path(RelPath, RDir, Dir),
                     exists_directory(Dir)
