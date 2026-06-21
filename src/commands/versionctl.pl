@@ -802,6 +802,7 @@ vctl_changes(Context, darcs(VCSDir, _)) :-
 % Returns remote address: darcsremote(String), gitremote_http(parse_http URL, Auth), gitremote_ssh(String),
 % miscremote(String), or rmtNotSpecified.
 vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
+    % First, if there is a {SIBLING} entry, try to determine the sibling
     eng:eng(vctl, subproject, Name, repo, Repo),
     string_concat("{SIBLING}/", RepoName, Repo),
     vctl_repo_remote_addr(VCTool, RepoRemote),
@@ -812,6 +813,7 @@ vctl_subproj_remote_repo(VCTool, Name, Rmt) :-
     vctl_repo_check_remote_exists_if_dir(Rmt),
     !.
 vctl_subproj_remote_repo(_, Name, gitremote_ssh(Rmt)) :-
+    % Next, see if there is a remote GIT SSH reference
     eng:eng(vctl, subproject, Name, repo, Rmt),
     string_concat("git@", _, Rmt),
     !.
@@ -861,6 +863,12 @@ vctl_repo_check_remote_exists_if_dir(darcsremote(Remote)) :-
     member(host(H), URL),
     H \= '',
     !.  % if remote, assume it exists
+vctl_repo_check_remote_exists_if_dir(darcsremote(Remote)) :-
+    % Not sure the previous clause works, but this should match a Remote like:
+    % umbriel:work/SYNC/reponame
+    split_string(Remote, ":", "", Split),
+    length(Split, 2),
+    !. % a darcs SSH remote: assume it exists
 vctl_repo_check_remote_exists_if_dir(darcsremote(Remote)) :-
     exists_directory(Remote),
     !.  % local dir, must exist
