@@ -498,7 +498,7 @@ show_bld_status_(RH, RP, Name, F, S) :-
 build_final_status(_, _, true, S, S).
 build_final_status(_, BS, _, [], 0) :- member(BS, ["success", "no CI"]), !.
 build_final_status(_, BS, _, S, S) :- member(BS, ["success", "no CI"]), !.
-build_final_status(Context, BS, _, S, [sts(R, end_msg(R, M))|S]) :-
+build_final_status(Context, BS, _, S, [sts(R, end_msg(M))|S]) :-
     context_reltip(Context, R),
     format(atom(M), 'build ~w', [BS]).
 
