@@ -440,7 +440,7 @@ vctl_build_status(Context, darcs(_, Parent), Args, Sts) :-
 vctl_build_status(_Context, _VCSTool, _Args, 0) :-
     writeln('No build status available').
 
-report_build_status(_, _, [], 0) :- !.
+report_build_status(_, _, [], []) :- !.
 report_build_status(Context, URL, [Data|DS], S) :- % gitlab returns an array of dicts
     get_dict(status, Data, BldStatus),
     get_dict(name, Data, BldName),
@@ -451,7 +451,7 @@ report_build_status(Context, URL, [Data|DS], S) :- % gitlab returns an array of 
     show_build_status_(URL, Name, BldStatus, FailOK),
     report_build_status(Context, URL, DS, SS),
     build_final_status(Context, BldStatus, FailOK, SS, S).
-report_build_status(_, URL, Rsp, 0) :-
+report_build_status(_, URL, Rsp, []) :-
     get_dict(workflow_runs, Rsp, []),  % github, no CI
     !,
     show_build_status_(URL, "", "no CI", false).
@@ -462,7 +462,7 @@ report_build_status(Context, URL, Rsp, S) :-
     github_run_status(LatestRun, BldName, BldStatus),
     show_build_status_(URL, BldName, BldStatus, false),
     build_final_status(Context, BldStatus, false, [], S).
-report_build_status(_, URL, _, 0) :-
+report_build_status(_, URL, _, []) :-
     !,
     show_build_status_(URL, "", "??bldsts??", false).
 

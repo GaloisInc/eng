@@ -110,8 +110,7 @@ postproc_([unknown(N, M)|ES], Msgs, SumSts, Sts) :-
     postproc_(RES, UpdMsgs, SumSts, Sts).
 postproc_([sts(N, end_msg(M))|ES], Msgs, SumSts, Sts) :-
     !,
-    postproc_sts_(N, ES, RES),
-    postproc_(RES, [end_msg(N, M)|Msgs], SumSts, Sts).
+    postproc_(ES, [end_msg(N, M)|Msgs], SumSts, Sts).
 postproc_([sts(N, X)|ES], Msgs, SumSts, Sts) :-
     postproc_sts_(N, ES, RES),
     postproc_([X|RES], Msgs, SumSts, Sts).
