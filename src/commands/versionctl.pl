@@ -404,7 +404,8 @@ vctl_darcs_status(Context, VCSDir, full, [Sts,PullSts,PushSts]) :-
     -> format_lines("~w~n", PullOut),
        ( PullOut = []
        -> PullSts = 0
-       ; context_reltip(Context, R), PullSts = sts(R, end_msg("pull from remote"))
+       ; context_reltip(Context, R),
+         PullSts = sts(R, end_msg("pull from remote"))
        )
     ; PullSts = 1
     ),
@@ -414,7 +415,8 @@ vctl_darcs_status(Context, VCSDir, full, [Sts,PullSts,PushSts]) :-
      format_lines("~w~n", PushOut),
      ( PushOut = []
      -> PushSts = 0
-     ; context_reltip(Context, R), PushSts = sts(R, end_msg("push local changes"))
+     ; context_reltip(Context, R),
+       PushSts = sts(R, end_msg("push local changes"))
      )
     ; PushSts = 1
     ).
@@ -496,7 +498,7 @@ show_bld_status_(RH, RP, Name, F, S) :-
 build_final_status(_, _, true, S, S).
 build_final_status(_, BS, _, [], 0) :- member(BS, ["success", "no CI"]), !.
 build_final_status(_, BS, _, S, S) :- member(BS, ["success", "no CI"]), !.
-build_final_status(Context, BS, _, S, [end_msg(R, M)|S]) :-
+build_final_status(Context, BS, _, S, [sts(R, end_msg(R, M))|S]) :-
     context_reltip(Context, R),
     format(atom(M), 'build ~w', [BS]).
 
