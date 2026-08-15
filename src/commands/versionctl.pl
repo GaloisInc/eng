@@ -516,13 +516,10 @@ git_remote_head(_, VCSDir, RmtHeadSHA) :-
     split_string(FHData, "\t ", "", [RmtHeadSHA|_]).
 git_remote_head(_, VCSDir, RmtHeadSHA) :-
     directory_file_path(VCSDir, ".git", GitDir),
-    directory_file_path(GitDir, "ORIG_HEAD", FHFile),
-    exists_file(FHFile),
-    read_file_to_string(FHFile, FHData, []),
-    string_trim(FHData, RmtHeadSHA),
-    string_length(RmtHeadSHA, FHLen),
-    FHLen > 0,
-    !.
+    directory_file_path(GitDir, "HEAD", HRFile),
+    exists_file(HRFile),
+    read_file_to_string(HRFile, HRData, []),
+    grh_(VCSDir, HRData, RmtHeadSHA).
 git_remote_head(Context, VCSDir, RmtHead) :-
     % n.b. this is a fallback from the previous matching clause that is not
     % always reliable (the refs/remotes below does not always exist, and it's not
@@ -538,6 +535,22 @@ best_git_remote_ref(_, L, RmtHead) :-
 best_git_remote_ref(_, L, RmtHead) :-
     split_string(L, "\t ", "", [RmtHead, Ref]),
     split_string(Ref, "/", "", ["refs","remotes","origin",_]).
+grh_(VCSDir, HRData, RmtHeadSHA) :-
+    string_concat("ref: ", RefTail, HRData),
+    split_string(RefTail, "\n\r \t", "", [Ref|_]),
+    directory_file_path(VCSDir, ".git", GitDir),
+    directory_file_path(GitDir, Ref, FHFile),
+    exists_file(FHFile),
+    !,
+    read_file_to_string(FHFile, FHData, []),
+    string_length(FHData, FHLen),
+    FHLen > 0,
+    split_string(FHData, "\n\r\t ", "", [RmtHeadSHA|_]).
+grh_(_VCSDir, HRData, RmtHeadSHA) :-
+    \+ string_concat("ref: ", _, HRData),
+    string_length(HRData, FHLen),
+    FHLen > 0,
+    split_string(HRData, "\n\r\t ", "", [RmtHeadSHA|_]).
 
 prolog:message(unreliable_git_remote_head(VCSDir)) -->
     [ "Using unreliable fallback to get git remote head SHA from ~w" - [VCSDir]].
