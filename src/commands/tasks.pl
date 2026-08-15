@@ -44,6 +44,7 @@ tasks_help(Info) :-
 |           [visibility = internal]
 |           [effort = TASK EFFORT]
 |           [status = TASK STATUS]
+|           [assignee = username]
 |           [notes =
 |             note_1 = First note content
 |             note_2 = Second note content
@@ -65,6 +66,8 @@ tasks_help(Info) :-
 |             units (recommended: h/hrs d/days, or w/wks).
 |             If units are not supplied, it numeric values are assumed to
 |             be a Kanban-style weight.
+|   assignee -- name of the user working on (or intended to work on)
+|               this issue.
 |
 | Any field enclosed in curly braces is automatically added and managed by
 | eng itself and should not be carelessly modified.
@@ -135,9 +138,13 @@ show_a_task(Grp, TaskID, Pri) :-
     task_severity(Grp, TaskID, Sev),
     task_status(Grp, TaskID, Sts, Colorized),
     enabled_task_status(Sts),
+    task_assignee(Grp, TaskID, Assigned),
+    (Assigned == "", !, A = ""
+    ; format(string(A), '@~w ', [Assigned])
+    ),
     format('  ~w~t~14|: [~w/~w]~`.t ~27|', [ TaskID, Pri, Sev ]),
     ansi_format(Colorized, Sts, []),
-    write(' '), writeln(Summary),
+    write(' '), write(A), writeln(Summary),
     fail.  % next ...
 
 show_a_task_notpri(Grp, Priorities) :-
@@ -176,6 +183,9 @@ task_colorize(O, S, [fg(red), bg(white)]) :-
 
 enabled_task_status(Sts) :- exclude_task_status(Sts), !, fail.
 enabled_task_status(_).
+
+task_assignee(Grp, TaskID, A) :- eng:eng(tasks, Grp, TaskID, assignee, A).
+task_assignee(Grp, TaskID, "") :- \+ eng:key(tasks, Grp, TaskID, assignee).
 
 % ----------------------------------------------------------------------
 
@@ -316,7 +326,8 @@ sync_known_task(Grp, RmtRepo, TaskID, RemoteID, 0) :-
     !,
     sync_summary(Grp, TaskID, RmtInfo, [], UD0),
     sync_description(Grp, TaskID, RmtInfo, UD0, UD1),
-    sync_status(Grp, TaskID, RmtInfo, UD1, UD2),
+    sync_status(Grp, TaskID, RmtInfo, UD1, UD2_),
+    sync_assigned(Grp, TaskID, RmtInfo, UD2_, UD2),
     % sync_severity(Grp, TaskID, RmtInfo, UD2, UD3), % not supported for gitlab
     sync_labels(Grp, TaskID, RmtInfo, UD2, UD3),
     update_remote_if_changes(Grp, RmtRepo, RemoteID, UD3),
@@ -406,6 +417,62 @@ prolog:message(update_status(Grp, TaskID, RmtInfo, New)) -->
     [ 'Updated ~w ~w status (remote ID: ~w) from: ~w to ~w' -
       [Grp, TaskID, RemoteID, Old, New ] ].
 
+sync_assigned(Grp, TaskID, RmtInfo, Pending, Pending) :-
+    task_assignee(Grp, TaskID, ""),
+    get_dict(assignees, RmtInfo, []),
+    % no assignee locally or remote, nothing to do.
+    !.
+sync_assigned(Grp, TaskID, RmtInfo, Pending, Pending) :-
+    task_assignee(Grp, TaskID, ""),
+    get_dict(assignees, RmtInfo, [RA|_]), % n.b. ignoring multiple assignees
+    get_dict(username, RA, User),
+    ( assert_eng([tasks, Grp, TaskID, assignee], User, _),
+      eng:eqil_file(tasks, Grp, TaskID, File),
+      !,
+      add_to_eqilfile(File, [tasks, Grp, TaskID], assignee, User)
+    ; print_message(warning, task_assigned_remotely(TaskID, User))
+    ),
+    !.
+sync_assigned(Grp, TaskID, RmtInfo, Pending, NewPending) :-
+    task_assignee(Grp, TaskID, U),
+    \+ U == "",
+    get_dict(assignees, RmtInfo, []),
+    % not assigned remotely, so assign it
+    !,
+    set_assigned(Grp, U, Pending, NewPending).
+sync_assigned(Grp, TaskID, RmtInfo, Pending, NewPending) :-
+    task_assignee(Grp, TaskID, U),
+    \+ U == "",
+    get_dict(assignees, RmtInfo, [RA|_]), % n.b. ignoring multiple assignees
+    (get_dict(username, RA, U), !,
+     % already assigned to this person
+     NewPending=Pending
+    ; set_assigned(Grp, U, Pending, NewPending)
+    ).
+
+set_assigned(Grp, Username, Pending, NewPending) :-
+    % task is assigned, see if remote is the same
+    build_user_fetch_url(Grp, Username, GetURL),
+    git_repo_AUTH(GetURL, Auth),
+    http_open(GetURL, STRM, [method(get)|Auth]),
+    json_read_dict(STRM, Response),
+    close(STRM),
+    set_assigned_(Username, Response, Pending, NewPending).
+set_assigned_(Username, [], Pending, Pending) :-
+    print_message(warning, user_unknown_on_rmt(Username)).
+set_assigned_(Username, [RUI|_], Pending, [assignee_id=AID|Pending]) :-
+    get_dict(username, RUI, Username),
+    get_dict(id, RUI, UID),
+    format_str(AID, '~w', UID),
+    % Local and remote users are different.  For now, local always takes
+    % precedence, so change the remote.
+    !.
+
+prolog:message(task_assigned_remotely(TaskID, Username)) -->
+    [ 'Remote forge show task ~w is assigned to ~w' - [ TaskID, Username ] ].
+prolog:message(user_unknown_on_rmt(Username)) -->
+    [ 'Remote forge has no registered username: ~w' - [ Username ] ].
+
 sync_labels(Grp, TaskID, RmtInfo, Pending, Pending) :-
     labels_string(Grp, TaskID, Labels),
     % Labels is a comma (and space) separated string, but the return from the
@@ -462,6 +529,23 @@ build_task_url(Grp, RmtRepo, PathEnd, URL) :-
             path(PathA)
           ].
 build_task_url(Grp, _RmtRepo, _URL) :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab"),
+    !,
+    fail. % TODO KWQ
+
+
+build_user_fetch_url(Grp, Username, URL) :-
+    eng:eng(tasks, Grp, config, remote, type, "gitlab"),
+    !,
+    eng:eng(tasks, Grp, config, remote, host, RmtHost),
+    atom_string(RmtHostA, RmtHost),
+    atom_string(UsernameA, Username),
+    URL = [ protocol(https),
+            host(RmtHostA),
+            path('/api/v4/users'),
+            search([username=UsernameA])
+          ].
+build_user_fetch_url(Grp, _Username, _URL) :-
     eng:eng(tasks, Grp, config, remote, type, "gitlab"),
     !,
     fail. % TODO KWQ
@@ -654,6 +738,7 @@ sync_other_to_remote(Grp, RmtRepo, RemoteID, TaskID) :-
     remote_id_key(RIDKey),
     sync_key(SyncKey),
     \+ member(Key, [status, summary, description, notes, priority,
+                    assignee,
                     type, area,  % these two are labels instead
                     RIDKey, SyncKey
                    ]),
