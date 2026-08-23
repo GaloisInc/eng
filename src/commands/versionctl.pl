@@ -57,6 +57,7 @@ vctl_help(Info) :-
 |          repo = REPO_URL
 |          rev = BRANCH|TAG|REF
 |          subdir = RELDIR
+|      post clone = write_cabal_project
 |
 | In normal operations, the vctl command uses the repository information in
 | the current working directory and needs no additional configuration.  At
@@ -79,7 +80,17 @@ vctl_help(Info) :-
 | setting bypasses verification of the SSL certificate; this is not generally
 | adviseable but may be useful in situations where a private certificate is used.
 |
+| The optional "post clone" specifies an operation to do after completing
+| an "eng vctl subproj clone x" or an "eng vctl subproj remove x" operation.
+| The known operations are:
+|
+|    * write_cabal_project -- rewrites the cabal.project file in the {TopDir}
+|                             to specify either the local directory or the
+|                             remote source_repository as the source for that
+|                             component.
+|
 | Subprojects:
+| ------------
 |
 | The subproject is used to specify one or more dependencies for the current
 | project.  This information is used in various ways, including: checking out
@@ -96,7 +107,39 @@ vctl_help(Info) :-
 | The optional subdir specifies the subdirectory in the repo in which the
 | NAME package exists.
 |
+| Managing cabal.project files:
+| -----------------------------
+|
+| When the "vctl.post_clone" configuratin is set to "write_cabal_project",
+| the cabal.project file in the {TopDir} is updated.  The optional
+| "cabal_project" section can specify additional configuration information
+| to use when managing the cabal.project file:
+|
+|    cabal_project =
+|      exclude = subproj1 subproj2 ...
+|      main packages =
+|        pkgname = cabal-packages-entry
+|        ...
+|      extra =
+|        settings...
+|
+| The "exclude" specifies the list of subprojects that are *not* Haskell
+| packages and which therefore should not be added to the top-level
+| cabal.project file when rewriting it.
+|
+| The "extra" section specifies settings that are emitted into the
+| cabal.project file, with the key as the first line and the value
+| as lines indented beneath the key line.  This can be used to set
+| flags (globally or package-specific), control building of tests, etc.
+|
+| Normally the "packages:" section of the cabal.project file contains "."
+| to indicate that the top level project contains a package, but this can
+| be overridden by a "main packages" setting, where each package specifies
+| a directory to be added to the "packages:" section of the file in place
+| of the default.
+|
 | Repository Access:
+| ------------------
 |
 | Frequently, a Personal Access Token (PAT) is needed to access private
 | repositories or to avoid rate limiting.  A PAT can be set in an EQIL
