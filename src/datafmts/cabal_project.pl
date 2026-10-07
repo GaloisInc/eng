@@ -39,18 +39,27 @@ get_local_repos(RelPath, KnownRepos, Locals) :-
     append(LocalsList, AllLocals),
     list_to_set(AllLocals, Locals).
 get_local_repos_(_, KnownRepos, Locals) :-
+    %% This version gets all the local known repos relative to the current (top)
+    %% level.
     findall((N,Dir), (member(N, KnownRepos),
-                    local_subproj_dir(N, Dir),
-                    exists_directory(Dir)
-                   ),
-          Locals).
+                      local_subproj_dir(N, Dir),
+                      exists_directory(Dir)
+                     ),
+            Locals).
 get_local_repos_(RelPath, KnownRepos, Locals) :-
+    %% This version gets all the local known repos relative to the subproj at
+    %% RelPath.  If there is any duplication between these and the top-level, the
+    %% top-level should take priority because: (a) a cabal.project will complain
+    %% if it finds the same cabal-specified package name in two different
+    %% locations, and (b) a subproj that has its own dependency can use and defer
+    %% to the enclosing parent's version of that dependency.
     findall((N,Dir), (member(N, KnownRepos),
-                    local_subproj_dir(N, RDir),
-                    directory_file_path(RelPath, RDir, Dir),
-                    exists_directory(Dir)
-                   ),
-          Locals).
+                      local_subproj_dir(N, RDir),
+                      directory_file_path(RelPath, RDir, Dir),
+                      \+ exists_directory(RDir), % i.e. not provided by parent
+                      exists_directory(Dir)
+                     ),
+            Locals).
 
 local_subproj_dir(Name, SPDir) :-
     vctl_subproj_local_dir(Name, RDir),
