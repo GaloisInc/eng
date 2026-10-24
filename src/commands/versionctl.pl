@@ -58,7 +58,7 @@ vctl_help(Info) :-
 |          repo = REPO_URL
 |          rev = BRANCH|TAG|REF
 |          subdir = RELDIR
-|      post clone = write_cabal_project
+|      post clone = write_cabal_project, jj_init
 |
 | In normal operations, the vctl command uses the repository information in
 | the current working directory and needs no additional configuration.  At
@@ -81,14 +81,23 @@ vctl_help(Info) :-
 | setting bypasses verification of the SSL certificate; this is not generally
 | adviseable but may be useful in situations where a private certificate is used.
 |
-| The optional "post clone" specifies an operation to do after completing
-| an "eng vctl subproj clone x" or an "eng vctl subproj remove x" operation.
-| The known operations are:
+| The optional "post clone" specifies zero or more comma-separated operations
+| to perform after completing either an "eng vctl subproj clone x" or an
+| "eng vctl subproj remove x" operation.  Note that a post-clone operation
+| can be specified in project-specific eng specification files or in the
+| personal user eng config in the ~/.config/eng directory.
+|
+| The known post clone operations are:
 |
 |    * write_cabal_project -- rewrites the cabal.project file in the {TopDir}
 |                             to specify either the local directory or the
 |                             remote source_repository as the source for that
 |                             component.
+|
+|    * jj_init -- Performs a "jj git init" after a "clone" sub-operation for
+|                 a git cloned repository; ignored for other repository types.
+|                 Does nothing for a "remove" sub-operation.
+|
 |
 | Subprojects:
 | ------------
@@ -281,12 +290,39 @@ vctl_subproj_show_local(Context, (Name, IntoDir), sts(subproj_local, 0)) :-
     format('LCL:~w:RMT:~w~n', [IntoDir, Rmt]).
 vctl_subproj_show_local(_, _, sts(subproj_local, 0)).
 
+% ----------------------------------------------------------------------
+
+jj_init(Context, git(W, _), clone, TopDir, NewSubDir) :-
+    jj_init(Context, git(W), clone, TopDir, NewSubDir).
+jj_init(Context, git(_), clone, _, TgtDir) :-
+    context_subdir(Context, TgtDir, InDir),
+    exists_directory(InDir),
+    do_exec(Context, 'vcs jj git init', [],
+            ["jj git init"], [], InDir, Sts),
+    is_success(Sts), !,
+    jj_track_remotes(Context, InDir),
+    do_exec(Context, 'vcs jj misc accumulator', [],
+            ["jj describe -m 'NOPUSH: accumulation of miscellany'"],
+            [], InDir, _Sts).
+jj_init(_, _, _, _, _).  % No jj init if not a git repo or jj init fails.
+
+jj_track_remotes(Context, InDir) :-
+    do_exec(Context, 'vcs jj get remotes', [],
+            capture(["jj", "bookmark", "list", "--remote", "origin",
+                     "-T", "name++\"@\"++remote" ]),
+            [], InDir, Remotes),
+    findall(R, (member(R, Remotes),
+                do_exec(Context, 'vcs jj track git remote',
+                        [ 'Rmt' = R ],
+                        ["jj bookmark track {Rmt}"], [], InDir, _S)), _RS).
 
 % ----------------------------------------------------------------------
 %% Determine the VCS tool used for this project working directory.
 
 % Find the VCS(s) applicable to the TopDir in the context.  Returns one of:
 %
+%   jj(DIR)                     % DIR contains the .jj directory
+%   jj(DIR, forge(URL, Auth))   % Like above, but with git remote origin info
 %   git(DIR)                    % DIR contains the .git directory
 %   git(DIR, forge(URL, Auth))  % Like above, but with git remote origin info
 %                               % where Auth is http_get options
@@ -299,8 +335,31 @@ vcs_tool(Context, T) :-
     context_topdir(Context, TopDir),
     vcs_tool_in(Context, TopDir, T).
 
+vcs_tool_in(Context, InDir, Tool) :- vcs_tool_jj(Context, InDir, Tool).
 vcs_tool_in(Context, InDir, Tool) :- vcs_tool_git(Context, InDir, Tool).
 vcs_tool_in(Context, InDir, Tool) :- vcs_tool_darcs(Context, InDir, Tool).
+
+vcs_tool_jj(Context, InDir, jj(InDir, forge(URL, Auth))) :-
+    directory_file_path(InDir, ".jj", VCSDir),
+    exists_directory(VCSDir),
+    vcs_tool_jj_with_remote(Context, InDir, URL, Auth).
+
+vcs_tool_jj(_Context, InDir, jj(InDir)) :-
+    directory_file_path(InDir, ".jj", VCSDir),
+    exists_directory(VCSDir).
+
+vcs_tool_jj_with_remote(Context, TgtDir, URL, Auth) :-
+    context_subdir(Context, TgtDir, InDir),
+    do_exec(Context, 'vcs jj remote',
+            [ 'VCSDir' = InDir ],
+            capture(["jj", "git", "remote", "list"]),
+            [], InDir, Remotes),
+    !,
+    member(R, Remotes),
+    string_concat("origin ", GitForgeURL, R),
+    atom_string(URLAtom, GitForgeURL),
+    git_remote_url(URLAtom, URL),
+    git_repo_AUTH(URL, Auth).
 
 vcs_tool_git(Context, InDir, git(InDir, forge(URL, Auth))) :-
     directory_file_path(InDir, ".git", VCSDir),
@@ -356,12 +415,23 @@ replace_url_host([X|XS], H, [X|URL]) :- replace_url_host(XS, H, URL).
 % ----------------------------------------------------------------------
 %% VCTL status command
 
+vctl_status(Context, jj(VCSDir), [Scope|_Args], Sts) :-
+    !,
+    context_topdir(Context, TopDir),
+    vctl_subproj_preface(TopDir, Preface),
+    writeln(Preface),
+    vctl_jj_status(Context, VCSDir, Scope, Sts).
 vctl_status(Context, git(VCSDir), [Scope|_Args], Sts) :-
     !,
     context_topdir(Context, TopDir),
     vctl_subproj_preface(TopDir, Preface),
     writeln(Preface),
     vctl_git_status(Context, VCSDir, Scope, Sts).
+vctl_status(Context, jj(VCSDir, forge(URL, Auth)), Args, [Sts, BldSts]) :-
+    !,
+    vctl_status(Context, jj(VCSDir), Args, Sts),
+    % The forges do not know jj.
+    vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), Args, BldSts).
 vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, [Sts, BldSts]) :-
     !,
     vctl_status(Context, git(VCSDir), Args, Sts),
@@ -380,6 +450,39 @@ vctl_status(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
 vctl_status(_, Tool, _, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
+% -------------------- jj
+
+vctl_jj_status(Context, TgtDir, local, Sts) :-
+    % This one is for the human
+    context_subdir(Context, TgtDir, VCSDir),
+    do_exec(Context, 'vcs jj status', [], [ 'jj status'], [], VCSDir, ExecSts),
+    vctl_jj_status_finalmsg(Context, VCSDir, local, ExecSts, Sts).
+vctl_jj_status(Context, VCSDir, full, Sts) :-
+    do_exec(Context, 'vcs jj status', [],
+            [ 'jj status',
+              % jj git fetch will just pull... there is no dry-run option.
+              % However, since jj doesn't corrupt current work (like git does) or
+              % try to merge changes into a single thread like darcs, this is not
+              % harmful, so go ahead.
+              'jj git fetch'
+            ],
+            [], VCSDir, ExecSts),
+    vctl_jj_status_finalmsg(Context, VCSDir, full, ExecSts, Sts).
+vctl_jj_status(_, _, Scope, sts(status, 1)) :-
+    \+ member(Scope, [ local, full ]),
+    print_message(error, invalid_scope(Scope)).
+
+vctl_jj_status_finalmsg(Context, VCSDir, _Any, ExecSts, Sts) :-
+    do_exec(Context, 'vcs jj local changes?', [],
+            capture([ jj, "log", "-r", "remote_bookmarks().. ~ empty()",
+                      "--count" ]),
+            [], VCSDir, Out),
+    Out == ['0']
+    -> Sts = ExecSts % there were no changes
+    ; context_reltip(Context, RelTip),
+      Sts = [sts(RelTip, end_msg('local changes')), ExecSts].
+
+% -------------------- git
 
 vctl_git_status(Context, VCSDir, local, Sts) :-
     context_topdir(Context, TopDir),
@@ -411,13 +514,14 @@ vctl_git_status_finalmsg(Context, VCSDir, local, ExecSts, Sts) :-
     -> (do_exec(Context, 'vcs git endsts', [ 'VCSDir' = VCSDir ],
                 capture(["git", "-C", "{VCSDir}", "diff", "--quiet", "--cached"]),
                 [], TopDir, _)
-       -> Sts = 0   % there were no changes
+       -> Sts = ExecSts   % there were no changes
        ; context_reltip(Context, RelTip),
          Sts = [sts(RelTip, end_msg('local changes')), ExecSts]
        )
     ; context_reltip(Context, RelTip),
       Sts = [sts(RelTip, end_msg('local changes')), ExecSts].
 
+% -------------------- darcs
 
 vctl_darcs_status(Context, VCSDir, local, Sts) :-
     context_topdir(Context, TopDir),
@@ -474,6 +578,10 @@ vctl_darcs_status(_, _, [Scope|_Args], sts(status, 1)) :-
 %% ------------------------------
 
 vctl_build_status(_, _, [local|_Args], 0) :- !.
+vctl_build_status(Context, jj(VCSDir, Forge), Args, Sts) :-
+    !,
+    % the forges are git, jj is only local
+    vctl_build_status(Context, git(VCSDir, Forge), Args, Sts).
 vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, Sts) :-
     !,
     git_remote_head(Context, VCSDir, Fetch_SHA), % TODO if local git repo, doesn't get *current* remote head, just remote head from this revision!
@@ -669,6 +777,19 @@ darcs_pull_args(_, []).
 
 % ----------------------------------------------------------------------
 
+% -------------------- jj
+
+vctl_push(Context, jj(VCSDir), _Args, Sts) :-
+    context_subdir(Context, VCSDir, InDir),
+    !,
+    do_exec(Context, 'vcs jj push', [], [ 'jj git push'], [], InDir, Sts).
+vctl_push(Context, jj(VCSDir, forge(_,_)), Args, Sts) :-
+    !,
+    vctl_push(Context, jj(VCSDir), Args, Sts).
+
+
+% -------------------- git
+
 vctl_push(Context, git(VCSDir), _Args, Sts) :-
     !,
     context_topdir(Context, TopDir),
@@ -679,6 +800,8 @@ vctl_push(Context, git(VCSDir), _Args, Sts) :-
 vctl_push(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
     !,
     vctl_push(Context, git(VCSDir), Args, Sts).
+
+%% -------------------- darcs
 
 vctl_push(Context, darcs(VCSDir), _Args, Sts) :-
     !,
@@ -696,6 +819,8 @@ vctl_push(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     ; Sts = DSts
     ).
 
+%% --------------------
+
 vctl_push(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
 
@@ -710,6 +835,19 @@ dgsync(Context, indir(VCSDir), Sts) :-
 
 % ----------------------------------------------------------------------
 
+% -------------------- jj
+
+vctl_pull(Context, jj(VCSDir), _Args, Sts) :-
+    context_subdir(Context, VCSDir, InDir),
+    !,
+    do_exec(Context, 'vcs jj pull', [], [ 'jj git fetch'], [], InDir, Sts).
+vctl_pull(Context, jj(VCSDir, forge(_,_)), Args, Sts) :-
+    !,
+    vctl_pull(Context, jj(VCSDir), Args, Sts).
+
+
+% -------------------- git
+
 vctl_pull(Context, git(VCSDir), _Args, Sts) :-
     !,
     context_topdir(Context, TopDir),
@@ -720,6 +858,8 @@ vctl_pull(Context, git(VCSDir), _Args, Sts) :-
 vctl_pull(Context, git(VCSDir, forge(_,_)), Args, Sts) :-
     !,
     vctl_pull(Context, git(VCSDir), Args, Sts).
+
+% -------------------- darcs
 
 vctl_pull(Context, darcs(VCSDir), _Args, Sts) :-
     !,
@@ -736,6 +876,8 @@ vctl_pull(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     dgsync(Context, GitTool, GSts),
     vctl_pull(Context, darcs(DarcsDir), Args, DSts),
     Sts = [DSts, GSts].
+
+% --------------------
 
 vctl_pull(_Context, Tool, _Args, 1) :-
     print_message(error, unknown_vcs_tool(Tool)).
@@ -762,6 +904,23 @@ vctl_subcmd_each(Context, Op, Args, [(S,D)|SDS], [sts(S,Sts)|SubSts]) :-
     ),
     vctl_subcmd_each(Context, Op, Args, SDS, SubSts).
 
+% -------------------- jj
+
+vctl_changes(Context, jj(VCSDir)) :-
+    context_subdir(Context, VCSDir, InDir),
+    do_exec(Context, 'vcs jj local changes?', [],
+            capture([ "jj", "status" ]), [], InDir, Out),
+    \+ member("The working copy has no changes.", Out).
+vctl_changes(Context, jj(VCSDir, _)) :-
+    context_subdir(Context, VCSDir, InDir),
+    do_exec(Context, 'vcs jj unpushed?', [],
+            capture([ jj, "log", "-r", "remote_bookmarks().. ~ empty()",
+                      "--count" ]),
+            [], InDir, Out),
+    Out \= ['0'].
+
+% -------------------- git
+
 vctl_changes(Context, git(VCSDir)) :-
     do_exec(Context, 'vcs git local changes?', [],
             capture([ "git","-C", VCSDir, "status", "-s" ]),
@@ -774,6 +933,9 @@ vctl_changes(Context, git(VCSDir, _)) :-
     (Out \= []
     ; vctl_changes(Context, git(VCSDir))
     ).
+
+% -------------------- darcs
+
 vctl_changes(Context, darcs(VCSDir)) :-
     catch(do_exec(Context, 'vcs darcs changes?', [],
                   capture(["darcs", "status", "-s", "-q"]),
@@ -785,6 +947,8 @@ vctl_changes(Context, darcs(VCSDir)) :-
             capture([ "darcs", "push", "--dry-run", "-q" ]),
             [], VCSDir, Out),
     Out \= [].
+% --------------------
+
 vctl_changes(Context, darcs(VCSDir, _)) :-
     vctl_changes(Context, darcs(VCSDir)).
 
@@ -834,9 +998,11 @@ vctl_subproj_remote_repo(_VCTool, Name, miscremote(Rmt)) :-
     !.
 vctl_subproj_remote_repo(_VCTool, _Name, rmtNotSpecified).
 
+git_rmt_with_auth(jj(_, forge(_, Auth)), URL, gitremote(URL, Auth)).
 git_rmt_with_auth(git(_, forge(_, Auth)), URL, gitremote(URL, Auth)).
 git_rmt_with_auth(_, URL, gitremote(URL, noAuth)).
 
+vctl_repo_remote_addr(jj(_, forge(URL, Auth)), gitremote(URL, Auth)) :- !.
 vctl_repo_remote_addr(git(_, forge(URL, Auth)), gitremote(URL, Auth)) :- !.
 vctl_repo_remote_addr(darcs(VCSDir, _), darcsremote(Remote)) :-
     darcs_remote_repo(VCSDir, Remote), !.
@@ -943,11 +1109,10 @@ vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, Clo
 
 vctl_post_clone(Context, VCTool, VCOp, TgtDir) :-
     context_topdir(Context, TopDir),
-    eng:eng(vctl, 'post clone', OpStr), !,
-    split_string(OpStr, ",", "\t \n", Ops),
-    !,
-    vctl_post_clone_ops(Context, VCTool, VCOp, TopDir, TgtDir, Ops).
-vctl_post_clone(_, _, _, _).
+    findall(PostClone, (eng:eng(vctl, 'post clone', PostClone),
+                        split_string(PostClone, ",", "\t \n", Ops),
+                        vctl_post_clone_ops(Context, VCTool, VCOp,
+                                            TopDir, TgtDir, Ops)), _).
 
 vctl_post_clone_ops(_, _, _, _, _, []).
 vctl_post_clone_ops(Context, VCTool, VCOp, TopDir, TgtDir, [OpStr|Ops]) :-
