@@ -529,6 +529,7 @@ show_build_status_(URL, BldName, BldStatus, FailOK) :-
 show_bld_status(RH, RP, Name, "success", _) :- show_bld_status_(RH, RP, Name, [bold], "success"), !.
 show_bld_status(RH, RP, Name, "running", _) :- show_bld_status_(RH, RP, Name, [bold, fg('#fcec03')], "running"), !.
 show_bld_status(RH, RP, Name, "pending", _) :- show_bld_status_(RH, RP, Name, [bold, fg('#fc8403')], "pending"), !.
+show_bld_status(RH, RP, Name, "created", _) :- show_bld_status_(RH, RP, Name, [bold, fg('#fc8403')], "created"), !.
 show_bld_status(RH, RP, Name, "skipped", _) :- show_bld_status_(RH, RP, Name, [fg('#0084a3')], "skipped"), !.
 show_bld_status(RH, RP, Name, "failed", true) :- show_bld_status_(RH, RP, Name, [fg('#0084a3')], "(failed)"), !.
 show_bld_status(RH, RP, Name, "no CI", _) :- show_bld_status_(RH, RP, Name, [fg('#a0a0a0')], "no CI"), !.
