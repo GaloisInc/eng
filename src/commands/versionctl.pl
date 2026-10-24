@@ -689,7 +689,7 @@ vctl_push(Context, darcs(DarcsDir, GitTool), Args, Sts) :-
     !,
     vctl_push(Context, darcs(DarcsDir), Args, DSts),
     (DSts == 0
-    -> dgsync(Context, GitTool, Sts)
+    -> dgsync(Context, GitTool, Sts), !
     ; Sts = DSts
     ).
 
@@ -754,7 +754,7 @@ vctl_subcmd_each(Context, Op, Args, [(S,D)|SDS], [sts(S,Sts)|SubSts]) :-
     vctl_subproj_context(Context, D, SubContext),
     (vctl_subproj_context_has_engfiles(SubContext)
     -> Sts = 0  % will be handled by a separate ingest_engfiles processing run
-    ; vcs_tool(SubContext, VCTool),
+    ; vcs_tool(SubContext, VCTool), !,
       call(Op, SubContext, VCTool, Args, Sts)
     ),
     vctl_subcmd_each(Context, Op, Args, SDS, SubSts).
