@@ -111,7 +111,7 @@ vctl_help(Info) :-
 | Managing cabal.project files:
 | -----------------------------
 |
-| When the "vctl.post_clone" configuratin is set to "write_cabal_project",
+| When "write_cabal_project" is specified in the "vctl.post_clone" configuration
 | the cabal.project file in the {TopDir} is updated.  The optional
 | "cabal_project" section can specify additional configuration information
 | to use when managing the cabal.project file:
@@ -293,6 +293,8 @@ vctl_subproj_show_local(_, _, sts(subproj_local, 0)).
 %   darcs(DIR)                  % DIR contains the _darcs directory
 %   darcs(DIR, git(..))         % Like above, but with the git backing dir (for dgsync)
 %
+% ref: VCSTool values
+
 vcs_tool(Context, T) :-
     context_topdir(Context, TopDir),
     vcs_tool_in(Context, TopDir, T).
@@ -930,21 +932,34 @@ vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, 0))
     print_message(warning, clone_target_exists(TgtDir, DepName)),
     % Still perform post-clone operation to keep things synchronized: the subproj
     % might have been checked out manually.
-    vctl_post_clone(Context, VCTool, TgtDir).
+    vctl_post_clone(Context, VCTool, clone, TgtDir).
 vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, CloneSts)) :-
     vctl_subproj_remote_repo(VCTool, DepName, RmtRepo),
     (vctl_subproj_remote_rev(DepName, Rev), ! ; Rev = head),
     vctl_clone(Context, RmtRepo, Rev, TgtDir, CloneSts),
     (CloneSts == 0
-    -> vctl_post_clone(Context, VCTool, TgtDir), !
+    -> vctl_post_clone(Context, VCTool, clone, TgtDir), !
     ; true).
 
-vctl_post_clone(Context, VCTool, _TgtDir) :-
+vctl_post_clone(Context, VCTool, VCOp, TgtDir) :-
     context_topdir(Context, TopDir),
     eng:eng(vctl, 'post clone', OpStr), !,
+    split_string(OpStr, ",", "\t \n", Ops),
+    !,
+    vctl_post_clone_ops(Context, VCTool, VCOp, TopDir, TgtDir, Ops).
+vctl_post_clone(_, _, _, _).
+
+vctl_post_clone_ops(_, _, _, _, _, []).
+vctl_post_clone_ops(Context, VCTool, VCOp, TopDir, TgtDir, [OpStr|Ops]) :-
     atom_string(Op, OpStr),
-    call(Op, VCTool, TopDir).
-vctl_post_clone(_, _, _).
+    % Post clone arguments:
+    %  * Context: standard context argument
+    %  * VCTool: see "ref: VCSTool values"
+    %  * VCOp is an atom: clone, remove
+    %  * TopDir is the top-level for the entire eng tree
+    %  * TgtDir is the newly cloned (or removed) directory
+    call(Op, Context, VCTool, VCOp, TopDir, TgtDir),
+    vctl_post_clone_ops(Context, VCTool, VCOp, TopDir, TgtDir, Ops).
 
 vctl_clone(Context, darcsremote(Repo), head, TgtDir, 0) :-
     context_topdir(Context, TopDir),
@@ -1069,7 +1084,7 @@ remove_subproj_if_clean(Context, VCTool, DepName, TgtDir, sts(subproj_rmv, 0)) :
     format('~w~w~n', [ Pfc, TgtDir ]),
     delete_directory_and_contents(TgtDir),
     format('Local copy (~w) removed.~n', [TgtDir]),
-    vctl_post_clone(Context, VCTool, TgtDir).
+    vctl_post_clone(Context, VCTool, remove, TgtDir).
 
 
 % ----------------------------------------------------------------------

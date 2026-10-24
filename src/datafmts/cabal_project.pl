@@ -1,4 +1,4 @@
-:- module(cabal_project, [ write_cabal_project/2 ]).
+:- module(cabal_project, [ write_cabal_project/5 ]).
 
 :- use_module(library(filesex)).
 :- use_module(library(apply)).
@@ -6,7 +6,7 @@
 :- use_module("../englib").
 :- use_module("../commands/versionctl").
 
-write_cabal_project(VCTool, InDir) :-
+write_cabal_project(_Context, VCTool, _, InDir, _) :-
     absolute_file_name(InDir, TgtDir),
     working_directory(OldDir, TgtDir),
     relative_file_name(OldDir, TgtDir, RelPath),
