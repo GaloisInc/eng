@@ -1108,24 +1108,24 @@ vctl_subproj_clone_into(Context, VCTool, DepName, TgtDir, sts(subproj_clone, Clo
     -> vctl_post_clone(Context, VCTool, clone, TgtDir), !
     ; true).
 
-vctl_post_clone(Context, VCTool, VCOp, TgtDir) :-
+vctl_post_clone(Context, ParentVCTool, VCOp, TgtDir) :-
     context_topdir(Context, TopDir),
     findall(PostClone, (eng:eng(vctl, 'post clone', PostClone),
                         split_string(PostClone, ",", "\t \n", Ops),
-                        vctl_post_clone_ops(Context, VCTool, VCOp,
+                        vctl_post_clone_ops(Context, ParentVCTool, VCOp,
                                             TopDir, TgtDir, Ops)), _).
 
 vctl_post_clone_ops(_, _, _, _, _, []).
-vctl_post_clone_ops(Context, VCTool, VCOp, TopDir, TgtDir, [OpStr|Ops]) :-
+vctl_post_clone_ops(Context, ParentVCTool, VCOp, TopDir, TgtDir, [OpStr|Ops]) :-
     atom_string(Op, OpStr),
     % Post clone arguments:
     %  * Context: standard context argument
-    %  * VCTool: see "ref: VCSTool values"
+    %  * ParentVCTool: see "ref: VCSTool values"
     %  * VCOp is an atom: clone, remove
     %  * TopDir is the top-level for the entire eng tree
     %  * TgtDir is the newly cloned (or removed) directory
-    call(Op, Context, VCTool, VCOp, TopDir, TgtDir),
-    vctl_post_clone_ops(Context, VCTool, VCOp, TopDir, TgtDir, Ops).
+    call(Op, Context, ParentVCTool, VCOp, TopDir, TgtDir),
+    vctl_post_clone_ops(Context, ParentVCTool, VCOp, TopDir, TgtDir, Ops).
 
 vctl_clone(Context, darcsremote(Repo), head, TgtDir, 0) :-
     context_topdir(Context, TopDir),
