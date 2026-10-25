@@ -583,10 +583,20 @@ vctl_darcs_status(_, _, [Scope|_Args], sts(status, 1)) :-
 %% ------------------------------
 
 vctl_build_status(_, _, [local|_Args], 0) :- !.
-vctl_build_status(Context, jj(VCSDir, Forge), Args, Sts) :-
-    !,
+vctl_build_status(Context, jj(_VCSDir, forge(URL, Auth)), _Args, Sts) :-
+    context_topdir(Context, TopDir),
+    do_exec(Context, 'jj remote head', [],
+            capture(["jj", "log",
+                     "-r", "roots(::@ ~ (::tracked_remote_bookmarks()-))",
+                     "-T", "commit_id", "-G"
+                    ]),
+            [], TopDir, [RmtRef]),
     % the forges are git, jj is only local
-    vctl_build_status(Context, git(VCSDir, Forge), Args, Sts).
+    git_build_status_url(URL, RmtRef, StatusURL),
+    !,
+    http_get(StatusURL, RData, [json_object(dict)|Auth]),
+    !, % no retry of http request on failure in the following
+    report_build_status(Context, URL, RData, Sts).
 vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, Sts) :-
     !,
     git_remote_head(Context, VCSDir, Fetch_SHA), % TODO if local git repo, doesn't get *current* remote head, just remote head from this revision!
@@ -723,6 +733,9 @@ prolog:message(unreliable_git_remote_head(VCSDir)) -->
 %%     member(L, StdOut),
 %%     split_string(L, " ", "", ["On", "branch", CurBranch]).
 
+git_build_status_url(_, '0000000000000000000000000000000000000000', _) :-
+    % Special ref indicating no remote sync (typicall returned from jj)
+    !, fail.
 git_build_status_url(URL, Fetch_SHA, StatusURL) :-
     member(host(H), URL),
     sub_string(H, _, _, _, "gitlab"),  %% <--- selector
