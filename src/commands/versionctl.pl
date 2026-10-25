@@ -292,11 +292,16 @@ vctl_subproj_show_local(_, _, sts(subproj_local, 0)).
 
 % ----------------------------------------------------------------------
 
-jj_init(Context, git(W, _), clone, TopDir, NewSubDir) :-
-    jj_init(Context, git(W), clone, TopDir, NewSubDir).
-jj_init(Context, git(_), clone, _, TgtDir) :-
+jj_init(Context, _, clone, _, TgtDir) :-
     context_subdir(Context, TgtDir, InDir),
     exists_directory(InDir),
+    directory_file_path(InDir, '.jj', JJDir),
+    exists_directory(JJDir), !.  % Already jj, do nothing
+jj_init(Context, _, clone, _, TgtDir) :-
+    context_subdir(Context, TgtDir, InDir),
+    exists_directory(InDir),
+    directory_file_path(InDir, '.git', GITDir),
+    exists_directory(GITDir),
     do_exec(Context, 'vcs jj git init', [],
             ["jj git init"], [], InDir, Sts),
     is_success(Sts), !,
