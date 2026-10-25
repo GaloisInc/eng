@@ -309,7 +309,7 @@ jj_init(_, _, _, _, _).  % No jj init if not a git repo or jj init fails.
 jj_track_remotes(Context, InDir) :-
     do_exec(Context, 'vcs jj get remotes', [],
             capture(["jj", "bookmark", "list", "--remote", "origin",
-                     "-T", "name++\"@\"++remote" ]),
+                     "-T", "name++\"@\"++remote++\"\\n\"" ]),
             [], InDir, Remotes),
     findall(R, (member(R, Remotes),
                 do_exec(Context, 'vcs jj track git remote',
@@ -464,7 +464,7 @@ vctl_jj_status(Context, VCSDir, full, Sts) :-
               % However, since jj doesn't corrupt current work (like git does) or
               % try to merge changes into a single thread like darcs, this is not
               % harmful, so go ahead.
-              'jj git fetch'
+              'jj git fetch --tracked'
             ],
             [], VCSDir, ExecSts),
     vctl_jj_status_finalmsg(Context, VCSDir, full, ExecSts, Sts).
@@ -840,7 +840,7 @@ dgsync(Context, indir(VCSDir), Sts) :-
 vctl_pull(Context, jj(VCSDir), _Args, Sts) :-
     context_subdir(Context, VCSDir, InDir),
     !,
-    do_exec(Context, 'vcs jj pull', [], [ 'jj git fetch'], [], InDir, Sts).
+    do_exec(Context, 'vcs jj pull', [], [ 'jj git fetch --tracked'], [], InDir, Sts).
 vctl_pull(Context, jj(VCSDir, forge(_,_)), Args, Sts) :-
     !,
     vctl_pull(Context, jj(VCSDir), Args, Sts).
