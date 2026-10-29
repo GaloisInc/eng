@@ -26,6 +26,8 @@
 :- use_module(library(readutil)).
 :- use_module(englib).
 
+ingest_verbosity(silent).  % informational instead of silent to see these
+
 % Note: Each time a new primary command (engineering focus) is added, add it to
 % load_eng and known_commands.
 
@@ -270,7 +272,8 @@ normalize_subtrees([E|ES], [E|OS]) :- normalize_subtrees(ES, OS).
 
 
 ingest_engfiles(Context, Parsed) :-
-    ingest_engfiles(Context, Parsed, informational).
+    ingest_verbosity(V),
+    ingest_engfiles(Context, Parsed, V).
 ingest_engfiles(context(EngDir, TopDir, RelTip), Parsed, Verbosity) :-  % <- where context gets set!
     engfile_dir(EngfileDirPattern),
     find_engfile_dir(EngfileDirPattern, TipTopDir, EngDir),
@@ -290,7 +293,8 @@ ingest_user_engfiles(Refs) :-
                          expand(true) ]),
     exists_directory(UserConfigDir), !,
     safe_directory_files(UserConfigDir, Files),
-    ingest_files(informational, UserConfigDir, Files, Parsed),
+    ingest_verbosity(V),
+    ingest_files(V, UserConfigDir, Files, Parsed),
     assert_eqil(Parsed, Refs).
 ingest_user_engfiles([]).
 

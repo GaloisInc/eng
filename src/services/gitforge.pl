@@ -7,6 +7,7 @@
 :- use_module(library(url)).
 :- use_module('../englib').
 
+forge_verbosity(informational).
 
 % Remote is an atom formatted something like: git@github.com:galoisinc/eng
 % Output URL is https://github.com/galoisinc/eng
@@ -28,7 +29,8 @@ git_repo_PAT_hdr(URL, [authorization(bearer(PAT))]) :-
     member(host(H), URL),
     atom_string(HA, H),
     eng:eng(vctl, 'access token', HA, PAT), !,
-    print_message(information, using_pat(H)).
+    forge_verbosity(V),
+    print_message(V, using_pat(H)).
 git_repo_PAT_hdr(_, []).
 
 git_repo_cert(URL, [cert_verify_hook(ssl:cert_accept_any)]) :-
