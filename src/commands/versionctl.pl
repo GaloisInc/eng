@@ -435,8 +435,7 @@ vctl_status(Context, git(VCSDir), [Scope|_Args], Sts) :-
 vctl_status(Context, jj(VCSDir, forge(URL, Auth)), Args, [Sts, BldSts]) :-
     !,
     vctl_status(Context, jj(VCSDir), Args, Sts),
-    % The forges do not know jj.
-    vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), Args, BldSts).
+    vctl_build_status(Context, jj(VCSDir, forge(URL, Auth)), Args, BldSts).
 vctl_status(Context, git(VCSDir, forge(URL, Auth)), Args, [Sts, BldSts]) :-
     !,
     vctl_status(Context, git(VCSDir), Args, Sts),
@@ -594,7 +593,10 @@ vctl_build_status(Context, jj(_VCSDir, forge(URL, Auth)), _Args, Sts) :-
     % the forges are git, jj is only local
     git_build_status_url(URL, RmtRef, StatusURL),
     !,
-    http_get(StatusURL, RData, [json_object(dict)|Auth]),
+    catch(http_get(StatusURL, RData, [json_object(dict)|Auth]),
+          error(existence_error(url, _URL), context(_Message, status(404, _TextSts))),
+          jj_build_status_404(URL, RmtRef, RData)
+         ),
     !, % no retry of http request on failure in the following
     report_build_status(Context, URL, RData, Sts).
 vctl_build_status(Context, git(VCSDir, forge(URL, Auth)), _Args, Sts) :-
@@ -608,6 +610,9 @@ vctl_build_status(Context, darcs(_, Parent), Args, Sts) :-
     !, vctl_build_status(Context, Parent, Args, Sts).
 vctl_build_status(_Context, _VCSTool, _Args, 0) :-
     writeln('No build status available').
+
+jj_build_status_404(URL, RmtRef, _{}) :-
+    print_message(error, jj_build_status_404(URL, RmtRef)).
 
 report_build_status(_, _, [], []) :- !.
 report_build_status(Context, URL, [Data|DS], S) :- % gitlab returns an array of dicts
@@ -1337,3 +1342,9 @@ prolog:message(subproj_not_clean(DepName, TgtDir)) -->
     [ 'Local changes to subproject ~w in ~w; not removing!' - [ DepName, TgtDir ]].
 prolog:message(invalid_scope(Scope)) -->
     [ 'Implementation error: unrecognized scope: ~w' - [ Scope ]].
+prolog:message(jj_build_status_404(URL, RmtRef)) -->
+    { member(host(RH), URL),
+      member(path(RP), URL)
+    },
+    [ 'Remote at ~w ~w returned 404 for ref ~w:~n  ?? Is jj @ on the same branch as the remote bookmark?'
+      - [ RH, RP, RmtRef ]].
